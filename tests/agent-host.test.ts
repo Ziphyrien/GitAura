@@ -7,6 +7,7 @@ import type { SessionData } from "@/types/storage"
 const recordUsage = vi.fn()
 const resolveApiKeyForProvider = vi.fn()
 const persistSession = vi.fn()
+const persistSessionSnapshot = vi.fn()
 const shouldSaveSession = vi.fn()
 const streamChatWithPiAgent = vi.fn()
 
@@ -26,6 +27,7 @@ vi.mock("@/sessions/session-service", async () => {
   return {
     ...actual,
     persistSession,
+    persistSessionSnapshot,
     shouldSaveSession,
   }
 })
@@ -67,6 +69,7 @@ describe("AgentHost", () => {
     recordUsage.mockReset()
     resolveApiKeyForProvider.mockReset()
     persistSession.mockReset()
+    persistSessionSnapshot.mockReset()
     shouldSaveSession.mockReset()
     streamChatWithPiAgent.mockReset()
     resolveApiKeyForProvider.mockResolvedValue("oauth-token")
@@ -161,6 +164,7 @@ describe("AgentHost", () => {
         title: "hello",
       })
     )
+    expect(persistSessionSnapshot).toHaveBeenCalled()
     expect(recordUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         cost: expect.objectContaining({
@@ -216,7 +220,7 @@ describe("AgentHost", () => {
       model: "claude-sonnet-4-6",
       provider: "anthropic",
     })
-    expect(persistSession).toHaveBeenCalledWith(
+    expect(persistSessionSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "claude-sonnet-4-6",
         provider: "anthropic",

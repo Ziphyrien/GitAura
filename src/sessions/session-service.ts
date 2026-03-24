@@ -44,6 +44,12 @@ export async function persistSession(session: SessionData): Promise<void> {
     return
   }
 
+  await persistSessionSnapshot(session)
+}
+
+export async function persistSessionSnapshot(
+  session: SessionData
+): Promise<void> {
   const persistedSession = buildPersistedSession(session)
   await saveSession(persistedSession, buildSessionMetadata(persistedSession))
 }

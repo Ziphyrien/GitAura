@@ -56,17 +56,11 @@ export function isFreeModel(model: ModelDefinition): boolean {
     return true
   }
 
-  const zeroCost =
-    model.cost.input === 0 &&
-    model.cost.output === 0 &&
-    model.cost.cacheRead === 0 &&
-    model.cost.cacheWrite === 0
-
   const freeName =
     model.id.toLowerCase().includes("free") ||
     model.name.toLowerCase().includes("free")
 
-  return zeroCost || freeName
+  return freeName
 }
 
 export function getModelsForGroup(providerGroup: ProviderGroupId): ModelDefinition[] {

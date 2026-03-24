@@ -1,7 +1,11 @@
 import type { TSchema } from "@sinclair/typebox"
 import type { AssistantMessage } from "@/types/chat"
 import type { Message } from "@mariozechner/pi-ai"
-import type { ProviderId, ThinkingLevel } from "@/types/models"
+import type {
+  ProviderGroupId,
+  ProviderId,
+  ThinkingLevel,
+} from "@/types/models"
 import type { SessionData } from "@/types/storage"
 
 export interface ToolDefinition {
@@ -18,6 +22,7 @@ export interface StreamChatParams {
   model: string
   onTextDelta: (delta: string) => void
   provider: ProviderId
+  providerGroup?: ProviderGroupId
   sessionId: string
   signal: AbortSignal
   thinkingLevel: ThinkingLevel

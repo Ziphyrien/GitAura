@@ -95,6 +95,7 @@ export async function sendMessage(
         params.onSessionChange(draftSession)
       },
       provider: params.provider,
+      providerGroup: params.session.providerGroup,
       sessionId: params.session.id,
       signal: params.signal,
       thinkingLevel: params.session.thinkingLevel,

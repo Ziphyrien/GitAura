@@ -38,7 +38,7 @@ function getStableMessageId(message: Message, index: number): string {
   }
 }
 
-function normalizeMessage(message: Message, index: number): ChatMessage {
+export function normalizeMessage(message: Message, index: number): ChatMessage {
   const id = getStableMessageId(message, index)
 
   switch (message.role) {
@@ -64,6 +64,16 @@ function normalizeMessages(messages: AgentMessage[]): ChatMessage[] {
   return messages
     .filter(isLlmMessage)
     .map((message, index) => normalizeMessage(message, index))
+}
+
+export function normalizeAssistantDraft(
+  message: AgentMessage | null | undefined
+): AssistantMessage | undefined {
+  if (!message || !isLlmMessage(message) || message.role !== "assistant") {
+    return undefined
+  }
+
+  return normalizeMessage(message, -1) as AssistantMessage
 }
 
 export function buildInitialAgentState(

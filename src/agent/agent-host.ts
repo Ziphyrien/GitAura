@@ -8,11 +8,13 @@ import { resolveApiKeyForProvider } from "@/auth/resolve-api-key"
 import {
   buildInitialAgentState,
   buildSessionFromAgentState,
+  normalizeAssistantDraft,
 } from "@/agent/session-adapter"
 import { streamChatWithPiAgent } from "@/agent/live-runtime"
 import { createRepoRuntime } from "@/repo/repo-runtime"
 import {
   persistSession,
+  persistSessionSnapshot,
   shouldSaveSession,
 } from "@/sessions/session-service"
 import { normalizeRepoSource } from "@/repo/settings"
@@ -24,24 +26,34 @@ export interface AgentHostSnapshot {
   error?: string
   isStreaming: boolean
   session: SessionData
+  streamMessage?: import("@/types/chat").AssistantMessage
 }
 
 export class AgentHost {
   readonly agent: Agent
 
+  private readonly listeners = new Set<(snapshot: AgentHostSnapshot) => void>()
   private readonly recordedAssistantMessageIds = new Set<string>()
+  private checkpointTimer: ReturnType<typeof setTimeout> | undefined
+  private lastCheckpointAt = 0
+  private lastStreamingState: boolean
   private persistQueue = Promise.resolve()
+  private promptPending = false
   private repoRuntime
   private session: SessionData
   private unsubscribe?: () => void
 
   constructor(
     session: SessionData,
-    private readonly onSnapshot: (snapshot: AgentHostSnapshot) => void
+    onSnapshot?: (snapshot: AgentHostSnapshot) => void
   ) {
     this.session = session
+    this.lastStreamingState = false
     this.repoRuntime = this.createRuntime(session.repoSource)
     this.seedRecordedCosts(session)
+    if (onSnapshot) {
+      this.listeners.add(onSnapshot)
+    }
 
     const model = getModel(session.provider, session.model)
 
@@ -66,6 +78,28 @@ export class AgentHost {
     })
   }
 
+  subscribe(listener: (snapshot: AgentHostSnapshot) => void): () => void {
+    this.listeners.add(listener)
+    listener(this.getSnapshot())
+
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  getSnapshot(): AgentHostSnapshot {
+    return {
+      error: this.agent.state.error,
+      isStreaming: this.agent.state.isStreaming,
+      session: this.session,
+      streamMessage: normalizeAssistantDraft(this.agent.state.streamMessage),
+    }
+  }
+
+  isBusy(): boolean {
+    return this.promptPending || this.agent.state.isStreaming
+  }
+
   async prompt(content: string): Promise<void> {
     const trimmed = content.trim()
 
@@ -80,7 +114,15 @@ export class AgentHost {
       timestamp: Date.now(),
     }
 
-    await this.agent.prompt(message)
+    this.promptPending = true
+
+    try {
+      await this.agent.prompt(message)
+    } catch {
+      this.emitSnapshot()
+    } finally {
+      this.promptPending = false
+    }
   }
 
   abort(): void {
@@ -106,7 +148,7 @@ export class AgentHost {
     )
     this.emitSnapshot()
     this.queuePersist(async () => {
-      await persistSession(this.session)
+      await persistSessionSnapshot(this.session)
     })
     await this.persistQueue
   }
@@ -120,28 +162,51 @@ export class AgentHost {
     this.agent.setTools(this.getAgentTools(this.repoRuntime))
     this.emitSnapshot()
     this.queuePersist(async () => {
-      await persistSession(this.session)
+      await persistSessionSnapshot(this.session)
     })
     await this.persistQueue
     return this.session
   }
 
   dispose(): void {
+    if (this.checkpointTimer) {
+      clearTimeout(this.checkpointTimer)
+      this.checkpointTimer = undefined
+    }
     this.unsubscribe?.()
     this.unsubscribe = undefined
+    this.listeners.clear()
   }
 
   private emitSnapshot(): void {
-    this.onSnapshot({
-      error: this.agent.state.error,
-      isStreaming: this.agent.state.isStreaming,
-      session: this.session,
-    })
+    const snapshot = this.getSnapshot()
+
+    for (const listener of this.listeners) {
+      listener(snapshot)
+    }
   }
 
   private async handleEvent(event: AgentEvent): Promise<void> {
+    const wasStreaming = this.lastStreamingState
+    const isStreaming = this.agent.state.isStreaming
+    this.lastStreamingState = isStreaming
     this.session = buildSessionFromAgentState(this.session, this.agent.state)
     this.emitSnapshot()
+
+    if (isStreaming) {
+      if (!wasStreaming) {
+        this.queuePersist(async () => {
+          await persistSessionSnapshot(this.session)
+        })
+      } else {
+        this.scheduleCheckpoint()
+      }
+    } else if (wasStreaming) {
+      this.flushScheduledCheckpoint()
+      this.queuePersist(async () => {
+        await persistSessionSnapshot(this.session)
+      })
+    }
 
     if (event.type !== "message_end") {
       return
@@ -174,6 +239,37 @@ export class AgentHost {
     })
 
     await this.persistQueue
+  }
+
+  private flushScheduledCheckpoint(): void {
+    if (this.checkpointTimer) {
+      clearTimeout(this.checkpointTimer)
+      this.checkpointTimer = undefined
+    }
+  }
+
+  private scheduleCheckpoint(): void {
+    const elapsed = Date.now() - this.lastCheckpointAt
+
+    if (elapsed >= 500) {
+      this.lastCheckpointAt = Date.now()
+      this.queuePersist(async () => {
+        await persistSessionSnapshot(this.session)
+      })
+      return
+    }
+
+    if (this.checkpointTimer) {
+      return
+    }
+
+    this.checkpointTimer = setTimeout(() => {
+      this.checkpointTimer = undefined
+      this.lastCheckpointAt = Date.now()
+      this.queuePersist(async () => {
+        await persistSessionSnapshot(this.session)
+      })
+    }, 500 - elapsed)
   }
 
   private queuePersist(task: () => Promise<void>): void {

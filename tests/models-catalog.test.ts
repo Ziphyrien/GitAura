@@ -31,10 +31,21 @@ describe("model catalog", () => {
 
   it("filters the OpenCode free group to free-tier models only", () => {
     const freeModels = getModelsForGroup("opencode-free")
+    const freeModelIds = freeModels.map((model) => model.id)
 
     expect(freeModels.length).toBeGreaterThan(0)
     expect(freeModels.every((model) => isFreeModel(model))).toBe(true)
-    expect(getDefaultModelForGroup("opencode-free").id).toBe("gpt-5-nano")
+    expect(freeModelIds).toEqual(
+      expect.arrayContaining([
+        "mimo-v2-omni-free",
+        "mimo-v2-pro-free",
+        "minimax-m2.5-free",
+        "nemotron-3-super-free",
+      ])
+    )
+    expect(freeModelIds).not.toContain("gpt-5-nano")
+    expect(freeModelIds).not.toContain("big-pickle")
+    expect(getDefaultModelForGroup("opencode-free").id).toBe("mimo-v2-omni-free")
   })
 
   it("calculates per-message cost from usage totals", () => {
