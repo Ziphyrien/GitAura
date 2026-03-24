@@ -1,8 +1,9 @@
 import * as React from "react"
 import { AgentHost, type AgentHostSnapshot } from "@/agent/agent-host"
 import { setSetting } from "@/db/schema"
+import { setLastUsedRepoSource } from "@/repo/settings"
 import type { ProviderId } from "@/types/models"
-import type { SessionData } from "@/types/storage"
+import type { RepoSource, SessionData } from "@/types/storage"
 
 export function useChatSession(initialSession: SessionData) {
   const hostRef = React.useRef<AgentHost | undefined>(undefined)
@@ -50,6 +51,7 @@ export function useChatSession(initialSession: SessionData) {
     await setSetting("active-session-id", nextSession.id)
     await setSetting("last-used-model", nextSession.model)
     await setSetting("last-used-provider", nextSession.provider)
+    await setLastUsedRepoSource(nextSession.repoSource)
   })
 
   const setModelSelection = React.useEffectEvent(
@@ -72,6 +74,21 @@ export function useChatSession(initialSession: SessionData) {
     hostRef.current?.abort()
   })
 
+  const setRepoSource = React.useEffectEvent(async (repoSource?: RepoSource) => {
+    const nextSession = await hostRef.current?.setRepoSource(repoSource)
+
+    if (!nextSession) {
+      return
+    }
+
+    setMountedSession(nextSession)
+    setSnapshot({
+      isStreaming: false,
+      session: nextSession,
+    })
+    await setLastUsedRepoSource(nextSession.repoSource)
+  })
+
   return {
     abort,
     error: snapshot.error,
@@ -80,5 +97,6 @@ export function useChatSession(initialSession: SessionData) {
     send,
     session: snapshot.session,
     setModelSelection,
+    setRepoSource,
   }
 }

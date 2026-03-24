@@ -3,6 +3,7 @@ import { DotOutlineIcon, GearIcon } from "@phosphor-icons/react"
 import { setSetting } from "@/db/schema"
 import { useAppBootstrap } from "@/hooks/use-app-bootstrap"
 import { useChatSession } from "@/hooks/use-chat-session"
+import { formatRepoSourceLabel } from "@/repo/settings"
 import { useSessionList } from "@/hooks/use-session-list"
 import { createSession, loadSession } from "@/sessions/session-service"
 import { ChatThread } from "@/components/chat-thread"
@@ -68,6 +69,7 @@ function ReadyAppShell(props: {
             const nextSession = createSession({
               model: chat.session.model,
               provider: chat.session.provider,
+              repoSource: chat.session.repoSource,
               thinkingLevel: chat.session.thinkingLevel,
             })
             await chat.replaceSession(nextSession)
@@ -101,6 +103,9 @@ function ReadyAppShell(props: {
                 provider={chat.session.provider}
               />
               <ProviderBadge provider={chat.session.provider} />
+              <div className="rounded-full border border-foreground/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                {formatRepoSourceLabel(chat.session.repoSource)}
+              </div>
               <div
                 className={
                   chat.isStreaming
@@ -137,6 +142,7 @@ function ReadyAppShell(props: {
       <SettingsDialog
         onOpenChange={props.setSettingsOpen}
         open={props.settingsOpen}
+        onRepoSourceChange={chat.setRepoSource}
         session={chat.session}
       />
     </>

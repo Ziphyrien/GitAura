@@ -1,3 +1,4 @@
+import { Type } from "@sinclair/typebox"
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { getModel } from "@/models/catalog"
 
@@ -97,6 +98,96 @@ describe("provider stream", () => {
     expect(text).toBe("Hello")
     expect(result.assistantMessage.usage.input).toBe(10)
     expect(result.assistantMessage.usage.output).toBe(5)
+  })
+
+  it("parses codex tool calls and emits tool events", async () => {
+    resolveProviderAuthForProvider.mockResolvedValue({
+      apiKey: "api-key",
+      isOAuth: true,
+      provider: "openai-codex",
+      storedValue: '{"providerId":"openai-codex"}',
+    })
+    getProxyConfig.mockResolvedValue({
+      enabled: true,
+      url: "https://proxy.example/proxy",
+    })
+    fetchMock.mockResolvedValue(
+      createSseResponse([
+        'data: {"type":"response.output_item.added","item":{"type":"function_call","call_id":"call_123","id":"fc_123","name":"read","arguments":""}}',
+        'data: {"type":"response.function_call_arguments.delta","item_id":"fc_123","delta":"{\\"path\\":\\"README.md\\"}"}',
+        'data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"call_123","id":"fc_123","name":"read","arguments":"{\\"path\\":\\"README.md\\"}"}}',
+        'data: {"type":"response.completed","usage":{"input_tokens":10,"output_tokens":5,"input_cached_tokens":2}}',
+      ])
+    )
+
+    const { streamChat, streamChatWithPiAgent } = await import(
+      "@/agent/provider-stream"
+    )
+
+    const result = await streamChat({
+      messages: [],
+      model: "gpt-5.1-codex-mini",
+      onTextDelta() {},
+      provider: "openai-codex",
+      sessionId: "session-tools",
+      signal: new AbortController().signal,
+      thinkingLevel: "medium",
+      tools: [
+        {
+          description: "Read a file",
+          name: "read",
+          parameters: Type.Object({
+            path: Type.String(),
+          }),
+        },
+      ],
+    })
+
+    expect(result.assistantMessage.stopReason).toBe("toolUse")
+    expect(result.assistantMessage.content).toContainEqual({
+      arguments: { path: "README.md" },
+      id: "call_123|fc_123",
+      name: "read",
+      type: "toolCall",
+    })
+
+    fetchMock.mockResolvedValueOnce(
+      createSseResponse([
+        'data: {"type":"response.output_item.added","item":{"type":"function_call","call_id":"call_123","id":"fc_123","name":"read","arguments":""}}',
+        'data: {"type":"response.output_item.done","item":{"type":"function_call","call_id":"call_123","id":"fc_123","name":"read","arguments":"{\\"path\\":\\"README.md\\"}"}}',
+        'data: {"type":"response.completed","usage":{"input_tokens":10,"output_tokens":5,"input_cached_tokens":2}}',
+      ])
+    )
+
+    const eventStream = await streamChatWithPiAgent(
+      getModel("openai-codex", "gpt-5.1-codex-mini"),
+      {
+        messages: [],
+        tools: [
+          {
+            description: "Read a file",
+            name: "read",
+            parameters: Type.Object({
+              path: Type.String(),
+            }),
+          },
+        ],
+      },
+      {
+        apiKey: "api-key",
+        reasoning: "medium",
+        sessionId: "session-tools",
+      }
+    )
+    const events = []
+
+    for await (const event of eventStream) {
+      events.push(event.type)
+    }
+
+    expect(events).toContain("toolcall_start")
+    expect(events).toContain("toolcall_end")
+    expect(events).toContain("done")
   })
 
   it("keeps google gemini requests direct and parses the stream", async () => {

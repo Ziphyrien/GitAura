@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentState } from "@mariozechner/pi-agent-core"
+import type { AgentMessage, AgentState, AgentTool } from "@mariozechner/pi-agent-core"
 import type { Message, Model } from "@mariozechner/pi-ai"
 import { SYSTEM_PROMPT } from "@/agent/system-prompt"
 import { getIsoNow } from "@/lib/dates"
@@ -67,14 +67,15 @@ function normalizeMessages(messages: AgentMessage[]): ChatMessage[] {
 
 export function buildInitialAgentState(
   session: SessionData,
-  model: Model<any>
+  model: Model<any>,
+  tools: AgentTool[]
 ): Partial<AgentState> {
   return {
     messages: session.messages,
     model,
     systemPrompt: SYSTEM_PROMPT,
     thinkingLevel: session.thinkingLevel,
-    tools: [],
+    tools,
   }
 }
 

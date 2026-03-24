@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { webMessageTransformer } from "@/agent/message-transformer"
+import {
+  toOpenAIResponsesInput,
+  webMessageTransformer,
+} from "@/agent/message-transformer"
 
 describe("webMessageTransformer", () => {
   it("forwards only llm-compatible message roles", () => {
@@ -50,6 +53,80 @@ describe("webMessageTransformer", () => {
       "user",
       "toolResult",
       "assistant",
+    ])
+  })
+
+  it("serializes responses input using message and function items", () => {
+    const input = toOpenAIResponsesInput([
+      {
+        content: "hello",
+        role: "user",
+        timestamp: 1,
+      },
+      {
+        api: "openai-codex-responses",
+        content: [
+          { text: "I will inspect that file.", type: "text" },
+          {
+            arguments: { path: "README.md" },
+            id: "call-1|fc-1",
+            name: "read",
+            type: "toolCall",
+          },
+        ],
+        model: "gpt-5.1-codex-mini",
+        provider: "openai-codex",
+        role: "assistant",
+        stopReason: "toolUse",
+        timestamp: 2,
+        usage: {
+          cacheRead: 0,
+          cacheWrite: 0,
+          cost: {
+            cacheRead: 0,
+            cacheWrite: 0,
+            input: 0,
+            output: 0,
+            total: 0,
+          },
+          input: 0,
+          output: 0,
+          totalTokens: 0,
+        },
+      },
+      {
+        content: [{ text: "# GitOverflow", type: "text" }],
+        isError: false,
+        role: "toolResult",
+        timestamp: 3,
+        toolCallId: "call-1|fc-1",
+        toolName: "read",
+      },
+    ])
+
+    expect(input).toEqual([
+      {
+        content: "hello",
+        role: "user",
+        type: "message",
+      },
+      {
+        content: "I will inspect that file.",
+        role: "assistant",
+        type: "message",
+      },
+      {
+        arguments: '{"path":"README.md"}',
+        call_id: "call-1",
+        id: "fc-1",
+        name: "read",
+        type: "function_call",
+      },
+      {
+        call_id: "call-1",
+        output: "# GitOverflow",
+        type: "function_call_output",
+      },
     ])
   })
 })

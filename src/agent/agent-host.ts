@@ -10,12 +10,15 @@ import {
   buildSessionFromAgentState,
 } from "@/agent/session-adapter"
 import { streamChatWithPiAgent } from "@/agent/live-runtime"
+import { createRepoRuntime } from "@/repo/repo-runtime"
 import {
   persistSession,
   shouldSaveSession,
 } from "@/sessions/session-service"
+import { normalizeRepoSource } from "@/repo/settings"
+import { createRepoTools } from "@/tools"
 import type { ProviderId } from "@/types/models"
-import type { SessionData } from "@/types/storage"
+import type { RepoSource, SessionData } from "@/types/storage"
 
 export interface AgentHostSnapshot {
   error?: string
@@ -28,6 +31,7 @@ export class AgentHost {
 
   private readonly recordedAssistantMessageIds = new Set<string>()
   private persistQueue = Promise.resolve()
+  private repoRuntime
   private session: SessionData
   private unsubscribe?: () => void
 
@@ -36,6 +40,7 @@ export class AgentHost {
     private readonly onSnapshot: (snapshot: AgentHostSnapshot) => void
   ) {
     this.session = session
+    this.repoRuntime = this.createRuntime(session.repoSource)
     this.seedRecordedCosts(session)
 
     const model = getModel(session.provider, session.model)
@@ -44,7 +49,11 @@ export class AgentHost {
       convertToLlm: webMessageTransformer,
       getApiKey: async (provider) =>
         await resolveApiKeyForProvider(provider as ProviderId),
-      initialState: buildInitialAgentState(session, model),
+      initialState: buildInitialAgentState(
+        session,
+        model,
+        this.getAgentTools(this.repoRuntime)
+      ),
       streamFn: streamChatWithPiAgent,
       toolExecution: "sequential",
     })
@@ -86,6 +95,21 @@ export class AgentHost {
       await persistSession(this.session)
     })
     await this.persistQueue
+  }
+
+  async setRepoSource(repoSource?: RepoSource): Promise<SessionData> {
+    this.repoRuntime = this.createRuntime(repoSource)
+    this.session = {
+      ...this.session,
+      repoSource: normalizeRepoSource(repoSource),
+    }
+    this.agent.setTools(this.getAgentTools(this.repoRuntime))
+    this.emitSnapshot()
+    this.queuePersist(async () => {
+      await persistSession(this.session)
+    })
+    await this.persistQueue
+    return this.session
   }
 
   dispose(): void {
@@ -150,5 +174,14 @@ export class AgentHost {
 
       this.recordedAssistantMessageIds.add(message.id)
     }
+  }
+
+  private createRuntime(repoSource?: RepoSource) {
+    const normalized = normalizeRepoSource(repoSource)
+    return normalized ? createRepoRuntime(normalized) : undefined
+  }
+
+  private getAgentTools(runtime = this.repoRuntime) {
+    return runtime ? createRepoTools(runtime).agentTools : []
   }
 }

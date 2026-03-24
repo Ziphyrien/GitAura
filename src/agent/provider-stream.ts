@@ -17,7 +17,7 @@ import { createId } from "@/lib/ids"
 import { getProxyConfig } from "@/proxy/settings"
 import { proxyAwareFetch } from "@/proxy/proxy-fetch"
 import { createEmptyUsage } from "@/types/models"
-import type { AssistantMessage, StopReason } from "@/types/chat"
+import type { AssistantMessage, StopReason, ToolCall } from "@/types/chat"
 import type { JsonValue } from "@/types/common"
 import type { ModelDefinition, Usage } from "@/types/models"
 import type {
@@ -141,7 +141,7 @@ function createAssistantDraft(
 ): AssistantMessage {
   return {
     api: model.api,
-    content: [{ text: "", type: "text" }],
+    content: [],
     id: id ?? createId(),
     model: model.id,
     provider: model.provider,
@@ -182,14 +182,108 @@ function appendDelta(
   delta: string,
   onTextDelta: (delta: string) => void
 ): void {
-  const current = assistant.content[0]
-
-  if (current.type !== "text" || !delta) {
+  if (!delta) {
     return
+  }
+
+  let current = assistant.content[assistant.content.length - 1]
+
+  if (!current || current.type !== "text") {
+    current = { text: "", type: "text" }
+    assistant.content.push(current)
   }
 
   current.text += delta
   onTextDelta(delta)
+}
+
+function parseStreamingArguments(value: string): Record<string, JsonValue> {
+  const parsed = parseJson(value)
+  return isObject(parsed) ? parsed : {}
+}
+
+function serializeToolParameters(
+  parameters: StreamChatParams["tools"][number]["parameters"]
+): JsonValue {
+  return JSON.parse(JSON.stringify(parameters)) as JsonValue
+}
+
+function ensureToolCall(
+  assistant: AssistantMessage,
+  id: string,
+  name: string
+): ToolCall & { partialJson?: string } {
+  const existing = assistant.content.find(
+    (part): part is ToolCall & { partialJson?: string } =>
+      part.type === "toolCall" && part.id === id
+  )
+
+  if (existing) {
+    if (name.length > 0) {
+      existing.name = name
+    }
+    return existing
+  }
+
+  const toolCall: ToolCall & { partialJson?: string } = {
+    arguments: {},
+    id,
+    name,
+    type: "toolCall",
+  }
+  assistant.content.push(toolCall)
+  return toolCall
+}
+
+function extractGoogleFunctionCalls(
+  value: JsonValue | undefined,
+  results: ToolCall[] = []
+): ToolCall[] {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      extractGoogleFunctionCalls(item, results)
+    }
+    return results
+  }
+
+  if (!isObject(value)) {
+    return results
+  }
+
+  const functionCall = getObject(value.functionCall)
+
+  if (functionCall) {
+    const name = getString(functionCall.name)
+
+    if (name) {
+      results.push({
+        arguments: getObject(functionCall.args) ?? {},
+        id:
+          getString(functionCall.id) ??
+          `${name}_${results.length + 1}`,
+        name,
+        type: "toolCall",
+      })
+    }
+  }
+
+  for (const child of Object.values(value)) {
+    extractGoogleFunctionCalls(child, results)
+  }
+
+  return results
+}
+
+function finalizeToolCalls(assistant: AssistantMessage): void {
+  for (const part of assistant.content) {
+    if (part.type === "toolCall" && "partialJson" in part) {
+      delete (
+        part as ToolCall & {
+          partialJson?: string
+        }
+      ).partialJson
+    }
+  }
 }
 
 function inferCopilotHeaders(messages: Message[]) {
@@ -254,6 +348,18 @@ async function sendOpenAICompletions(
         stream_options: {
           include_usage: true,
         },
+        tool_choice: params.tools.length > 0 ? "auto" : undefined,
+        tools:
+          params.tools.length > 0
+            ? params.tools.map((tool) => ({
+                function: {
+                  description: tool.description,
+                  name: tool.name,
+                  parameters: serializeToolParameters(tool.parameters),
+                },
+                type: "function",
+              }))
+            : undefined,
       }),
       headers: {
         Accept: "text/event-stream",
@@ -290,9 +396,30 @@ async function sendOpenAICompletions(
       getString(delta?.content) ?? "",
       params.onTextDelta
     )
+
+    const toolCalls = getArray(delta?.tool_calls)
+
+    if (toolCalls) {
+      for (const item of toolCalls) {
+        const toolCall = getObject(item)
+        const functionCall = getObject(toolCall?.function)
+        const id = getString(toolCall?.id) ?? ""
+        const name = getString(functionCall?.name) ?? ""
+        const argumentsDelta = getString(functionCall?.arguments) ?? ""
+        const block = ensureToolCall(assistant, id, name)
+
+        block.partialJson = `${block.partialJson ?? ""}${argumentsDelta}`
+        block.arguments = parseStreamingArguments(block.partialJson)
+      }
+    }
+
     setStopReason(
       assistant,
-      getString(firstChoice?.finish_reason) === "length" ? "length" : undefined
+      getString(firstChoice?.finish_reason) === "length"
+        ? "length"
+        : getString(firstChoice?.finish_reason) === "tool_calls"
+          ? "toolUse"
+          : undefined
     )
 
     const usage = getObject(data?.usage)
@@ -308,6 +435,15 @@ async function sendOpenAICompletions(
       })
     }
   })
+
+  if (
+    assistant.content.some((part) => part.type === "toolCall") &&
+    assistant.stopReason === "stop"
+  ) {
+    assistant.stopReason = "toolUse"
+  }
+
+  finalizeToolCalls(assistant)
 
   return { assistantMessage: assistant }
 }
@@ -344,10 +480,7 @@ async function sendOpenAICodexResponses(
             ? params.tools.map((tool) => ({
                 description: tool.description,
                 name: tool.name,
-                parameters: {
-                  properties: {},
-                  type: "object",
-                },
+                parameters: serializeToolParameters(tool.parameters),
                 strict: null,
                 type: "function",
               }))
@@ -386,6 +519,64 @@ async function sendOpenAICodexResponses(
       appendDelta(assistant, delta ?? "", params.onTextDelta)
     }
 
+    if (type === "response.output_item.added") {
+      const item = getObject(data?.item)
+
+      if (getString(item?.type) === "function_call") {
+        const callId = getString(item?.call_id) ?? ""
+        const itemId = getString(item?.id) ?? ""
+        const name = getString(item?.name) ?? ""
+        const block = ensureToolCall(
+          assistant,
+          itemId ? `${callId}|${itemId}` : callId,
+          name
+        )
+        const argumentsValue = getString(item?.arguments) ?? ""
+
+        if (argumentsValue) {
+          block.partialJson = argumentsValue
+          block.arguments = parseStreamingArguments(argumentsValue)
+        }
+      }
+    }
+
+    if (type === "response.function_call_arguments.delta") {
+      const itemId = getString(data?.item_id) ?? ""
+      const outputIndex = getNumber(data?.output_index)
+      const deltaValue = getString(data?.delta) ?? ""
+      const toolBlock = assistant.content.find(
+        (part): part is ToolCall & { partialJson?: string } =>
+          part.type === "toolCall" &&
+          (itemId
+            ? part.id.endsWith(`|${itemId}`)
+            : outputIndex !== undefined)
+      )
+
+      if (toolBlock) {
+        toolBlock.partialJson = `${toolBlock.partialJson ?? ""}${deltaValue}`
+        toolBlock.arguments = parseStreamingArguments(toolBlock.partialJson)
+      }
+    }
+
+    if (type === "response.output_item.done") {
+      const item = getObject(data?.item)
+
+      if (getString(item?.type) === "function_call") {
+        const callId = getString(item?.call_id) ?? ""
+        const itemId = getString(item?.id) ?? ""
+        const name = getString(item?.name) ?? ""
+        const argumentsValue = getString(item?.arguments) ?? "{}"
+        const block = ensureToolCall(
+          assistant,
+          itemId ? `${callId}|${itemId}` : callId,
+          name
+        )
+
+        block.partialJson = argumentsValue
+        block.arguments = parseStreamingArguments(argumentsValue)
+      }
+    }
+
     const usage =
       getObject(data?.usage) ??
       getObject(getObject(data?.response)?.usage)
@@ -410,6 +601,15 @@ async function sendOpenAICodexResponses(
       setStopReason(assistant, "stop")
     }
   })
+
+  if (
+    assistant.content.some((part) => part.type === "toolCall") &&
+    assistant.stopReason === "stop"
+  ) {
+    assistant.stopReason = "toolUse"
+  }
+
+  finalizeToolCalls(assistant)
 
   return { assistantMessage: assistant }
 }
@@ -438,10 +638,7 @@ async function sendAnthropicMessages(
           params.tools.length > 0
             ? params.tools.map((tool) => ({
                 description: tool.description,
-                input_schema: {
-                  properties: {},
-                  type: "object",
-                },
+                input_schema: serializeToolParameters(tool.parameters),
                 name: tool.name,
               }))
             : undefined,
@@ -470,8 +667,35 @@ async function sendAnthropicMessages(
     const data = getObject(parseJson(payload))
     const delta = getObject(data?.delta)
     const usage = getObject(data?.usage)
+    const contentBlock = getObject(data?.content_block)
+
+    if (event.event === "content_block_start" && contentBlock) {
+      if (getString(contentBlock.type) === "tool_use") {
+        const id = getString(contentBlock.id) ?? ""
+        const name = getString(contentBlock.name) ?? ""
+        const block = ensureToolCall(assistant, id, name)
+        block.arguments = getObject(contentBlock.input) ?? {}
+        block.partialJson = JSON.stringify(block.arguments)
+      }
+    }
 
     appendDelta(assistant, getString(delta?.text) ?? "", params.onTextDelta)
+
+    if (getString(delta?.type) === "input_json_delta") {
+      const index = getNumber(data?.index)
+      const partialJson = getString(delta?.partial_json) ?? ""
+      const toolBlocks = assistant.content.filter(
+        (part): part is ToolCall & { partialJson?: string } =>
+          part.type === "toolCall"
+      )
+      const block =
+        index !== undefined ? toolBlocks[index] : toolBlocks[toolBlocks.length - 1]
+
+      if (block) {
+        block.partialJson = `${block.partialJson ?? ""}${partialJson}`
+        block.arguments = parseStreamingArguments(block.partialJson)
+      }
+    }
 
     if (usage) {
       applyUsage(assistant, model, {
@@ -489,10 +713,23 @@ async function sendAnthropicMessages(
       setStopReason(assistant, "length")
     }
 
+    if (getString(data?.stop_reason) === "tool_use") {
+      setStopReason(assistant, "toolUse")
+    }
+
     if (event.event === "message_stop") {
       setStopReason(assistant, "stop")
     }
   })
+
+  if (
+    assistant.content.some((part) => part.type === "toolCall") &&
+    assistant.stopReason === "stop"
+  ) {
+    assistant.stopReason = "toolUse"
+  }
+
+  finalizeToolCalls(assistant)
 
   return { assistantMessage: assistant }
 }
@@ -565,10 +802,7 @@ async function sendGoogleGeminiCli(
                     {
                       description: tool.description,
                       name: tool.name,
-                      parameters: {
-                        properties: {},
-                        type: "object",
-                      },
+                      parameters: serializeToolParameters(tool.parameters),
                     },
                   ],
                 }))
@@ -606,6 +840,18 @@ async function sendGoogleGeminiCli(
       seenText = text
     }
 
+    const functionCalls = extractGoogleFunctionCalls(responsePayload)
+
+    for (const functionCall of functionCalls) {
+      const exists = assistant.content.some(
+        (part) => part.type === "toolCall" && part.id === functionCall.id
+      )
+
+      if (!exists) {
+        assistant.content.push(functionCall)
+      }
+    }
+
     const usage = getObject(responsePayload?.usageMetadata)
 
     if (usage) {
@@ -618,6 +864,15 @@ async function sendGoogleGeminiCli(
       })
     }
   })
+
+  if (
+    assistant.content.some((part) => part.type === "toolCall") &&
+    assistant.stopReason === "stop"
+  ) {
+    assistant.stopReason = "toolUse"
+  }
+
+  finalizeToolCalls(assistant)
 
   return { assistantMessage: assistant }
 }
@@ -663,7 +918,11 @@ export async function streamChat(
 function toSuccessStopReason(
   reason: StopReason
 ): Extract<StopReason, "length" | "stop" | "toolUse"> {
-  return reason === "length" ? "length" : "stop"
+  if (reason === "length") {
+    return "length"
+  }
+
+  return reason === "toolUse" ? "toolUse" : "stop"
 }
 
 function createStreamingAssistant(
@@ -732,15 +991,16 @@ export const streamChatWithPiAgent: StreamFn = (
         messages: context.messages,
         model: model.id,
         onTextDelta(delta) {
-          const content = partial.content[0]
+          let content = partial.content[partial.content.length - 1]
 
-          if (content?.type !== "text") {
-            return
+          if (!content || content.type !== "text") {
+            content = { text: "", type: "text" }
+            partial.content.push(content)
           }
 
           if (!hasTextContent) {
             stream.push({
-              contentIndex: 0,
+              contentIndex: partial.content.length - 1,
               partial,
               type: "text_start",
             })
@@ -749,7 +1009,7 @@ export const streamChatWithPiAgent: StreamFn = (
 
           content.text += delta
           stream.push({
-            contentIndex: 0,
+            contentIndex: partial.content.length - 1,
             delta,
             partial,
             type: "text_delta",
@@ -759,7 +1019,11 @@ export const streamChatWithPiAgent: StreamFn = (
         sessionId: options?.sessionId ?? "session",
         signal: options?.signal ?? new AbortController().signal,
         thinkingLevel: normalizeThinkingLevel(options?.reasoning),
-        tools: [],
+        tools: (context.tools ?? []).map((tool) => ({
+          description: tool.description,
+          name: tool.name,
+          parameters: tool.parameters,
+        })),
       })
 
       if (hasTextContent) {
@@ -773,6 +1037,48 @@ export const streamChatWithPiAgent: StreamFn = (
             type: "text_end",
           })
         }
+      }
+
+      const existingToolCallIds = new Set(
+        partial.content
+          .filter((part): part is ToolCall => part.type === "toolCall")
+          .map((part) => part.id)
+      )
+
+      if (
+        partial.content.length === 1 &&
+        partial.content[0]?.type === "text" &&
+        partial.content[0].text.length === 0
+      ) {
+        partial.content = []
+      }
+
+      for (const part of result.assistantMessage.content) {
+        if (part.type !== "toolCall" || existingToolCallIds.has(part.id)) {
+          continue
+        }
+
+        partial.content.push(part)
+        const contentIndex = partial.content.length - 1
+        const delta = JSON.stringify(part.arguments)
+
+        stream.push({
+          contentIndex,
+          partial,
+          type: "toolcall_start",
+        })
+        stream.push({
+          contentIndex,
+          delta,
+          partial,
+          type: "toolcall_delta",
+        })
+        stream.push({
+          contentIndex,
+          partial,
+          toolCall: part,
+          type: "toolcall_end",
+        })
       }
 
       stream.push({

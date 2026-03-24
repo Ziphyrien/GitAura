@@ -66,7 +66,7 @@ describe("session adapter", () => {
   it("builds agent state from a persisted session", () => {
     const session = createSession()
     const model = getModel(session.provider, session.model)
-    const initialState = buildInitialAgentState(session, model)
+    const initialState = buildInitialAgentState(session, model, [])
 
     expect(initialState).toMatchObject({
       messages: session.messages,
