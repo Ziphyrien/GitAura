@@ -1,5 +1,5 @@
 import * as React from "react"
-import { runtimeClientStore } from "@/agent/runtime-client"
+import { runtimeClient } from "@/agent/runtime-client"
 import { getSetting, listProviderKeys, setSetting } from "@/db/schema"
 import {
   getDefaultModelForGroup,
@@ -87,7 +87,7 @@ export function useAppBootstrap(): AppBootstrapState {
 
     void (async () => {
       try {
-        await runtimeClientStore.ensureConnected()
+        await runtimeClient.ensureConnected()
         const session = await loadInitialSession()
 
         await setSetting("active-session-id", session.id)
