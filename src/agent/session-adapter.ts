@@ -10,7 +10,7 @@ import type {
   ToolResultMessage,
   UserMessage,
 } from "@/types/chat"
-import type { SessionData } from "@/types/storage"
+import type { MessageRow, MessageStatus, SessionData } from "@/types/storage"
 
 function isLlmMessage(message: AgentMessage): message is Message {
   return (
@@ -60,10 +60,48 @@ export function normalizeMessage(message: Message, index: number): ChatMessage {
   }
 }
 
-function normalizeMessages(messages: AgentMessage[]): ChatMessage[] {
+export function normalizeMessages(messages: AgentMessage[]): ChatMessage[] {
   return messages
     .filter(isLlmMessage)
     .map((message, index) => normalizeMessage(message, index))
+}
+
+export function inferMessageStatus(message: ChatMessage): MessageStatus {
+  if (message.role !== "assistant") {
+    return "completed"
+  }
+
+  switch (message.stopReason) {
+    case "aborted":
+      return "aborted"
+    case "error":
+      return "error"
+    default:
+      return "completed"
+  }
+}
+
+export function toMessageRow(
+  sessionId: string,
+  message: ChatMessage,
+  status = inferMessageStatus(message),
+  id = message.id
+): MessageRow {
+  return {
+    ...message,
+    id,
+    sessionId,
+    status,
+  }
+}
+
+export function toChatMessage(message: MessageRow): ChatMessage {
+  const { sessionId: _sessionId, status: _status, ...chatMessage } = message
+  return chatMessage as ChatMessage
+}
+
+export function toAgentMessages(messages: MessageRow[]): Message[] {
+  return messages.map((message) => toChatMessage(message))
 }
 
 export function normalizeAssistantDraft(
@@ -78,11 +116,12 @@ export function normalizeAssistantDraft(
 
 export function buildInitialAgentState(
   session: SessionData,
+  messages: MessageRow[],
   model: Model<any>,
   tools: AgentTool[]
 ): Partial<AgentState> {
   return {
-    messages: session.messages,
+    messages: toAgentMessages(messages),
     model,
     systemPrompt: SYSTEM_PROMPT,
     thinkingLevel: session.thinkingLevel,
@@ -96,7 +135,6 @@ export function buildSessionFromAgentState(
 ): SessionData {
   return buildPersistedSession({
     ...previousSession,
-    messages: normalizeMessages(agentState.messages),
     model: agentState.model.id,
     provider: getCanonicalProvider(
       previousSession.providerGroup ??
@@ -108,8 +146,8 @@ export function buildSessionFromAgentState(
       previousSession.providerGroup ??
       getDefaultProviderGroup(
         agentState.model.provider as SessionData["provider"]
-      ),
+    ),
     thinkingLevel: agentState.thinkingLevel,
     updatedAt: getIsoNow(),
-  })
+  }, normalizeMessages(agentState.messages))
 }

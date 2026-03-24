@@ -1,12 +1,11 @@
 import type { TSchema } from "@sinclair/typebox"
-import type { AssistantMessage } from "@/types/chat"
 import type { Message } from "@mariozechner/pi-ai"
 import type {
   ProviderGroupId,
   ProviderId,
   ThinkingLevel,
 } from "@/types/models"
-import type { SessionData } from "@/types/storage"
+import type { AssistantMessage } from "@/types/chat"
 
 export interface ToolDefinition {
   description: string
@@ -29,16 +28,10 @@ export interface StreamChatParams {
   tools: ToolDefinition[]
 }
 
-export interface SendMessageParams {
-  content: string
-  model: string
-  onSessionChange: (session: SessionData) => void
-  provider: ProviderId
-  session: SessionData
-  signal: AbortSignal
-  tools?: ToolDefinition[]
-}
-
 export interface StreamChatResult {
   assistantMessage: AssistantMessage
+}
+
+export interface RuntimeConfig {
+  tools: ToolDefinition[]
 }
