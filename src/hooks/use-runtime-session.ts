@@ -93,11 +93,37 @@ export function useRuntimeSession(sessionId: string | undefined) {
     }
   )
 
+  const setThinkingLevel = React.useEffectEvent(
+    async (
+      thinkingLevel: Parameters<typeof runtimeClient.setThinkingLevel>[1]
+    ) => {
+      if (!sessionId) {
+        return
+      }
+
+      setActionError(undefined)
+
+      try {
+        const result = await runtimeClient.setThinkingLevel(
+          sessionId,
+          thinkingLevel
+        )
+
+        if (!result.ok) {
+          throw new Error(result.error ?? "missing-session")
+        }
+      } catch (error) {
+        setActionError(getErrorMessage(error))
+      }
+    }
+  )
+
   return {
     abort,
     error: actionError,
     send,
     setModelSelection,
     setRepoSource,
+    setThinkingLevel,
   }
 }

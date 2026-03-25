@@ -100,44 +100,48 @@ describe("AgentHost persistence", () => {
     const { AgentHost } = await import("@/agent/agent-host")
     const host = new AgentHost(createSession(), [])
 
-    await host.prompt("read the repo")
-
-    agentState.isStreaming = true
-    agentState.messages = [
-      {
-        content: "read the repo",
-        id: "user-1",
-        role: "user",
-        timestamp: 1,
-      },
-      {
-        content: "README contents",
-        id: "tool-result-1",
-        role: "toolResult",
-        timestamp: 2,
-        toolCallId: "call-1",
-      },
-    ]
-    agentState.streamMessage = {
-      api: "openai-responses",
-      content: [
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true
+      agentState.messages = [
         {
-          arguments: { path: "README.md" },
-          id: "call-1",
-          name: "read",
-          type: "toolCall",
+          content: "read the repo",
+          id: "user-1",
+          role: "user",
+          timestamp: 1,
         },
-      ],
-      id: "assistant-stream",
-      model: "gpt-5.1-codex-mini",
-      provider: "openai-codex",
-      role: "assistant",
-      stopReason: "toolUse",
-      timestamp: 3,
-      usage: createEmptyUsage(),
-    }
+        {
+          content: "README contents",
+          id: "tool-result-1",
+          role: "toolResult",
+          timestamp: 2,
+          toolCallId: "call-1",
+        },
+      ]
+      agentState.streamMessage = {
+        api: "openai-responses",
+        content: [
+          {
+            arguments: { path: "README.md" },
+            id: "call-1",
+            name: "read",
+            type: "toolCall",
+          },
+        ],
+        id: "assistant-stream",
+        model: "gpt-5.1-codex-mini",
+        provider: "openai-codex",
+        role: "assistant",
+        stopReason: "toolUse",
+        timestamp: 3,
+        usage: createEmptyUsage(),
+      }
 
-    await subscriber?.({ type: "tool_result" })
+      await subscriber?.({ type: "tool_result" })
+      agentState.isStreaming = false
+      agentState.streamMessage = null
+    })
+
+    await host.prompt("read the repo")
 
     expect(putMessages).toHaveBeenCalledWith(
       expect.arrayContaining([

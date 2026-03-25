@@ -105,6 +105,32 @@ function syncAssistantMessage(
   return target
 }
 
+function extractErrorDetail(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Request failed"
+  }
+
+  const parts: string[] = [error.message]
+  let current: unknown = (error as Error & { cause?: unknown }).cause
+
+  while (current instanceof Error) {
+    if (current.message && !parts.includes(current.message)) {
+      parts.push(current.message)
+    }
+    current = (current as Error & { cause?: unknown }).cause
+  }
+
+  return parts.join(" — ")
+}
+
+function formatConnectionDiagnostic(
+  model: ModelDefinition,
+  detail: string
+): string {
+  const target = model.baseUrl ?? "unknown endpoint"
+  return `${detail} [${model.provider}/${model.id} → ${target}]`
+}
+
 function createStreamErrorMessage(
   model: ModelDefinition,
   id: string,
@@ -112,9 +138,15 @@ function createStreamErrorMessage(
   error: unknown,
   aborted: boolean
 ): AssistantMessage {
+  const raw = extractErrorDetail(error)
+  const errorMessage =
+    raw === "Connection error."
+      ? formatConnectionDiagnostic(model, raw)
+      : raw
+
   return {
     ...createAssistantDraft(model, id, timestamp),
-    errorMessage: error instanceof Error ? error.message : "Request failed",
+    errorMessage,
     stopReason: aborted ? "aborted" : "error",
   }
 }
@@ -187,7 +219,9 @@ function shouldUseProxyForProvider(provider: string, apiKey: string): boolean {
   switch (provider.toLowerCase()) {
     case "anthropic":
       return apiKey.startsWith("sk-ant-oat") || apiKey.startsWith("{")
+    case "openai":
     case "openai-codex":
+    case "opencode":
       return true
     default:
       return false
@@ -308,6 +342,13 @@ function wrapAssistantMessageEventStream(
       }
       case "error": {
         const error = decorateAssistant(event.error)
+        if (error.errorMessage === "Connection error.") {
+          error.errorMessage = formatConnectionDiagnostic(model, error.errorMessage)
+        }
+        console.error(
+          `[provider-stream] Error from ${model.provider}/${model.id} (${model.baseUrl ?? "?"}):`,
+          error.errorMessage
+        )
         stream.push({
           ...event,
           error,
@@ -335,6 +376,10 @@ function wrapAssistantMessageEventStream(
       })
       stream.end(message)
     } catch (error) {
+      console.error(
+        `[provider-stream] Stream threw for ${model.provider}/${model.id} (${model.baseUrl ?? "?"}):`,
+        error
+      )
       const failure = createStreamErrorMessage(
         model,
         assistantId,
@@ -447,6 +492,10 @@ export const streamChatWithPiAgent: StreamFn = async (
   try {
     return await createAppStream(modelDefinition, context, options)
   } catch (error) {
+    console.error(
+      `[provider-stream] createAppStream failed for ${modelDefinition.provider}/${modelDefinition.id} (${modelDefinition.baseUrl ?? "?"}):`,
+      error
+    )
     const stream = createAssistantMessageEventStream()
     const failure = createStreamErrorMessage(
       modelDefinition,

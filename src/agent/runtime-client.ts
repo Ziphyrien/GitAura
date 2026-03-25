@@ -1,4 +1,4 @@
-import type { ProviderGroupId } from "@/types/models"
+import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
 import type { RepoSource } from "@/types/storage"
 import type {
   RuntimeMutationResult,
@@ -65,6 +65,11 @@ export class RuntimeClient {
     await this.api?.abort(sessionId)
   }
 
+  async releaseSession(sessionId: string): Promise<void> {
+    await this.ensureConnected()
+    await this.api?.releaseSession(sessionId)
+  }
+
   async setModelSelection(
     sessionId: string,
     providerGroup: ProviderGroupId,
@@ -89,6 +94,18 @@ export class RuntimeClient {
     await this.ensureConnected()
     await this.ensureSession(sessionId)
     return (await this.api?.setRepoSource(sessionId, repoSource)) ?? {
+      error: "missing-session",
+      ok: false,
+    }
+  }
+
+  async setThinkingLevel(
+    sessionId: string,
+    thinkingLevel: ThinkingLevel
+  ): Promise<RuntimeMutationResult> {
+    await this.ensureConnected()
+    await this.ensureSession(sessionId)
+    return (await this.api?.setThinkingLevel(sessionId, thinkingLevel)) ?? {
       error: "missing-session",
       ok: false,
     }

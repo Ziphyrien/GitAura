@@ -3,7 +3,7 @@ import type {
   RuntimeMutationResult,
 } from "@/agent/runtime-worker-types"
 import { loadSessionWithMessages } from "@/sessions/session-service"
-import type { ProviderGroupId } from "@/types/models"
+import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
 import type { RepoSource } from "@/types/storage"
 
 export class SessionRuntimeRegistry {
@@ -67,6 +67,17 @@ export class SessionRuntimeRegistry {
   async abort(sessionId: string): Promise<void> {
     await this.ensureSession(sessionId)
     this.sessionHosts.get(sessionId)?.abort()
+  }
+
+  releaseSession(sessionId: string): void {
+    const host = this.sessionHosts.get(sessionId)
+
+    if (!host) {
+      return
+    }
+
+    host.dispose()
+    this.sessionHosts.delete(sessionId)
   }
 
   async setModelSelection(
@@ -136,6 +147,42 @@ export class SessionRuntimeRegistry {
     }
 
     await host.setRepoSource(repoSource)
+
+    return {
+      ok: true,
+    }
+  }
+
+  async setThinkingLevel(
+    sessionId: string,
+    thinkingLevel: ThinkingLevel
+  ): Promise<RuntimeMutationResult> {
+    const exists = await this.ensureSession(sessionId)
+
+    if (!exists) {
+      return {
+        error: "missing-session",
+        ok: false,
+      }
+    }
+
+    const host = this.sessionHosts.get(sessionId)
+
+    if (!host) {
+      return {
+        error: "missing-session",
+        ok: false,
+      }
+    }
+
+    if (host.isBusy()) {
+      return {
+        error: "busy",
+        ok: false,
+      }
+    }
+
+    await host.setThinkingLevel(thinkingLevel)
 
     return {
       ok: true,

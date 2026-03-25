@@ -26,7 +26,7 @@ import { normalizeRepoSource } from "@/repo/settings"
 import { buildPersistedSession } from "@/sessions/session-service"
 import { createRepoTools } from "@/tools"
 import type { AssistantMessage } from "@/types/chat"
-import type { ProviderGroupId, ProviderId } from "@/types/models"
+import type { ProviderGroupId, ProviderId, ThinkingLevel } from "@/types/models"
 import type { MessageRow, RepoSource, SessionData } from "@/types/storage"
 
 type TerminalAssistantStatus = "aborted" | "error" | undefined
@@ -43,6 +43,7 @@ export class AgentHost {
   private lastTerminalStatus: TerminalAssistantStatus
   private readonly persistedMessageIds = new Set<string>()
   private readonly recordedAssistantMessageIds = new Set<string>()
+  private disposed = false
   private persistQueue = Promise.resolve()
   private promptPending = false
   private repoRuntime
@@ -75,7 +76,12 @@ export class AgentHost {
     })
     this.agent.sessionId = session.id
     this.unsubscribe = this.agent.subscribe((event) => {
-      void this.handleEvent(event)
+      void this.handleEvent(event).catch((error) => {
+        console.error(
+          `[agent-host] Unhandled error in event handler (session ${session.id}):`,
+          error
+        )
+      })
     })
   }
 
@@ -87,6 +93,10 @@ export class AgentHost {
     const trimmed = content.trim()
 
     if (!trimmed) {
+      return
+    }
+
+    if (this.disposed) {
       return
     }
 
@@ -151,6 +161,9 @@ export class AgentHost {
     try {
       await this.agent.prompt(userMessage)
     } catch (error) {
+      if (this.disposed) {
+        return
+      }
       this.lastTerminalStatus = "error"
       this.session = {
         ...this.session,
@@ -170,6 +183,25 @@ export class AgentHost {
       this.clearActiveStreamPointers()
     } finally {
       this.promptPending = false
+
+      await this.persistQueue
+
+      if (this.disposed) {
+        return
+      }
+
+      if (this.session.isStreaming) {
+        console.warn(
+          `[agent-host] Safety net: session ${this.session.id} still marked isStreaming after prompt resolved, forcing off`
+        )
+        this.session = {
+          ...this.session,
+          isStreaming: false,
+          updatedAt: getIsoNow(),
+        }
+        await putSession(this.session)
+        this.clearActiveStreamPointers()
+      }
     }
   }
 
@@ -182,6 +214,9 @@ export class AgentHost {
     providerGroup: ProviderGroupId,
     modelId: string
   ): Promise<void> {
+    if (this.disposed) {
+      return
+    }
     const provider = getCanonicalProvider(providerGroup)
     const model = getModel(provider, modelId)
 
@@ -198,7 +233,24 @@ export class AgentHost {
     await putSession(this.session)
   }
 
+  async setThinkingLevel(thinkingLevel: ThinkingLevel): Promise<void> {
+    if (this.disposed) {
+      return
+    }
+
+    this.agent.setThinkingLevel(thinkingLevel)
+    this.session = {
+      ...this.session,
+      thinkingLevel,
+      updatedAt: getIsoNow(),
+    }
+    await putSession(this.session)
+  }
+
   async setRepoSource(repoSource?: RepoSource): Promise<SessionData> {
+    if (this.disposed) {
+      return this.session
+    }
     this.repoRuntime = this.createRuntime(repoSource)
     this.session = {
       ...this.session,
@@ -211,8 +263,13 @@ export class AgentHost {
   }
 
   dispose(): void {
+    if (this.disposed) {
+      return
+    }
+    this.disposed = true
     this.unsubscribe?.()
     this.unsubscribe = undefined
+    this.abort()
   }
 
   private buildCompletedRows(): MessageRow[] {
@@ -230,7 +287,6 @@ export class AgentHost {
       const id =
         message.role === "assistant" &&
         this.currentAssistantMessageId &&
-        !this.agent.state.isStreaming &&
         index === lastAssistantIndex
           ? this.currentAssistantMessageId
           : message.id
@@ -308,6 +364,10 @@ export class AgentHost {
   }
 
   private async handleEvent(event: AgentEvent): Promise<void> {
+    if (this.disposed) {
+      return
+    }
+
     if (!this.agent.state.isStreaming && this.agent.state.error) {
       this.lastTerminalStatus ??= "error"
     }
@@ -370,7 +430,15 @@ export class AgentHost {
     currentAssistantRow: MessageRow | undefined,
     newlyCompletedRows: MessageRow[]
   ): Promise<void> {
+    if (this.disposed) {
+      return
+    }
+
     this.persistQueue = this.persistQueue.then(async () => {
+      if (this.disposed) {
+        return
+      }
+
       if (newlyCompletedRows.length > 0) {
         await putMessages(newlyCompletedRows)
 
@@ -393,6 +461,10 @@ export class AgentHost {
     changedMessages: MessageRow[],
     rowsForDerivation?: MessageRow[]
   ): Promise<void> {
+    if (this.disposed) {
+      return
+    }
+
     const nextSessionBase = {
       ...this.session,
       error: overrides.error,
@@ -412,6 +484,10 @@ export class AgentHost {
     this.session = buildPersistedSession(nextSessionBase, allRows)
 
     this.persistQueue = this.persistQueue.then(async () => {
+      if (this.disposed) {
+        return
+      }
+
       if (changedMessages.length > 0) {
         await putSessionAndMessages(this.session, changedMessages)
 
