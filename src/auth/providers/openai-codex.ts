@@ -93,9 +93,15 @@ export async function loginOpenAICodex(
     throw new Error("Token response missing required fields")
   }
 
+  const accountId = getAccountId(access)
+
+  if (!accountId) {
+    throw new Error("Failed to extract accountId from token")
+  }
+
   return {
     access,
-    accountId: getAccountId(access),
+    accountId,
     expires: Date.now() + expiresIn * 1000,
     providerId: "openai-codex",
     refresh,
@@ -123,9 +129,15 @@ export async function refreshOpenAICodex(
     throw new Error("Token refresh response missing required fields")
   }
 
+  const accountId = getAccountId(access)
+
+  if (!accountId) {
+    throw new Error("Failed to extract accountId from refreshed token")
+  }
+
   return {
     access,
-    accountId: getAccountId(access),
+    accountId,
     expires: Date.now() + expiresIn * 1000,
     providerId: "openai-codex",
     refresh,

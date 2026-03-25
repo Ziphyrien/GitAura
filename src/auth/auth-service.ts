@@ -4,18 +4,15 @@ import {
   getProviderKey,
   setProviderKey,
 } from "@/db/schema"
-import { loginAnthropic, refreshAnthropic } from "@/auth/providers/anthropic"
+import { loginAnthropic } from "@/auth/providers/anthropic"
 import {
   loginGitHubCopilot,
-  refreshGitHubCopilot,
 } from "@/auth/providers/github-copilot"
 import {
   loginGeminiCli,
-  refreshGeminiCli,
 } from "@/auth/providers/google-gemini-cli"
 import {
   loginOpenAICodex,
-  refreshOpenAICodex,
 } from "@/auth/providers/openai-codex"
 import {
   serializeOAuthCredentials,
@@ -24,6 +21,8 @@ import {
 import type { ProxyRequestOptions } from "@/auth/oauth-utils"
 import type { ProviderAuthKind, ProviderAuthState } from "@/types/auth"
 import type { ProviderId } from "@/types/models"
+
+export { oauthRefresh } from "@/auth/oauth-refresh"
 
 export type OAuthProviderId =
   | "anthropic"
@@ -64,22 +63,6 @@ export async function oauthLogin(
       return await loginGeminiCli(redirectUri)
     case "openai-codex":
       return await loginOpenAICodex(redirectUri)
-  }
-}
-
-export async function oauthRefresh(
-  credentials: OAuthCredentials,
-  options?: ProxyRequestOptions
-): Promise<OAuthCredentials> {
-  switch (credentials.providerId) {
-    case "anthropic":
-      return await refreshAnthropic(credentials, options)
-    case "github-copilot":
-      return await refreshGitHubCopilot(credentials)
-    case "google-gemini-cli":
-      return await refreshGeminiCli(credentials)
-    case "openai-codex":
-      return await refreshOpenAICodex(credentials)
   }
 }
 

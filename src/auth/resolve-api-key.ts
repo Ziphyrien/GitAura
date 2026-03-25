@@ -1,5 +1,5 @@
 import { db, getProviderKey, setProviderKey } from "@/db/schema"
-import { oauthRefresh } from "@/auth/auth-service"
+import { oauthRefresh } from "@/auth/oauth-refresh"
 import { getPublicApiKeyForProviderGroup } from "@/auth/public-provider-fallbacks"
 import {
   isOAuthCredentials,
