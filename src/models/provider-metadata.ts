@@ -15,12 +15,17 @@ export const PROVIDER_METADATA: Record<ProviderId, ProviderMetadata> = {
   "github-copilot": {
     accentClassName: "text-cyan-700",
     description: "GitHub Copilot subscription and API-compatible access",
-    label: "Copilot",
+    label: "GitHub Copilot",
   },
   "google-gemini-cli": {
     accentClassName: "text-emerald-700",
     description: "Cloud Code Assist OAuth for Gemini models",
     label: "Gemini",
+  },
+  openai: {
+    accentClassName: "text-green-700",
+    description: "OpenAI API key for GPT and o-series models",
+    label: "OpenAI",
   },
   opencode: {
     accentClassName: "text-teal-700",

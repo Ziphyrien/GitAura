@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { createEmptyUsage } from "@/types/models"
+import { serializeOAuthCredentials } from "@/auth/oauth-types"
 import {
   DEFAULT_MODELS,
   calculateCost,
   getCanonicalProvider,
+  getConnectedProviders,
   getDefaultModel,
   getDefaultModelForGroup,
   getModel,
@@ -13,6 +15,40 @@ import {
 } from "@/models/catalog"
 
 describe("model catalog", () => {
+  it("does not treat a non-OAuth openai-codex key as connected", () => {
+    const connected = getConnectedProviders([
+      { provider: "openai-codex", value: "sk-not-oauth" },
+    ])
+
+    expect(connected).not.toContain("openai-codex")
+  })
+
+  it("treats valid OpenAI Codex OAuth credentials as connected", () => {
+    const connected = getConnectedProviders([
+      {
+        provider: "openai-codex",
+        value: serializeOAuthCredentials({
+          access: "access-token",
+          expires: Date.now() + 60_000,
+          providerId: "openai-codex",
+          refresh: "refresh-token",
+        }),
+      },
+    ])
+
+    expect(connected).toContain("openai-codex")
+  })
+
+  it("sorts models by id descending (newer ids first)", () => {
+    const models = getModelsForGroup("openai")
+    const ids = models.map((model) => model.id)
+    const sorted = [...ids].sort((left, right) =>
+      right.localeCompare(left, undefined, { numeric: true, sensitivity: "base" })
+    )
+
+    expect(ids).toEqual(sorted)
+  })
+
   it("returns the configured default models", () => {
     expect(getDefaultModel("openai-codex").id).toBe(DEFAULT_MODELS["openai-codex"])
     expect(getDefaultModel("anthropic").id).toBe(DEFAULT_MODELS.anthropic)

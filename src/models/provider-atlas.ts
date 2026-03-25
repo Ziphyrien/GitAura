@@ -23,6 +23,12 @@ export const PROVIDER_GROUPS: Record<ProviderGroupId, ProviderGroupDefinition> =
     id: "google-gemini-cli",
     label: "Gemini",
   },
+  openai: {
+    canonicalProvider: "openai",
+    description: "OpenAI API key for GPT and o-series models",
+    id: "openai",
+    label: "OpenAI",
+  },
   opencode: {
     canonicalProvider: "opencode",
     description: "OpenCode API key for the full OpenCode catalog",
@@ -47,6 +53,7 @@ export const PROVIDER_GROUP_ORDER = [
   "anthropic",
   "github-copilot",
   "google-gemini-cli",
+  "openai",
   "openai-codex",
   "opencode",
   "opencode-free",

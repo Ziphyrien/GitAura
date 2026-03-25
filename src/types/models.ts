@@ -4,6 +4,7 @@ export type CanonicalProviderId =
   | "anthropic"
   | "github-copilot"
   | "google-gemini-cli"
+  | "openai"
   | "openai-codex"
   | "opencode"
 
@@ -12,6 +13,7 @@ export type ProviderId = CanonicalProviderId
 export type ProviderGroupId =
   | CanonicalProviderId
   | "opencode-free"
+
 
 export interface ProviderGroupDefinition {
   canonicalProvider: CanonicalProviderId
