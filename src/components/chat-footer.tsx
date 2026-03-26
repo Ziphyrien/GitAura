@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { Icons } from "@/components/icons"
+import { SidebarMobileActions } from "@/components/sidebar-mobile-actions"
 
 export function ChatFooter() {
   return (
@@ -15,6 +16,7 @@ export function ChatFooter() {
         <Icons.home className="h-4 w-4 text-sidebar-foreground" />
         <span>Home</span>
       </Link>
+      <SidebarMobileActions />
     </div>
   )
 }

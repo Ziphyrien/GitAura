@@ -9,7 +9,6 @@ import {
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ChatLogo } from "@/components/chat-logo"
@@ -24,6 +23,7 @@ import {
 import { githubOwnerAvatarUrl } from "@/repo/url"
 import { useCurrentRouteTarget } from "@/hooks/use-current-route-target"
 import { useSelectedSessionSummary } from "@/hooks/use-selected-session-summary"
+import { cn } from "@/lib/utils"
 
 function SquareOwnerAvatar({ owner }: { owner: string }) {
   const [failed, setFailed] = React.useState(false)
@@ -122,48 +122,53 @@ export function AppHeader() {
           <SidebarTrigger />
         </HeaderTooltip>
         <Separator className="mr-2 !h-7 !self-center" orientation="vertical" />
-        <Breadcrumb className="min-w-0 flex-1 overflow-x-auto">
-          <BreadcrumbList className="text-sm sm:text-base">
+        <Breadcrumb className="min-w-0 flex-1 overflow-hidden">
+          <BreadcrumbList className="min-w-0 w-full flex-nowrap justify-start text-sm sm:text-base">
             {repoSource ? (
-              <>
-                <BreadcrumbItem className="shrink-0">
-                  <span className="inline-flex items-center gap-1.5">
-                    <SquareOwnerAvatar owner={repoSource.owner} />
-                    <BreadcrumbLink
-                      className={repoLinkClass}
-                      href={`https://github.com/${encodeURIComponent(repoSource.owner)}`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {repoSource.owner}
-                    </BreadcrumbLink>
-                  </span>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator className="shrink-0 text-muted-foreground [&>svg]:hidden">
-                  /
-                </BreadcrumbSeparator>
-                <BreadcrumbItem className="shrink-0">
+              <BreadcrumbItem className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5">
+                  <SquareOwnerAvatar owner={repoSource.owner} />
                   <BreadcrumbLink
-                    className={repoLinkClass}
+                    className={cn(repoLinkClass, "min-w-0 max-w-[45%] shrink truncate")}
+                    href={`https://github.com/${encodeURIComponent(repoSource.owner)}`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {repoSource.owner}
+                  </BreadcrumbLink>
+                  <span
+                    aria-hidden
+                    className="shrink-0 text-muted-foreground"
+                  >
+                    /
+                  </span>
+                  <BreadcrumbLink
+                    className={cn(
+                      repoLinkClass,
+                      "min-w-0 flex-1 truncate text-left"
+                    )}
                     href={`https://github.com/${encodeURIComponent(repoSource.owner)}/${encodeURIComponent(repoSource.repo)}`}
                     rel="noreferrer"
                     target="_blank"
                   >
                     {repoSource.repo}
                   </BreadcrumbLink>
-                </BreadcrumbItem>
-              </>
+                </div>
+              </BreadcrumbItem>
             ) : (
-              <BreadcrumbItem>
-                <BreadcrumbPage className="p-0">
-                  <ChatLogo className="w-auto justify-start" />
+              <BreadcrumbItem className="min-w-0 max-w-full flex-1">
+                <BreadcrumbPage className="block min-w-0 max-w-full p-0">
+                  <ChatLogo
+                    className="w-auto min-w-0 justify-start"
+                    truncate
+                  />
                 </BreadcrumbPage>
               </BreadcrumbItem>
             )}
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      <div className="flex items-center gap-2 px-3">
+      <div className="hidden items-center gap-2 px-3 md:flex">
         <Separator className="!h-6 !self-center" orientation="vertical" />
         <HeaderTooltip label="Open X">
           <Button asChild className="h-8 shadow-none" size="sm" variant="ghost">
