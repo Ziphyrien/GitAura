@@ -19,6 +19,7 @@ import { getFoldedToolResultIds } from "./chat-adapter"
 export interface ChatProps {
   error?: string
   messages: Array<ChatMessage>
+  onOpenGithubSettings?: () => void
   runtime: ReturnType<typeof useRuntimeSession>
   session: SessionData
 }
@@ -82,6 +83,7 @@ export function Chat(props: ChatProps) {
                 }
                 key={message.id}
                 message={message}
+                onOpenGithubSettings={props.onOpenGithubSettings}
               />
             )
           })}

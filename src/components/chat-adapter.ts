@@ -1,6 +1,7 @@
 import type {
   AssistantMessage,
   ChatMessage,
+  SystemMessage,
   ToolCall,
   ToolResultMessage,
   UserMessage,
@@ -54,6 +55,10 @@ function collectToolResultsForAssistant(
       break
     }
 
+    if (nextMessage.role === "system") {
+      continue
+    }
+
     if (
       nextMessage.role === "toolResult" &&
       toolCallIds.has(nextMessage.toolCallId) &&
@@ -77,6 +82,12 @@ export function isToolResultMessage(
   message: ChatMessage
 ): message is ToolResultMessage {
   return message.role === "toolResult"
+}
+
+export function isSystemMessage(
+  message: ChatMessage
+): message is SystemMessage {
+  return message.role === "system"
 }
 
 export interface SourceRef {

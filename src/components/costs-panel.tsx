@@ -2,22 +2,28 @@ import { useLiveQuery } from "dexie-react-hooks"
 import { listDailyCosts } from "@/db/schema"
 import type { SessionData } from "@/types/storage"
 
-export function CostsPanel({ session }: { session: SessionData }) {
+export function CostsPanel({ session }: { session?: SessionData }) {
   const dailyCosts = useLiveQuery(async () => await listDailyCosts(), [])
 
   return (
     <div className="space-y-4">
-      <div className="border border-foreground/10 p-4">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-          Active session
+      {session ? (
+        <div className="border border-foreground/10 p-4">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+            Active session
+          </div>
+          <div className="mt-2 text-2xl font-medium">
+            ${session.cost.toFixed(4)}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {session.usage.totalTokens.toLocaleString()} total tokens
+          </div>
         </div>
-        <div className="mt-2 text-2xl font-medium">
-          ${session.cost.toFixed(4)}
+      ) : (
+        <div className="border border-foreground/10 p-4 text-xs text-muted-foreground">
+          Open a repository workspace to see per-session cost for the active chat.
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          {session.usage.totalTokens.toLocaleString()} total tokens
-        </div>
-      </div>
+      )}
       <div className="border border-foreground/10 p-4">
         <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
           Daily totals

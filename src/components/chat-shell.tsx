@@ -9,10 +9,10 @@ import { useSessionData } from "@/hooks/use-session-data"
 import { useSessionList } from "@/hooks/use-session-list"
 import { useSessionMessages } from "@/hooks/use-session-messages"
 import {
-  persistActiveSessionId,
-  persistLastUsedSessionSettings,
-  syncSessionToUrl,
-} from "@/sessions/session-selection"
+  persistVisibleSessionSelection,
+  resolveProviderDefaults,
+} from "@/sessions/initial-session"
+import { persistLastUsedSessionSettings } from "@/sessions/session-selection"
 import { normalizeRepoSource } from "@/repo/settings"
 import { parsedPathToRepoSource, parseRepoPathname } from "@/repo/url"
 import {
@@ -23,33 +23,46 @@ import {
 import { Chat } from "@/components/chat"
 import { ChatHeader } from "@/components/chat-header"
 import { ChatSidebar } from "@/components/chat-sidebar"
-import { SettingsDialog } from "@/components/settings-dialog"
+import {
+  type SettingsSection,
+  SettingsDialog,
+} from "@/components/settings-dialog"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export type ChatShellMainContext = {
   activeSession: SessionData | undefined
   displayedIsStreaming: boolean
   messages: MessageRow[]
+  openSettings: (section?: SettingsSection) => void
   runtime: ReturnType<typeof useRuntimeSession>
   selectedSessionId: string
 }
 
 export type ChatShellChromeProps = {
-  initialSession: SessionData
+  /** Omitted on landing when there are no sessions yet. */
+  initialSession?: SessionData
+  openSettings: (section?: SettingsSection) => void
   renderMain: (ctx: ChatShellMainContext) => React.ReactNode
   sessions: ReturnType<typeof useSessionList>["sessions"]
   setSettingsOpen: (open: boolean) => void
+  settingsSection: SettingsSection
   settingsOpen: boolean
 }
 
 export function ChatShellChrome(props: ChatShellChromeProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const [selectedSessionId, setSelectedSessionId] = React.useState(
-    props.initialSession.id
+    props.initialSession?.id ?? ""
   )
-  const activeSession = useSessionData(selectedSessionId)
-  const messages = useSessionMessages(selectedSessionId) ?? []
-  const runtime = useRuntimeSession(selectedSessionId)
+  const activeSession = useSessionData(
+    selectedSessionId ? selectedSessionId : undefined
+  )
+  const messages = useSessionMessages(
+    selectedSessionId ? selectedSessionId : undefined
+  ) ?? []
+  const runtime = useRuntimeSession(
+    selectedSessionId ? selectedSessionId : undefined
+  )
   const parsedRepoPath = parseRepoPathname(pathname)
   const sessionsInRepo = React.useMemo(() => {
     if (!parsedRepoPath) {
@@ -71,12 +84,8 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
     activeSession?.isStreaming ?? selectedSessionMetadata?.isStreaming ?? false
 
   React.useEffect(() => {
-    setSelectedSessionId(props.initialSession.id)
-  }, [props.initialSession.id])
-
-  React.useEffect(() => {
-    syncSessionToUrl(selectedSessionId)
-  }, [selectedSessionId])
+    setSelectedSessionId(props.initialSession?.id ?? "")
+  }, [props.initialSession?.id])
 
   React.useEffect(() => {
     if (props.sessions.length === 0) {
@@ -96,13 +105,10 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
       const fallbackSession = props.sessions[0]
 
       setSelectedSessionId(fallbackSession.id)
-      syncSessionToUrl(fallbackSession.id)
       void persistLastUsedSessionSettings({
-        id: fallbackSession.id,
         model: fallbackSession.model,
         provider: fallbackSession.provider,
         providerGroup: fallbackSession.providerGroup,
-        repoSource: fallbackSession.repoSource,
       })
     })()
   }, [props.sessions, selectedSessionId])
@@ -112,13 +118,33 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
     .map((session) => session.id)
 
   const handleCreateSession = React.useEffectEvent(async () => {
-    const baseSession = activeSession ?? props.initialSession
     const path =
       typeof window !== "undefined" ? window.location.pathname : ""
     const parsed = parseRepoPathname(path)
     const repoFromPath = parsed
       ? normalizeRepoSource(parsedPathToRepoSource(parsed))
       : undefined
+
+    const baseSession = activeSession ?? props.initialSession
+    if (!baseSession) {
+      const { model, providerGroup, visibleProviderGroups } =
+        await resolveProviderDefaults()
+      const nextSession = createSession({
+        model,
+        providerGroup,
+        repoSource: repoFromPath,
+        thinkingLevel: "medium",
+      })
+      await persistSessionSnapshot(nextSession)
+      const finalized = await persistVisibleSessionSelection(
+        nextSession,
+        visibleProviderGroups
+      )
+      setSelectedSessionId(finalized.id)
+      await persistLastUsedSessionSettings(finalized)
+      return
+    }
+
     const nextSession = createSession({
       model: baseSession.model,
       providerGroup: baseSession.providerGroup ?? baseSession.provider,
@@ -128,27 +154,26 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
 
     await persistSessionSnapshot(nextSession)
     setSelectedSessionId(nextSession.id)
-    syncSessionToUrl(nextSession.id)
     await persistLastUsedSessionSettings(nextSession)
   })
 
   const handleSelectSession = React.useEffectEvent(async (sessionId: string) => {
     setSelectedSessionId(sessionId)
-    syncSessionToUrl(sessionId)
 
     const selectedMetadata = props.sessions.find((session) => session.id === sessionId)
 
     if (!selectedMetadata) {
-      await persistActiveSessionId(sessionId)
+      const loaded = await loadSession(sessionId)
+      if (loaded) {
+        await persistLastUsedSessionSettings(loaded)
+      }
       return
     }
 
     await persistLastUsedSessionSettings({
-      id: selectedMetadata.id,
       model: selectedMetadata.model,
       provider: selectedMetadata.provider,
       providerGroup: selectedMetadata.providerGroup,
-      repoSource: selectedMetadata.repoSource,
     })
   })
 
@@ -182,13 +207,10 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
     if (remainingSessions.length > 0) {
       const fallbackSession = remainingSessions[0]
       setSelectedSessionId(fallbackSession.id)
-      syncSessionToUrl(fallbackSession.id)
       await persistLastUsedSessionSettings({
-        id: fallbackSession.id,
         model: fallbackSession.model,
         provider: fallbackSession.provider,
         providerGroup: fallbackSession.providerGroup,
-        repoSource: fallbackSession.repoSource,
       })
       return
     }
@@ -197,6 +219,26 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
     const repoFromPathForEmpty = parsed
       ? normalizeRepoSource(parsedPathToRepoSource(parsed))
       : undefined
+
+    if (!baseSession) {
+      const { model, providerGroup, visibleProviderGroups } =
+        await resolveProviderDefaults()
+      const nextSession = createSession({
+        model,
+        providerGroup,
+        repoSource: repoFromPathForEmpty,
+        thinkingLevel: "medium",
+      })
+      await persistSessionSnapshot(nextSession)
+      const finalized = await persistVisibleSessionSelection(
+        nextSession,
+        visibleProviderGroups
+      )
+      setSelectedSessionId(finalized.id)
+      await persistLastUsedSessionSettings(finalized)
+      return
+    }
+
     const nextSession = createSession({
       model: baseSession.model,
       providerGroup: baseSession.providerGroup ?? baseSession.provider,
@@ -206,7 +248,6 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
 
     await persistSessionSnapshot(nextSession)
     setSelectedSessionId(nextSession.id)
-    syncSessionToUrl(nextSession.id)
     await persistLastUsedSessionSettings(nextSession)
   })
 
@@ -214,6 +255,7 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
     activeSession,
     displayedIsStreaming,
     messages,
+    openSettings: props.openSettings,
     runtime,
     selectedSessionId,
   }
@@ -231,7 +273,7 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
         />
         <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <ChatHeader
-            onOpenSettings={() => props.setSettingsOpen(true)}
+            onOpenSettings={() => props.openSettings("providers")}
             settingsDisabled={displayedIsStreaming}
           />
           <main className="flex min-h-0 flex-1 overflow-hidden">
@@ -239,14 +281,18 @@ export function ChatShellChrome(props: ChatShellChromeProps) {
           </main>
         </SidebarInset>
       </div>
-      {activeSession ? (
-        <SettingsDialog
-          onOpenChange={props.setSettingsOpen}
-          open={props.settingsOpen}
-          session={activeSession}
-          settingsDisabled={displayedIsStreaming}
-        />
-      ) : null}
+      <SettingsDialog
+        initialSection={props.settingsSection}
+        onGithubTokenSaved={() => {
+          if (selectedSessionId) {
+            void runtimeClient.refreshGithubToken(selectedSessionId)
+          }
+        }}
+        onOpenChange={props.setSettingsOpen}
+        open={props.settingsOpen}
+        session={activeSession}
+        settingsDisabled={displayedIsStreaming}
+      />
     </SidebarProvider>
   )
 }
@@ -255,6 +301,16 @@ export function ChatShell() {
   const bootstrap = useAppBootstrap()
   const { sessions } = useSessionList()
   const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const [settingsSection, setSettingsSection] =
+    React.useState<SettingsSection>("providers")
+
+  const openSettings = React.useCallback(
+    (section: SettingsSection = "providers") => {
+      setSettingsSection(section)
+      setSettingsOpen(true)
+    },
+    []
+  )
 
   if (bootstrap.status === "error") {
     return (
@@ -275,19 +331,23 @@ export function ChatShell() {
   return (
     <ChatShellChrome
       initialSession={bootstrap.session}
+      openSettings={openSettings}
       sessions={sessions}
       settingsOpen={settingsOpen}
       setSettingsOpen={setSettingsOpen}
+      settingsSection={settingsSection}
       renderMain={({
         activeSession: session,
         displayedIsStreaming,
         messages: sessionMessages,
+        openSettings: openSettingsFromChrome,
         runtime: sessionRuntime,
       }) =>
         session ? (
           <Chat
             error={sessionRuntime.error ?? session.error}
             messages={sessionMessages}
+            onOpenGithubSettings={() => openSettingsFromChrome("github")}
             runtime={sessionRuntime}
             session={{
               ...session,

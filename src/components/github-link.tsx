@@ -15,8 +15,8 @@ export function GitHubLink() {
       <TooltipTrigger asChild>
         <Button asChild className="h-8 shadow-none" size="sm" variant="ghost">
           <a
-            aria-label="GitHub repo"
-            href="https://github.com"
+            aria-label="gitinspect on GitHub"
+            href="https://github.com/gitinspect"
             rel="noreferrer"
             target="_blank"
           >
@@ -27,7 +27,7 @@ export function GitHubLink() {
           </a>
         </Button>
       </TooltipTrigger>
-      <TooltipContent sideOffset={6}>GitHub repo</TooltipContent>
+      <TooltipContent sideOffset={6}>gitinspect on GitHub</TooltipContent>
     </Tooltip>
   )
 }

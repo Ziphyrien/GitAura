@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { AppShell } from "@/components/app-shell"
+import { LandingPage } from "@/components/landing-page"
 
 export const Route = createFileRoute("/")({ component: HomePage })
 
 function HomePage() {
-  return <AppShell />
+  return <LandingPage />
 }

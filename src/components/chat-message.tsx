@@ -26,13 +26,25 @@ import type { ChatMessage as ChatMessageType } from "@/types/chat"
 import {
   deriveAssistantView,
   getUserText,
+  isSystemMessage,
   isToolResultMessage,
 } from "./chat-adapter"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
+import { Button } from "@/components/ui/button"
+import { AlertCircle, AlertTriangle, Info } from "lucide-react"
 
 export function ChatMessage(props: {
   followingMessages?: readonly ChatMessageType[]
   isStreamingReasoning: boolean
   message: ChatMessageType
+  onOpenGithubSettings?: () => void
 }) {
   const { message } = props
 
@@ -48,6 +60,61 @@ export function ChatMessage(props: {
 
   if (isToolResultMessage(message)) {
     return <ToolResultBubble message={message} />
+  }
+
+  if (isSystemMessage(message)) {
+    const severity = message.severity
+    const tone =
+      severity === "error"
+        ? "border-red-600/40 bg-red-100 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+        : severity === "warning"
+          ? "border-amber-600/40 bg-amber-100 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/25 dark:text-amber-100"
+          : "border-foreground/15 bg-muted/40 text-foreground"
+
+    const icon =
+      severity === "error" ? (
+        <AlertCircle className="size-4 text-red-600 dark:text-red-400" />
+      ) : severity === "warning" ? (
+        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+      ) : (
+        <Info className="size-4 text-muted-foreground" />
+      )
+
+    const showGithubCta =
+      message.action === "open-github-settings" && props.onOpenGithubSettings
+
+    return (
+      <div className="flex w-full justify-start py-1">
+        <Item
+          className={`max-w-full flex-1 flex-wrap items-start gap-2 rounded-md border text-sm ${tone}`}
+          variant="outline"
+        >
+          <ItemMedia variant="icon">{icon}</ItemMedia>
+          <ItemContent>
+            <ItemTitle className="line-clamp-none text-[13px] font-medium">
+              {message.kind.replace(/_/g, " ")}
+            </ItemTitle>
+            <ItemDescription className="line-clamp-none text-[13px] text-inherit opacity-90">
+              {message.message}
+            </ItemDescription>
+          </ItemContent>
+          {showGithubCta ? (
+            <ItemActions className="shrink-0">
+              <Button
+                onClick={props.onOpenGithubSettings}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {message.kind === "github_rate_limit"
+                  ? "Add GitHub token"
+                  : "GitHub settings"}
+              </Button>
+            </ItemActions>
+          ) : null}
+        </Item>
+      </div>
+    )
   }
 
   const view = deriveAssistantView(message, props.followingMessages)

@@ -91,7 +91,7 @@ export function SettingsDialog(props: {
   onGithubTokenSaved?: () => void | Promise<void>
   onOpenChange: (open: boolean) => void
   open: boolean
-  session: SessionData
+  session?: SessionData
   settingsDisabled?: boolean
 }) {
   const [section, setSection] = React.useState<SettingsSection>("providers")
@@ -190,7 +190,9 @@ export function SettingsDialog(props: {
                 {section === "proxy" ? (
                   <ProxySettings disabled={props.settingsDisabled} />
                 ) : null}
-                {section === "costs" ? <CostsPanel session={props.session} /> : null}
+                {section === "costs" ? (
+                  <CostsPanel session={props.session} />
+                ) : null}
                 {section === "about" ? <AboutPanel /> : null}
               </div>
             </div>

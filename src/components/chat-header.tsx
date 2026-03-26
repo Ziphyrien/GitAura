@@ -11,6 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { ChatLogo } from "@/components/chat-logo"
 import { GitHubLink } from "@/components/github-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Icons } from "@/components/icons"
@@ -108,7 +109,9 @@ export function ChatHeader(props: ChatHeaderProps) {
               </>
             ) : (
               <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium">gitinspect</BreadcrumbPage>
+                <BreadcrumbPage className="p-0">
+                  <ChatLogo className="w-auto justify-start" />
+                </BreadcrumbPage>
               </BreadcrumbItem>
             )}
           </BreadcrumbList>
@@ -116,9 +119,13 @@ export function ChatHeader(props: ChatHeaderProps) {
       </div>
       <div className="flex items-center gap-2 px-3">
         <Separator className="!h-6 !self-center" orientation="vertical" />
-        <HeaderTooltip label="Open Twitter">
+        <HeaderTooltip label="Open X">
           <Button asChild className="h-8 shadow-none" size="sm" variant="ghost">
-            <a href="https://twitter.com" rel="noreferrer" target="_blank">
+            <a
+              href="https://x.com/dinnaiii"
+              rel="noreferrer"
+              target="_blank"
+            >
               <Icons.twitter className="text-foreground" />
             </a>
           </Button>
