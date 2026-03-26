@@ -120,7 +120,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r-0">
-      <SidebarHeader className="h-12 border-sidebar-border border-b">
+      <SidebarHeader className="h-14 shrink-0 justify-center border-sidebar-border border-b">
         <ChatLogo />
       </SidebarHeader>
       <ChatSessionList
