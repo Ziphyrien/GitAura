@@ -1,3 +1,12 @@
+import { useNavigate, useSearch } from "@tanstack/react-router"
+import { AlertCircle, AlertTriangle, Info } from "lucide-react"
+import {
+  deriveAssistantView,
+  getUserText,
+  isSystemMessage,
+  isToolResultMessage,
+} from "./chat-adapter"
+import type { ChatMessage as ChatMessageType } from "@/types/chat"
 import {
   Message,
   MessageBranch,
@@ -22,13 +31,7 @@ import {
 } from "@/components/ai-elements/sources"
 import { ToolExecution } from "@/components/tool-execution"
 import { ToolResultBubble } from "@/components/tool-result-bubble"
-import type { ChatMessage as ChatMessageType } from "@/types/chat"
-import {
-  deriveAssistantView,
-  getUserText,
-  isSystemMessage,
-  isToolResultMessage,
-} from "./chat-adapter"
+import { useCurrentRouteTarget } from "@/hooks/use-current-route-target"
 import {
   Item,
   ItemActions,
@@ -38,14 +41,20 @@ import {
   ItemTitle,
 } from "@/components/ui/item"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, AlertTriangle, Info } from "lucide-react"
 
 export function ChatMessage(props: {
-  followingMessages?: readonly ChatMessageType[]
+  followingMessages?: ReadonlyArray<ChatMessageType>
   isStreamingReasoning: boolean
   message: ChatMessageType
-  onOpenGithubSettings?: () => void
 }) {
+  const navigate = useNavigate()
+  const search = useSearch({ strict: false })
+  const currentRouteTarget = useCurrentRouteTarget()
+  const sidebar = search.sidebar === "open" ? "open" : undefined
+  const initialQuery =
+    typeof search.initialQuery === "string" ? search.initialQuery : undefined
+  const sessionId =
+    typeof search.session === "string" ? search.session : undefined
   const { message } = props
 
   if (message.role === "user") {
@@ -80,8 +89,7 @@ export function ChatMessage(props: {
         <Info className="size-4 text-muted-foreground" />
       )
 
-    const showGithubCta =
-      message.action === "open-github-settings" && props.onOpenGithubSettings
+    const showGithubCta = message.action === "open-github-settings"
 
     return (
       <div className="flex w-full justify-start py-1">
@@ -101,7 +109,28 @@ export function ChatMessage(props: {
           {showGithubCta ? (
             <ItemActions className="shrink-0">
               <Button
-                onClick={props.onOpenGithubSettings}
+                onClick={() => {
+                  if (currentRouteTarget.to === "/") {
+                    void navigate({
+                      to: "/",
+                      search: {
+                        settings: "github",
+                        sidebar,
+                      },
+                    })
+                    return
+                  }
+
+                  void navigate({
+                    ...currentRouteTarget,
+                    search: {
+                      initialQuery,
+                      session: sessionId,
+                      settings: "github",
+                      sidebar,
+                    },
+                  })
+                }}
                 size="sm"
                 type="button"
                 variant="outline"

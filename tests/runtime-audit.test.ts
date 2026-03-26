@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { describe, expect, it } from "vitest"
 import { createRuntime } from "@/agent/runtime"
 
 function readFile(path: string): string {
@@ -21,7 +21,10 @@ describe("runtime audit", () => {
       "src/agent/runtime-client.ts",
       "src/agent/runtime-worker.ts",
       "src/hooks/use-runtime-session.ts",
-      "src/components/app-shell-page.tsx",
+      "src/components/chat.tsx",
+      "src/routes/chat.tsx",
+      "src/routes/$owner.$repo.index.tsx",
+      "src/routes/$owner.$repo.$.tsx",
       "src/sessions/session-actions.ts",
       "src/auth/popup-flow.ts",
     ]

@@ -184,6 +184,7 @@ function PromptInputAttachmentsRow() {
 
 export function ChatComposer(props: {
   error?: string
+  initialInput?: string
   isStreaming: boolean
   model: string
   onAbort: () => void
@@ -197,7 +198,10 @@ export function ChatComposer(props: {
   thinkingLevel: ThinkingLevel
 }) {
   return (
-    <PromptInputProvider>
+    <PromptInputProvider
+      initialInput={props.initialInput}
+      key={props.initialInput ?? ""}
+    >
       <ChatComposerInner {...props} />
     </PromptInputProvider>
   )

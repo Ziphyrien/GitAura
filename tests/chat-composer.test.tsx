@@ -1,16 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ChatComposer } from "@/components/chat-composer"
+import { renderWithProviders } from "@/test/render-with-providers"
 
 vi.mock("@/components/chat-model-selector", () => ({
   ChatModelSelector: () => <span data-testid="model-selector">Model</span>,
 }))
 
 describe("ChatComposer", () => {
-  it("trims and sends text on submit", () => {
+  it("trims and sends text on submit", async () => {
     const onSend = vi.fn().mockResolvedValue(undefined)
 
-    render(
+    renderWithProviders(
       <ChatComposer
         isStreaming={false}
         model="gpt-5.1-codex-mini"
@@ -26,18 +27,19 @@ describe("ChatComposer", () => {
     const input = screen.getByPlaceholderText(
       "What would you like to know?"
     ) as HTMLTextAreaElement
-    fireEvent.change(input, { target: { value: "  hello world  " } })
+    fireEvent.input(input, { target: { value: "  hello world  " } })
 
-    const submit = screen.getByRole("button", { name: /submit/i })
-    fireEvent.click(submit)
+    fireEvent.submit(input.closest("form") as HTMLFormElement)
 
-    expect(onSend).toHaveBeenCalledWith("hello world")
+    await waitFor(() => {
+      expect(onSend).toHaveBeenCalledWith("hello world")
+    })
   })
 
   it("does not send when empty", () => {
     const onSend = vi.fn()
 
-    render(
+    renderWithProviders(
       <ChatComposer
         isStreaming={false}
         model="gpt-5.1-codex-mini"
@@ -57,7 +59,7 @@ describe("ChatComposer", () => {
   })
 
   it("disables submit while streaming", () => {
-    render(
+    renderWithProviders(
       <ChatComposer
         isStreaming
         model="gpt-5.1-codex-mini"
@@ -75,7 +77,7 @@ describe("ChatComposer", () => {
   })
 
   it("renders model selector slot", () => {
-    render(
+    renderWithProviders(
       <ChatComposer
         isStreaming={false}
         model="gpt-5.1-codex-mini"
