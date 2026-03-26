@@ -1,17 +1,11 @@
 import * as React from "react"
-import {
-  ArrowUpRight,
-  BadgeCheck,
-  DollarSign,
-  GitBranch,
-  Globe,
-  Info,
-} from "lucide-react"
+import { ArrowUpRight, BadgeCheck } from "lucide-react"
 import type { SessionData } from "@/types/storage"
+import { Icons } from "@/components/icons"
 import { CostsPanel } from "@/components/costs-panel"
+import { GithubTokenSettings } from "@/components/github-token-settings"
 import { ProviderSettings } from "@/components/provider-settings"
 import { ProxySettings } from "@/components/proxy-settings"
-import { RepoSettings } from "@/components/repo-settings"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -46,7 +40,12 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 
-type SettingsSection = "providers" | "repo" | "costs" | "proxy" | "about"
+export type SettingsSection =
+  | "providers"
+  | "github"
+  | "costs"
+  | "proxy"
+  | "about"
 type AboutDemoState = "update" | "latest"
 
 const SETTINGS_SECTIONS: Array<{
@@ -57,38 +56,39 @@ const SETTINGS_SECTIONS: Array<{
 }> = [
   {
     description: "Local provider credentials and OAuth",
-    icon: BadgeCheck,
+    icon: Icons.badgeCheck,
     id: "providers",
     label: "Providers",
   },
   {
-    description: "Active repository context for the session",
-    icon: GitBranch,
-    id: "repo",
-    label: "Repo",
+    description: "GitHub API access for repository tools",
+    icon: Icons.gitHub,
+    id: "github",
+    label: "GitHub",
   },
   {
     description: "Session and daily usage totals",
-    icon: DollarSign,
+    icon: Icons.cost,
     id: "costs",
     label: "Costs",
   },
   {
     description: "Proxy routing for provider requests",
-    icon: Globe,
+    icon: Icons.globe,
     id: "proxy",
     label: "Proxy",
   },
   {
     description: "What gitinspect.com is and how it works",
-    icon: Info,
+    icon: Icons.faceThinking,
     id: "about",
     label: "About",
   },
 ]
 
 export function SettingsDialog(props: {
-  onRepoSourceChange: (repoSource?: SessionData["repoSource"]) => Promise<void>
+  initialSection?: SettingsSection
+  onGithubTokenSaved?: () => void | Promise<void>
   onOpenChange: (open: boolean) => void
   open: boolean
   session: SessionData
@@ -97,6 +97,12 @@ export function SettingsDialog(props: {
   const [section, setSection] = React.useState<SettingsSection>("providers")
   const activeSection =
     SETTINGS_SECTIONS.find((item) => item.id === section) ?? SETTINGS_SECTIONS[0]
+
+  React.useEffect(() => {
+    if (props.open && props.initialSection) {
+      setSection(props.initialSection)
+    }
+  }, [props.open, props.initialSection])
 
   return (
     <Dialog onOpenChange={props.onOpenChange} open={props.open}>
@@ -175,11 +181,10 @@ export function SettingsDialog(props: {
                 {section === "providers" ? (
                   <ProviderSettings onNavigateToProxy={() => setSection("proxy")} />
                 ) : null}
-                {section === "repo" ? (
-                  <RepoSettings
+                {section === "github" ? (
+                  <GithubTokenSettings
                     disabled={props.settingsDisabled}
-                    onSave={props.onRepoSourceChange}
-                    session={props.session}
+                    onTokenSaved={props.onGithubTokenSaved}
                   />
                 ) : null}
                 {section === "proxy" ? (
@@ -206,13 +211,6 @@ function AboutPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="space-y-1.5">
-        <div className="text-sm font-medium">About</div>
-        <div className="text-xs text-muted-foreground">
-          What gitinspect.com is and how it works.
-        </div>
-      </div>
-
       <div className="rounded-none border border-dashed border-foreground/15 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
