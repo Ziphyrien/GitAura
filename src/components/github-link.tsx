@@ -16,7 +16,7 @@ export function GitHubLink() {
         <Button asChild className="h-8 shadow-none" size="sm" variant="ghost">
           <a
             aria-label="gitinspect on GitHub"
-            href="https://github.com/gitinspect"
+            href="https://github.com/jeremyosih/gitinspect"
             rel="noreferrer"
             target="_blank"
           >

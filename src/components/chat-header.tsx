@@ -1,5 +1,4 @@
 import * as React from "react"
-import { useRouterState } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -20,7 +19,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { githubOwnerAvatarUrl, parseRepoPathname } from "@/repo/url"
+import { githubOwnerAvatarUrl } from "@/repo/url"
+import type { RepoSource } from "@/types/storage"
 
 function SquareOwnerAvatar({ owner }: { owner: string }) {
   const [failed, setFailed] = React.useState(false)
@@ -49,6 +49,7 @@ function SquareOwnerAvatar({ owner }: { owner: string }) {
 
 type ChatHeaderProps = {
   onOpenSettings: () => void
+  repoSource?: RepoSource
   settingsDisabled?: boolean
 }
 
@@ -71,8 +72,7 @@ const repoLinkClass =
   "whitespace-nowrap font-geist-pixel-square text-sm font-semibold leading-none tracking-tight text-foreground underline-offset-4 hover:underline sm:text-base"
 
 export function ChatHeader(props: ChatHeaderProps) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const parsed = parseRepoPathname(pathname)
+  const repoSource = props.repoSource
 
   return (
     <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background">
@@ -83,18 +83,18 @@ export function ChatHeader(props: ChatHeaderProps) {
         <Separator className="mr-2 !h-7 !self-center" orientation="vertical" />
         <Breadcrumb className="min-w-0 flex-1 overflow-x-auto">
           <BreadcrumbList className="text-sm sm:text-base">
-            {parsed ? (
+            {repoSource ? (
               <>
                 <BreadcrumbItem className="shrink-0">
                   <span className="inline-flex items-center gap-1.5">
-                    <SquareOwnerAvatar owner={parsed.owner} />
+                    <SquareOwnerAvatar owner={repoSource.owner} />
                     <BreadcrumbLink
                       className={repoLinkClass}
-                      href={`https://github.com/${encodeURIComponent(parsed.owner)}`}
+                      href={`https://github.com/${encodeURIComponent(repoSource.owner)}`}
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {parsed.owner}
+                      {repoSource.owner}
                     </BreadcrumbLink>
                   </span>
                 </BreadcrumbItem>
@@ -104,11 +104,11 @@ export function ChatHeader(props: ChatHeaderProps) {
                 <BreadcrumbItem className="shrink-0">
                   <BreadcrumbLink
                     className={repoLinkClass}
-                    href={`https://github.com/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`}
+                    href={`https://github.com/${encodeURIComponent(repoSource.owner)}/${encodeURIComponent(repoSource.repo)}`}
                     rel="noreferrer"
                     target="_blank"
                   >
-                    {parsed.repo}
+                    {repoSource.repo}
                   </BreadcrumbLink>
                 </BreadcrumbItem>
               </>
@@ -127,11 +127,12 @@ export function ChatHeader(props: ChatHeaderProps) {
         <HeaderTooltip label="Open X">
           <Button asChild className="h-8 shadow-none" size="sm" variant="ghost">
             <a
+              aria-label="Open X"
               href="https://x.com/dinnaiii"
               rel="noreferrer"
               target="_blank"
             >
-              <Icons.twitter className="text-foreground" />
+              <Icons.x className="text-foreground" aria-hidden />
             </a>
           </Button>
         </HeaderTooltip>
