@@ -135,7 +135,9 @@ export function AppSettingsDialog() {
   return (
     <Dialog
       onOpenChange={(nextOpen) => {
-        navigateWithSettings(nextOpen ? section : undefined)
+        if (!nextOpen) {
+          navigateWithSettings(undefined)
+        }
       }}
       open={open}
     >
