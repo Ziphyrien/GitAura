@@ -1,33 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { SessionWorkerApi } from "@/agent/runtime-worker-types"
 
+type SetModelSelection = SessionWorkerApi["setModelSelection"]
+type SetThinkingLevel = SessionWorkerApi["setThinkingLevel"]
+
 type WorkerApiStub = SessionWorkerApi & {
   abort: ReturnType<typeof vi.fn<() => Promise<void>>>
   dispose: ReturnType<typeof vi.fn<() => Promise<void>>>
   init: ReturnType<typeof vi.fn<(sessionId: string) => Promise<boolean>>>
   refreshGithubToken: ReturnType<typeof vi.fn<() => Promise<void>>>
   send: ReturnType<typeof vi.fn<(content: string) => Promise<void>>>
-  setModelSelection: ReturnType<
-    typeof vi.fn<
-      (
-        providerGroup: "openai-codex",
-        modelId: string
-      ) => Promise<void>
-    >
-  >
-  setThinkingLevel: ReturnType<
-    typeof vi.fn<(thinkingLevel: "medium" | "off" | "high") => Promise<void>>
-  >
+  setModelSelection: ReturnType<typeof vi.fn<SetModelSelection>>
+  setThinkingLevel: ReturnType<typeof vi.fn<SetThinkingLevel>>
 }
 
+const sharedWorkerConstructors: Array<{ name: string }> = []
+const workerConstructors: Array<{ name: string }> = []
 const wrapMock = vi.fn<() => SessionWorkerApi>()
 
 vi.mock("comlink", () => ({
   wrap: wrapMock,
 }))
-
-const sharedWorkerConstructors: Array<{ name: string }> = []
-const workerConstructors: Array<{ name: string }> = []
 
 function createApiStub(): WorkerApiStub {
   return {
@@ -38,12 +31,12 @@ function createApiStub(): WorkerApiStub {
     send: vi.fn((_content: string) => Promise.resolve()),
     setModelSelection: vi.fn(
       (
-        _providerGroup: "openai-codex",
-        _modelId: string
+        _providerGroup: Parameters<SetModelSelection>[0],
+        _modelId: Parameters<SetModelSelection>[1]
       ): Promise<void> => Promise.resolve()
     ),
     setThinkingLevel: vi.fn(
-      (_thinkingLevel: "medium" | "off" | "high"): Promise<void> =>
+      (_thinkingLevel: Parameters<SetThinkingLevel>[0]): Promise<void> =>
         Promise.resolve()
     ),
   }
@@ -62,10 +55,7 @@ function installWindow(sharedWorkerAvailable: boolean) {
     class SharedWorkerStub {
       port = { close: vi.fn(), stub: "shared-port" }
 
-      constructor(
-        _url: URL,
-        options: { name: string; type: string }
-      ) {
+      constructor(_url: URL, options: { name: string; type: string }) {
         sharedWorkerConstructors.push({ name: options.name })
       }
     }
@@ -92,6 +82,37 @@ function installWindow(sharedWorkerAvailable: boolean) {
     })
   }
 
+  Object.defineProperty(globalThis, "Worker", {
+    configurable: true,
+    value: WorkerStub,
+  })
+}
+
+function installWindowWithBrokenSharedWorker() {
+  class WorkerStub {
+    terminate = vi.fn()
+    constructor(_url: URL, options: { name: string; type: string }) {
+      workerConstructors.push({ name: options.name })
+    }
+  }
+
+  class SharedWorkerStub {
+    constructor() {
+      throw new Error("shared worker blocked")
+    }
+  }
+
+  Object.defineProperty(globalThis, "SharedWorker", {
+    configurable: true,
+    value: SharedWorkerStub,
+  })
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      SharedWorker: SharedWorkerStub,
+      Worker: WorkerStub,
+    },
+  })
   Object.defineProperty(globalThis, "Worker", {
     configurable: true,
     value: WorkerStub,
@@ -173,6 +194,31 @@ describe("RuntimeClient", () => {
     expect(api.init).toHaveBeenCalledWith("sess-x")
   })
 
+  it("falls back to Worker when SharedWorker construction throws", async () => {
+    const api = createApiStub()
+    wrapMock.mockReturnValue(api)
+    installWindowWithBrokenSharedWorker()
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const { RuntimeClient } = await import("@/agent/runtime-client")
+    const client = new RuntimeClient()
+
+    await client.send("sess-broken", "hi")
+
+    expect(workerConstructors).toEqual([{ name: "gitinspect-session-sess-broken" }])
+    expect(sharedWorkerConstructors).toHaveLength(0)
+    expect(api.init).toHaveBeenCalledWith("sess-broken")
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[gitinspect:first-send] shared_worker_unavailable",
+      expect.objectContaining({
+        sessionId: "sess-broken",
+      })
+    )
+
+    warnSpy.mockRestore()
+  })
+
   it("throws MissingSessionRuntimeError when init returns false", async () => {
     const api = createApiStub()
     api.init.mockResolvedValue(false)
@@ -218,6 +264,31 @@ describe("RuntimeClient", () => {
       code: "missing-session",
       name: "MissingSessionRuntimeError",
     })
+  })
+
+  it("drops a transport-broken worker handle and recreates it on the next send", async () => {
+    const firstApi = createApiStub()
+    firstApi.send.mockRejectedValueOnce(new Error("Worker port closed"))
+    const secondApi = createApiStub()
+    let createCount = 0
+    wrapMock.mockImplementation(() => {
+      createCount += 1
+      return createCount === 1 ? firstApi : secondApi
+    })
+    installWindow(true)
+
+    const { RuntimeClient } = await import("@/agent/runtime-client")
+    const client = new RuntimeClient()
+
+    await expect(client.send("sess-transport", "first")).rejects.toThrow(
+      "Worker port closed"
+    )
+    await client.send("sess-transport", "second")
+
+    expect(sharedWorkerConstructors).toHaveLength(2)
+    expect(firstApi.init).toHaveBeenCalledTimes(1)
+    expect(secondApi.init).toHaveBeenCalledTimes(1)
+    expect(secondApi.send).toHaveBeenCalledWith("second")
   })
 
   it("releaseSession disposes and removes the worker handle", async () => {

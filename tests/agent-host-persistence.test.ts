@@ -10,14 +10,53 @@ import type { MessageRow, SessionData } from "@/types/storage"
 import { GitHubFsError } from "@/repo/github-fs"
 import { createEmptyUsage } from "@/types/models"
 
-const getSessionMessages = vi.fn(async (): Promise<Array<MessageRow>> => [])
-const putMessage = vi.fn(async (_message: MessageRow): Promise<void> => {})
-const putMessages = vi.fn(
-  async (_messages: Array<MessageRow>): Promise<void> => {}
+const state = {
+  messagesBySession: new Map<string, Array<MessageRow>>(),
+  sessions: new Map<string, SessionData>(),
+}
+
+function mergeSessionMessages(
+  sessionId: string,
+  messages: Array<MessageRow>
+): void {
+  const nextMessages = new Map<string, MessageRow>()
+
+  for (const message of state.messagesBySession.get(sessionId) ?? []) {
+    nextMessages.set(message.id, message)
+  }
+
+  for (const message of messages) {
+    nextMessages.set(message.id, message)
+  }
+
+  state.messagesBySession.set(
+    sessionId,
+    [...nextMessages.values()].sort((left, right) => left.timestamp - right.timestamp)
+  )
+}
+
+const getSession = vi.fn(async (id: string): Promise<SessionData | undefined> =>
+  state.sessions.get(id)
 )
-const putSession = vi.fn(async (_session: SessionData): Promise<void> => {})
+const getSessionMessages = vi.fn(async (sessionId: string): Promise<Array<MessageRow>> =>
+  state.messagesBySession.get(sessionId) ?? []
+)
+const putMessage = vi.fn(async (message: MessageRow): Promise<void> => {
+  mergeSessionMessages(message.sessionId, [message])
+})
+const putMessages = vi.fn(async (messages: Array<MessageRow>): Promise<void> => {
+  for (const message of messages) {
+    mergeSessionMessages(message.sessionId, [message])
+  }
+})
+const putSession = vi.fn(async (session: SessionData): Promise<void> => {
+  state.sessions.set(session.id, session)
+})
 const putSessionAndMessages = vi.fn(
-  async (_session: SessionData, _messages: Array<MessageRow>): Promise<void> => {}
+  async (session: SessionData, messages: Array<MessageRow>): Promise<void> => {
+    state.sessions.set(session.id, session)
+    mergeSessionMessages(session.id, messages)
+  }
 )
 const recordUsage = vi.fn(
   async (
@@ -28,6 +67,12 @@ const recordUsage = vi.fn(
   ): Promise<void> => {}
 )
 
+const createIdMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@/lib/ids", () => ({
+  createId: createIdMock,
+}))
+
 type MockAgentEvent =
   | {
       message: AssistantMessage
@@ -35,6 +80,15 @@ type MockAgentEvent =
     }
   | {
       type: "stream_update"
+    }
+  | {
+      message: AssistantMessage
+      toolResults: ToolResultMessage[]
+      type: "turn_end"
+    }
+  | {
+      messages: AgentMessage[]
+      type: "agent_end"
     }
 
 type MockAgentState = {
@@ -88,6 +142,7 @@ const setThinkingLevelMock = vi.fn(
 const setToolsMock = vi.fn((_tools: Array<AgentTool>): void => {})
 
 vi.mock("@/db/schema", () => ({
+  getSession,
   getSessionMessages,
   putMessage,
   putMessages,
@@ -120,6 +175,7 @@ vi.mock("@mariozechner/pi-agent-core", () => ({
 
 function createSession(): SessionData {
   return {
+    bootstrapStatus: "ready",
     cost: 0,
     createdAt: "2026-03-24T12:00:00.000Z",
     error: undefined,
@@ -161,6 +217,7 @@ function createToolResultMessage(
     content: [{ text: "README contents", type: "text" }],
     id: "tool-result-1",
     isError: false,
+    parentAssistantId: "assistant-1",
     role: "toolResult",
     timestamp: 2,
     toolCallId: "call-1",
@@ -172,6 +229,15 @@ function createToolResultMessage(
 async function flushMicrotasks(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  return { promise, resolve }
 }
 
 function getPersistedSystemRows(): Array<
@@ -187,8 +253,19 @@ function getPersistedSystemRows(): Array<
   )
 }
 
+function collectAllPersistedRows(): Array<MessageRow> {
+  return [
+    ...putSessionAndMessages.mock.calls.flatMap(([, rows]) => rows),
+    ...putMessages.mock.calls.flatMap(([rows]) => rows),
+    ...putMessage.mock.calls.map(([row]) => row),
+  ]
+}
+
 describe("AgentHost persistence", () => {
   beforeEach(() => {
+    state.messagesBySession = new Map()
+    state.sessions = new Map()
+    getSession.mockReset()
     getSessionMessages.mockReset()
     getSessionMessages.mockResolvedValue([])
     putMessage.mockClear()
@@ -196,11 +273,21 @@ describe("AgentHost persistence", () => {
     putSession.mockClear()
     putSessionAndMessages.mockClear()
     recordUsage.mockClear()
+    createIdMock.mockReset()
+    let generatedId = 0
+    createIdMock.mockImplementation(() => `gen-${++generatedId}`)
     promptMock.mockClear()
     abortMock.mockClear()
     setModelMock.mockClear()
     setThinkingLevelMock.mockClear()
     setToolsMock.mockClear()
+
+    getSession.mockImplementation(async (id: string) =>
+      state.sessions.get(id)
+    )
+    getSessionMessages.mockImplementation(async (sessionId: string) =>
+      state.messagesBySession.get(sessionId) ?? []
+    )
 
     agentState.error = undefined
     agentState.isStreaming = false
@@ -252,6 +339,158 @@ describe("AgentHost persistence", () => {
     )
 
     host.dispose()
+  })
+
+  it("drops queued session writes after disposal", async () => {
+    const { SessionPersistence } = await import("@/agent/session-persistence")
+
+    const firstWrite = createDeferred<void>()
+    putSessionAndMessages.mockImplementationOnce(async () => {
+      await firstWrite.promise
+    })
+
+    const persistence = new SessionPersistence(
+      createSession(),
+      {
+        getCurrentAssistantId: () => "assistant-1",
+        getError: () => undefined,
+        getLastDraftAssistant: () => undefined,
+        getLastTerminalStatus: () => undefined,
+        getMessages: () => [],
+        getStreamMessage: () => null,
+        isStreaming: () => false,
+        setLastDraftAssistant: () => {},
+      },
+      []
+    )
+
+    const first = persistence.persistPromptStart(
+      {
+        content: "hello",
+        id: "user-1",
+        role: "user",
+        sessionId: "session-1",
+        status: "completed",
+        timestamp: 1,
+      },
+      {
+        api: "openai-responses",
+        content: [{ text: "", type: "text" }],
+        id: "assistant-1",
+        model: "gpt-5.1-codex-mini",
+        provider: "openai-codex",
+        role: "assistant",
+        sessionId: "session-1",
+        status: "streaming",
+        stopReason: "stop",
+        timestamp: 1,
+        usage: createEmptyUsage(),
+      }
+    )
+    const second = persistence.persistSessionBoundary(
+      {
+        bootstrapStatus: "ready",
+        error: undefined,
+        isStreaming: false,
+      },
+      [],
+      []
+    )
+
+    persistence.dispose()
+    firstWrite.resolve()
+
+    await first
+    await second
+
+    expect(putSession).not.toHaveBeenCalled()
+  })
+
+  it("does not rebind seeded assistants during prompt start", async () => {
+    const { SessionPersistence } = await import("@/agent/session-persistence")
+
+    const persistence = new SessionPersistence(
+      createSession(),
+      {
+        getCurrentAssistantId: () => "fresh-assistant-id",
+        getError: () => undefined,
+        getLastDraftAssistant: () => undefined,
+        getLastTerminalStatus: () => undefined,
+        getMessages: () => [
+          {
+            content: "first",
+            role: "user",
+            timestamp: 1,
+          },
+          createAssistantMessage({
+            id: "seeded-assistant",
+            timestamp: 2,
+          }),
+          createToolResultMessage({
+            id: "seeded-tool",
+            parentAssistantId: "seeded-assistant",
+            timestamp: 3,
+          }),
+        ],
+        getStreamMessage: () => null,
+        isStreaming: () => false,
+        setLastDraftAssistant: () => {},
+      },
+      [
+        {
+          ...createAssistantMessage({
+            id: "seeded-assistant",
+            timestamp: 2,
+          }),
+          sessionId: "session-1",
+          status: "completed",
+        },
+        {
+          ...createToolResultMessage({
+            id: "seeded-tool",
+            parentAssistantId: "seeded-assistant",
+            timestamp: 3,
+          }),
+          sessionId: "session-1",
+          status: "completed",
+        },
+      ]
+    )
+
+    await persistence.persistPromptStart(
+      {
+        content: "follow-up",
+        id: "new-user-id",
+        role: "user",
+        sessionId: "session-1",
+        status: "completed",
+        timestamp: 9,
+      },
+      {
+        ...createAssistantMessage({
+          id: "fresh-assistant-id",
+          timestamp: 9,
+        }),
+        sessionId: "session-1",
+        status: "streaming",
+      }
+    )
+
+    const rows = persistence.buildCompletedRows()
+
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "seeded-assistant",
+          role: "assistant",
+        }),
+        expect.objectContaining({
+          id: "seeded-tool",
+          parentAssistantId: "seeded-assistant",
+          role: "toolResult",
+        }),
+      ])
+    )
   })
 
   it("persists tool result rows while the stream is still active", async () => {
@@ -465,7 +704,7 @@ describe("AgentHost persistence", () => {
     host.dispose()
   })
 
-  it("persists an errored assistant row and session error when prompt throws", async () => {
+  it("persists an errored assistant row and system notice when prompt throws", async () => {
     const { AgentHost } = await import("@/agent/agent-host")
     const host = new AgentHost(createSession(), [])
 
@@ -475,7 +714,8 @@ describe("AgentHost persistence", () => {
 
     expect(putSessionAndMessages).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: "Prompt failed",
+        bootstrapStatus: "ready",
+        error: undefined,
         isStreaming: false,
       }),
       expect.arrayContaining([
@@ -493,6 +733,7 @@ describe("AgentHost persistence", () => {
         expect.objectContaining({
           role: "system",
           sessionId: "session-1",
+          kind: "unknown",
         }),
       ])
     )
@@ -590,6 +831,376 @@ describe("AgentHost persistence", () => {
     expect(systemKinds).toEqual(
       expect.arrayContaining(["github_auth", "github_rate_limit"])
     )
+
+    host.dispose()
+  })
+
+  it("persists distinct assistant ids and parentAssistantId across a 2-round tool loop", async () => {
+    createIdMock.mockReset()
+    createIdMock
+      .mockReturnValueOnce("user-msg-id")
+      .mockReturnValueOnce("asst-round-1")
+      .mockReturnValueOnce("asst-round-2")
+
+    const { AgentHost } = await import("@/agent/agent-host")
+    const host = new AgentHost(createSession(), [])
+
+    const userMsg = {
+      content: "read the repo",
+      role: "user",
+      timestamp: 1,
+    } as Message
+    const assistant1 = createAssistantMessage({
+      content: [
+        {
+          arguments: { path: "README.md" },
+          id: "call-1",
+          name: "read",
+          type: "toolCall",
+        },
+      ],
+      stopReason: "toolUse",
+      timestamp: 2,
+    })
+    const toolResult1 = createToolResultMessage({
+      id: "tool-row-1",
+      timestamp: 3,
+      toolCallId: "call-1",
+    })
+    const assistant2 = createAssistantMessage({
+      content: [{ text: "Final answer", type: "text" }],
+      id: "assistant-2-final",
+      stopReason: "stop",
+      timestamp: 4,
+    })
+
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true
+      agentState.messages = [userMsg, assistant1, toolResult1]
+      agentState.streamMessage = null
+
+      subscriber?.({ type: "stream_update" })
+      await host.flushPersistence()
+
+      subscriber?.({
+        message: assistant1,
+        toolResults: [toolResult1],
+        type: "turn_end",
+      })
+      await host.flushPersistence()
+
+      agentState.messages = [userMsg, assistant1, toolResult1, assistant2]
+      agentState.streamMessage = null
+      agentState.isStreaming = false
+
+      subscriber?.({
+        message: assistant2,
+        type: "message_end",
+      })
+      await host.flushPersistence()
+    })
+
+    await host.prompt("read the repo")
+
+    expect(createIdMock).toHaveBeenCalledTimes(3)
+
+    const allRows = collectAllPersistedRows()
+    const assistantIds = new Set(
+      allRows.filter((row) => row.role === "assistant").map((row) => row.id)
+    )
+
+    expect(assistantIds.has("asst-round-1")).toBe(true)
+    expect(assistantIds.has("asst-round-2")).toBe(true)
+    expect(
+      allRows.some(
+        (row) =>
+          row.role === "toolResult" &&
+          row.parentAssistantId === "asst-round-1" &&
+          row.toolCallId === "call-1"
+      )
+    ).toBe(true)
+
+    host.dispose()
+  })
+
+  it("persists three distinct assistant ids across a 3-round tool loop", async () => {
+    createIdMock.mockReset()
+    createIdMock
+      .mockReturnValueOnce("user-msg-id")
+      .mockReturnValueOnce("asst-a")
+      .mockReturnValueOnce("asst-b")
+      .mockReturnValueOnce("asst-c")
+
+    const { AgentHost } = await import("@/agent/agent-host")
+    const host = new AgentHost(createSession(), [])
+
+    const userMsg = {
+      content: "multi",
+      role: "user",
+      timestamp: 1,
+    } as Message
+    const mkToolCall = (id: string) => ({
+      arguments: {},
+      id,
+      name: "read",
+      type: "toolCall" as const,
+    })
+
+    const assistant1 = createAssistantMessage({
+      content: [mkToolCall("call-1")],
+      stopReason: "toolUse",
+      timestamp: 2,
+    })
+    const toolResult1 = createToolResultMessage({
+      id: "tr-1",
+      timestamp: 3,
+      toolCallId: "call-1",
+    })
+
+    const assistant2 = createAssistantMessage({
+      content: [mkToolCall("call-2")],
+      id: "assistant-2",
+      stopReason: "toolUse",
+      timestamp: 4,
+    })
+    const toolResult2 = createToolResultMessage({
+      id: "tr-2",
+      timestamp: 5,
+      toolCallId: "call-2",
+    })
+
+    const assistant3 = createAssistantMessage({
+      content: [{ text: "Done", type: "text" }],
+      id: "assistant-3",
+      stopReason: "stop",
+      timestamp: 6,
+    })
+
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true
+
+      agentState.messages = [userMsg, assistant1, toolResult1]
+      agentState.streamMessage = null
+      subscriber?.({ type: "stream_update" })
+      await host.flushPersistence()
+
+      subscriber?.({
+        message: assistant1,
+        toolResults: [toolResult1],
+        type: "turn_end",
+      })
+      await host.flushPersistence()
+
+      agentState.messages = [userMsg, assistant1, toolResult1, assistant2, toolResult2]
+      agentState.streamMessage = null
+      subscriber?.({ type: "stream_update" })
+      await host.flushPersistence()
+
+      subscriber?.({
+        message: assistant2,
+        toolResults: [toolResult2],
+        type: "turn_end",
+      })
+      await host.flushPersistence()
+
+      agentState.messages = [
+        userMsg,
+        assistant1,
+        toolResult1,
+        assistant2,
+        toolResult2,
+        assistant3,
+      ]
+      agentState.streamMessage = null
+      agentState.isStreaming = false
+
+      subscriber?.({
+        message: assistant3,
+        type: "message_end",
+      })
+      await host.flushPersistence()
+    })
+
+    await host.prompt("multi")
+
+    expect(createIdMock).toHaveBeenCalledTimes(4)
+
+    const allRows = collectAllPersistedRows()
+    const assistantIds = new Set(
+      allRows.filter((row) => row.role === "assistant").map((row) => row.id)
+    )
+
+    expect(assistantIds.has("asst-a")).toBe(true)
+    expect(assistantIds.has("asst-b")).toBe(true)
+    expect(assistantIds.has("asst-c")).toBe(true)
+
+    expect(
+      allRows.some(
+        (row) =>
+          row.role === "toolResult" &&
+          row.toolCallId === "call-1" &&
+          row.parentAssistantId === "asst-a"
+      )
+    ).toBe(true)
+    expect(
+      allRows.some(
+        (row) =>
+          row.role === "toolResult" &&
+          row.toolCallId === "call-2" &&
+          row.parentAssistantId === "asst-b"
+      )
+    ).toBe(true)
+
+    host.dispose()
+  })
+
+  it("does not rotate assistant id when turn_end has no tool results", async () => {
+    createIdMock.mockReset()
+    createIdMock.mockReturnValueOnce("user-id").mockReturnValueOnce("asst-only")
+
+    const { AgentHost } = await import("@/agent/agent-host")
+    const host = new AgentHost(createSession(), [])
+
+    const assistant1 = createAssistantMessage({
+      content: [{ text: "oops", type: "text" }],
+      stopReason: "error",
+      timestamp: 2,
+    })
+
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true
+      agentState.messages = [
+        { content: "hello", role: "user", timestamp: 1 },
+        assistant1,
+      ]
+      agentState.streamMessage = null
+
+      subscriber?.({ type: "stream_update" })
+      await flushMicrotasks()
+
+      subscriber?.({
+        message: assistant1,
+        toolResults: [],
+        type: "turn_end",
+      })
+      await flushMicrotasks()
+
+      agentState.isStreaming = false
+      subscriber?.({
+        message: assistant1,
+        type: "message_end",
+      })
+      await flushMicrotasks()
+    })
+
+    await host.prompt("hello")
+
+    expect(createIdMock).toHaveBeenCalledTimes(2)
+
+    const putMessagesCalls = putMessages.mock.calls.flatMap(([rows]) => rows)
+    const assistantRows = putMessagesCalls.filter((row) => row.role === "assistant")
+    expect(assistantRows.every((row) => row.id === "asst-only")).toBe(true)
+
+    host.dispose()
+  })
+
+  it("keeps seeded message ids stable across a new prompt", async () => {
+    createIdMock.mockReset()
+    createIdMock
+      .mockReturnValueOnce("new-user-id")
+      .mockReturnValueOnce("new-asst-id")
+
+    const seededAssistant: MessageRow = {
+      ...createAssistantMessage({
+        id: "seeded-assistant",
+        timestamp: 1,
+      }),
+      sessionId: "session-1",
+      status: "completed",
+    }
+    const seededTool: MessageRow = {
+      ...createToolResultMessage({
+        id: "seeded-tool",
+        parentAssistantId: "seeded-assistant",
+        timestamp: 2,
+      }),
+      sessionId: "session-1",
+      status: "completed",
+    }
+
+    const { AgentHost } = await import("@/agent/agent-host")
+    const host = new AgentHost(createSession(), [seededAssistant, seededTool])
+
+    const nextAssistant = createAssistantMessage({
+      id: "next-assistant-msg",
+      timestamp: 10,
+    })
+
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = false
+      agentState.messages = [
+        { content: "first", role: "user", timestamp: 1 },
+        createAssistantMessage({
+          id: "seeded-assistant",
+          timestamp: 1,
+        }),
+        createToolResultMessage({
+          id: "seeded-tool",
+          parentAssistantId: "seeded-assistant",
+          timestamp: 2,
+        }),
+        { content: "follow-up", role: "user", timestamp: 9 },
+        nextAssistant,
+      ]
+      subscriber?.({
+        message: nextAssistant,
+        type: "message_end",
+      })
+      await flushMicrotasks()
+    })
+
+    await host.prompt("follow-up")
+
+    const allRows = collectAllPersistedRows()
+    const newAssistantRows = allRows.filter(
+      (row) => row.role === "assistant" && row.id === "new-asst-id"
+    )
+    const seededToolRows = allRows.filter(
+      (row): row is ToolResultMessage & Pick<MessageRow, "sessionId" | "status"> =>
+        row.role === "toolResult" && row.id === "seeded-tool"
+    )
+
+    expect(newAssistantRows.length).toBeGreaterThan(0)
+    expect(
+      allRows.some(
+        (row) =>
+          row.role === "assistant" &&
+          row.id === "new-asst-id" &&
+          row.timestamp === 1
+      )
+    ).toBe(false)
+    expect(
+      seededToolRows.every(
+        (row) => row.parentAssistantId === "seeded-assistant"
+      )
+    ).toBe(true)
+    expect(
+      allRows.some(
+        (row) =>
+          row.role === "toolResult" &&
+          row.parentAssistantId === "new-asst-id"
+      )
+    ).toBe(false)
+    expect(
+      allRows.some(
+        (row) => row.role === "assistant" && row.id === "new-asst-id"
+      )
+    ).toBe(true)
+    expect(
+      allRows.some(
+        (row) => row.role === "assistant" && row.id === "seeded-assistant"
+      )
+    ).toBe(false)
 
     host.dispose()
   })
