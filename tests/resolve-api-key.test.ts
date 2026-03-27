@@ -17,7 +17,7 @@ vi.mock("@/db/schema", () => ({
   setProviderKey,
 }))
 
-vi.mock("@/auth/oauth-refresh", () => ({
+vi.mock("@/auth/auth-service", () => ({
   oauthRefresh,
 }))
 
@@ -172,16 +172,13 @@ describe("resolveStoredApiKey", () => {
 
   it("falls back to the bundled public key for the OpenCode free group", async () => {
     const { resolveApiKeyForProvider } = await import("@/auth/resolve-api-key")
-    const { OPENCODE_FREE_PROXY_MARKER } = await import(
-      "@/auth/public-provider-fallbacks"
-    )
     const { getProviderKey } = await import("@/db/schema")
 
     vi.mocked(getProviderKey).mockResolvedValue(undefined)
 
     await expect(
       resolveApiKeyForProvider("opencode", "opencode-free")
-    ).resolves.toBe(OPENCODE_FREE_PROXY_MARKER)
+    ).resolves.toMatch(/^sk-/)
   })
 
   it("does not use the bundled public key for full OpenCode", async () => {

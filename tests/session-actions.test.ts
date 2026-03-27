@@ -48,7 +48,6 @@ function buildSession(
   overrides: Partial<SessionData> = {}
 ): SessionData {
   return {
-    bootstrapStatus: overrides.bootstrapStatus ?? "ready",
     cost: 0,
     createdAt: "2026-03-23T12:00:00.000Z",
     error: undefined,
