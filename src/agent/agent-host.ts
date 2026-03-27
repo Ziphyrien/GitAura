@@ -201,6 +201,11 @@ export class AgentHost {
     }
   }
 
+  /** Await queued Dexie writes (useful after async agent events in tests). */
+  async flushPersistence(): Promise<void> {
+    await this.persistence.flush()
+  }
+
   abort(): void {
     this.lastTerminalStatus = "aborted"
     this.agent.abort()
@@ -261,6 +266,7 @@ export class AgentHost {
     }
 
     this.disposed = true
+    this.persistence.dispose()
     this.unsubscribe?.()
     this.unsubscribe = undefined
     this.abort()
@@ -298,6 +304,12 @@ export class AgentHost {
           newlyCompletedRows
         )
       }
+
+      if (event.type === "turn_end" && event.toolResults.length > 0) {
+        this.currentAssistantMessageId = createId()
+        this.lastDraftAssistant = undefined
+      }
+
       return
     }
 
