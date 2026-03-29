@@ -1,4 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox"
+import { GitHubFsError } from "@/repo/github-fs"
 import { execInRepoShell } from "@/repo/repo-runtime"
 import type { RepoRuntime } from "@/repo/repo-types"
 import { truncateTail, type TruncationResult } from "@/tools/truncate"
@@ -21,6 +22,16 @@ export interface BashToolDetails {
   warnings?: string[]
 }
 
+function takeActionableGithubError(runtime: RepoRuntime): GitHubFsError | undefined {
+  const error = runtime.fs.consumeLastError()
+
+  if (!error) {
+    return undefined
+  }
+
+  return error.code === "EACCES" || error.code === "EIO" ? error : undefined
+}
+
 export function createBashTool(
   runtime: RepoRuntime,
   onRepoError?: (error: unknown) => void | Promise<void>
@@ -35,16 +46,21 @@ export function createBashTool(
         throw new Error("Command aborted")
       }
 
+      runtime.fs.clearLastError()
+
       let result: Awaited<ReturnType<typeof execInRepoShell>>
 
       try {
         result = await execInRepoShell(runtime, params.command, signal)
       } catch (error) {
+        const githubError = takeActionableGithubError(runtime)
+        const nextError = githubError ?? error
+
         if (onRepoError) {
-          await onRepoError(error)
+          await onRepoError(nextError)
         }
 
-        throw error
+        throw nextError
       }
 
       const combined = [result.stdout, result.stderr].filter(Boolean).join("\n")
@@ -57,7 +73,8 @@ export function createBashTool(
 
       if (result.exitCode !== 0) {
         output += `\n\nCommand exited with code ${result.exitCode}`
-        const err = new Error(output)
+        const githubError = takeActionableGithubError(runtime)
+        const err = githubError ?? new Error(output)
         if (onRepoError) {
           await onRepoError(err)
         }

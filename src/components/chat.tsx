@@ -30,6 +30,10 @@ import { useSessionOwnership } from "@/hooks/use-session-ownership"
 import { getCanonicalProvider, getDefaultProviderGroup } from "@/models/catalog"
 import { normalizeRepoSource, resolveRepoSource } from "@/repo/settings"
 import {
+  handleGithubError,
+  showGithubSystemNoticeToast,
+} from "@/repo/github-fetch"
+import {
   createSessionForChat,
   createSessionForRepo,
   persistLastUsedSessionSettings,
@@ -256,7 +260,8 @@ export function Chat(props: ChatProps) {
           setRepoResolutionFailed(false)
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        void handleGithubError(error, { sessionId: props.sessionId })
         if (!cancelled) {
           setResolvedRepoSource(undefined)
           setRepoResolutionFailed(true)
@@ -370,6 +375,10 @@ export function Chat(props: ChatProps) {
 
     for (const message of unseenErrors) {
       seenFingerprints.add(message.fingerprint)
+      if (showGithubSystemNoticeToast(message)) {
+        continue
+      }
+
       toast.error(getRuntimeCommandErrorMessage(new Error(message.message)))
     }
   }, [activeSession?.id, messages])
@@ -739,6 +748,7 @@ export function Chat(props: ChatProps) {
               ref={repoComboboxRef}
               autoFocus={!props.sessionId && !displayRepoSource}
               repoSource={displayRepoSource}
+              sessionId={props.sessionId}
             />
             {messages.length > 0 ? (
               <button

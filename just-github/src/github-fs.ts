@@ -19,6 +19,7 @@ export class GitHubFs implements IFileSystem {
   private readonly contentCache: ContentCache;
   private readonly cachingEnabled: boolean;
   private readonly warningsInternal: TreeLoadWarning[] = [];
+  private lastErrorInternal?: GitHubFsError;
 
   constructor(options: GitHubFsOptions) {
     this.client = new GitHubClient({
@@ -58,10 +59,10 @@ export class GitHubFs implements IFileSystem {
     try {
       const response = await this.client.fetchContents(normalized);
       if (Array.isArray(response)) {
-        throw new GitHubFsError("EISDIR", `Is a directory: ${path}`, path);
+        throw this.rememberError(new GitHubFsError("EISDIR", `Is a directory: ${path}`, path));
       }
       if (response.type !== "file" && response.type !== "symlink") {
-        throw new GitHubFsError("EISDIR", `Is a directory: ${path}`, path);
+        throw this.rememberError(new GitHubFsError("EISDIR", `Is a directory: ${path}`, path));
       }
 
       let content: string;
@@ -76,8 +77,8 @@ export class GitHubFs implements IFileSystem {
       }
       return content;
     } catch (err) {
-      if (err instanceof GitHubFsError) throw err;
-      throw new GitHubFsError("EIO", `Failed to read file: ${path}`, path);
+      if (err instanceof GitHubFsError) throw this.rememberError(err);
+      throw this.rememberError(new GitHubFsError("EIO", `Failed to read file: ${path}`, path));
     }
   }
 
@@ -102,8 +103,8 @@ export class GitHubFs implements IFileSystem {
       }
       return buffer;
     } catch (err) {
-      if (err instanceof GitHubFsError) throw err;
-      throw new GitHubFsError("EIO", `Failed to read file: ${path}`, path);
+      if (err instanceof GitHubFsError) throw this.rememberError(err);
+      throw this.rememberError(new GitHubFsError("EIO", `Failed to read file: ${path}`, path));
     }
   }
 
@@ -182,9 +183,15 @@ export class GitHubFs implements IFileSystem {
       }
     }
 
-    const response = await this.client.fetchContents(normalized);
+    const response = await this.client.fetchContents(normalized).catch((error) => {
+      if (error instanceof GitHubFsError) {
+        throw this.rememberError(error);
+      }
+
+      throw error;
+    });
     if (!Array.isArray(response)) {
-      throw new GitHubFsError("ENOTDIR", `Not a directory: ${path}`, path);
+      throw this.rememberError(new GitHubFsError("ENOTDIR", `Not a directory: ${path}`, path));
     }
 
     return response.map((entry: GitHubContentResponse) => ({
@@ -216,10 +223,16 @@ export class GitHubFs implements IFileSystem {
           mode: entry.mode,
         };
       }
-      throw new GitHubFsError("ENOENT", `No such file or directory: ${path}`, path);
+      throw this.rememberError(new GitHubFsError("ENOENT", `No such file or directory: ${path}`, path));
     }
 
-    const response = await this.client.fetchContents(normalized);
+    const response = await this.client.fetchContents(normalized).catch((error) => {
+      if (error instanceof GitHubFsError) {
+        throw this.rememberError(error);
+      }
+
+      throw error;
+    });
     if (Array.isArray(response)) {
       return { type: "dir", size: 0, sha: "", mode: "040000" };
     }
@@ -300,6 +313,7 @@ export class GitHubFs implements IFileSystem {
     this.treeCache.clear();
     this.contentCache.clear();
     this.warningsInternal.length = 0;
+    this.lastErrorInternal = undefined;
   }
 
   get rateLimit() {
@@ -310,9 +324,25 @@ export class GitHubFs implements IFileSystem {
     return [...this.warningsInternal];
   }
 
+  clearLastError(): void {
+    this.lastErrorInternal = undefined;
+  }
+
+  consumeLastError(): GitHubFsError | undefined {
+    const error = this.lastErrorInternal;
+    this.lastErrorInternal = undefined;
+    return error;
+  }
+
   private async loadTree(): Promise<void> {
     if (this.treeCache.loaded) return;
-    const response = await this.client.fetchTree();
+    const response = await this.client.fetchTree().catch((error) => {
+      if (error instanceof GitHubFsError) {
+        throw this.rememberError(error);
+      }
+
+      throw error;
+    });
     this.warningsInternal.length = 0;
     if (response.truncated) {
       this.warningsInternal.push({
@@ -322,6 +352,11 @@ export class GitHubFs implements IFileSystem {
       });
     }
     this.treeCache.load(response.sha, response.tree);
+  }
+
+  private rememberError<TError extends GitHubFsError>(error: TError): TError {
+    this.lastErrorInternal = error;
+    return error;
   }
 }
 

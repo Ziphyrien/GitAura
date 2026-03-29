@@ -52,4 +52,16 @@ describe("classifyRuntimeError", () => {
     expect(classified.severity).toBe("error")
     expect(classified.source).toBe("provider")
   })
+
+  it("detects provider api failures from provider diagnostics", () => {
+    const classified = classifyRuntimeError(
+      new Error(
+        "Boom [fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo → https://api.fireworks.ai/inference/v1]"
+      )
+    )
+
+    expect(classified.kind).toBe("provider_api")
+    expect(classified.severity).toBe("error")
+    expect(classified.source).toBe("provider")
+  })
 })

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { GitHubFsError } from "@/repo/github-fs"
 import { createRepoRuntime } from "@/repo/repo-runtime"
+import * as repoRuntimeModule from "@/repo/repo-runtime"
+import type { RepoRuntime } from "@/repo/repo-types"
 import { createBashTool } from "@/tools/bash"
 import { installMockRepoFetch } from "./repo-test-utils"
 
@@ -39,5 +42,46 @@ describe("bash tool", () => {
     await expect(
       tool.execute("call-3", { command: "echo hi > note.txt" })
     ).rejects.toThrow("Read-only filesystem")
+  })
+
+  it("preserves the underlying GitHub error when bash exits non-zero", async () => {
+    const error = new GitHubFsError(
+      "EACCES",
+      "GitHub API rate limit exceeded (retry after 3:00:00 PM): /",
+      "/"
+    )
+    const runtime = {
+      bash: {} as RepoRuntime["bash"],
+      fs: {
+        clearLastError: vi.fn(),
+        consumeLastError: vi.fn(() => error),
+      } as unknown as RepoRuntime["fs"],
+      getCwd: () => "/",
+      getWarnings: () => [],
+      refresh: vi.fn(),
+      setCwd: vi.fn(),
+      source: {
+        owner: "test-owner",
+        ref: "main",
+        repo: "test-repo",
+      },
+    } satisfies RepoRuntime
+    const onRepoError = vi.fn(async () => {})
+    const execSpy = vi
+      .spyOn(repoRuntimeModule, "execInRepoShell")
+      .mockResolvedValue({
+        cwd: "/",
+        env: { PWD: "/" },
+        exitCode: 2,
+        stderr: "ls: .: No such file or directory",
+        stdout: "",
+      })
+    const tool = createBashTool(runtime, onRepoError)
+
+    await expect(tool.execute("call-4", { command: "ls" })).rejects.toBe(error)
+    expect(execSpy).toHaveBeenCalled()
+    expect(runtime.fs.clearLastError).toHaveBeenCalled()
+    expect(runtime.fs.consumeLastError).toHaveBeenCalled()
+    expect(onRepoError).toHaveBeenCalledWith(error)
   })
 })

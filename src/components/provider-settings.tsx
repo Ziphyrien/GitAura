@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useLiveQuery } from "dexie-react-hooks"
 import { toast } from "sonner"
+import type { ProviderGroupId, ProviderId } from "@/types/models"
 import {
   disconnectProvider,
   getOAuthProviderName,
@@ -21,7 +22,6 @@ import {
   getProxyConfig,
   proxyConfigFromSettingsRows,
 } from "@/proxy/settings"
-import type { ProviderGroupId, ProviderId } from "@/types/models"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -70,16 +70,10 @@ function hasStoredPlainApiKey(
   return Boolean(trimmed && !trimmed.startsWith("{"))
 }
 
-export function ProviderSettings(props: {
-  onNavigateToProxy?: () => void
-}) {
-  const providerKeys =
-    useLiveQuery(() => db.providerKeys.toArray(), []) ?? []
+export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
+  const providerKeys = useLiveQuery(() => db.providerKeys.toArray(), []) ?? []
   const proxySettingRows = useLiveQuery(() =>
-    db.settings
-      .where("key")
-      .anyOf([PROXY_ENABLED_KEY, PROXY_URL_KEY])
-      .toArray()
+    db.settings.where("key").anyOf([PROXY_ENABLED_KEY, PROXY_URL_KEY]).toArray()
   )
 
   const proxyConfig = React.useMemo(() => {
@@ -142,8 +136,8 @@ export function ProviderSettings(props: {
           <p className="text-xs text-muted-foreground">
             {OAUTH_SUBSCRIPTION_LOGIN_ENABLED ? (
               <>
-                Log in with your existing subscription. No API key needed. Tokens
-                are stored locally and refreshed automatically.
+                Log in with your existing subscription. No API key needed.
+                Tokens are stored locally and refreshed automatically.
               </>
             ) : (
               <>

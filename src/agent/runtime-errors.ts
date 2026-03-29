@@ -8,6 +8,7 @@ import {
 
 export type RuntimeErrorKind =
   | "missing_session"
+  | "provider_api"
   | "github_rate_limit"
   | "github_auth"
   | "github_not_found"
@@ -30,6 +31,19 @@ export interface ClassifiedRuntimeError {
 }
 
 const RATE_LIMIT_SUBSTR = "github api rate limit exceeded"
+const PROVIDER_MARKERS = [
+  "anthropic",
+  "openai",
+  "openai-codex",
+  "fireworks",
+  "api.fireworks.ai",
+  "gemini",
+  "google",
+  "groq",
+  "mistral",
+  "x.ai",
+  "proxy",
+] as const
 
 function isProviderRateLimitMessage(lower: string): boolean {
   if (lower.includes("github")) {
@@ -51,6 +65,18 @@ function normalizeMessage(error: unknown): string {
   }
 
   return String(error)
+}
+
+function isProviderMessage(lower: string, message: string): boolean {
+  if (lower.includes("github")) {
+    return false
+  }
+
+  if (message.includes(" → https://") || message.includes(" → http://")) {
+    return true
+  }
+
+  return PROVIDER_MARKERS.some((marker) => lower.includes(marker))
 }
 
 function fingerprintFor(
@@ -203,6 +229,16 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
     }
   }
 
+  if (isProviderMessage(lower, message)) {
+    return {
+      fingerprint: fingerprintFor("provider_api", message),
+      kind: "provider_api",
+      message,
+      severity: "error",
+      source: "provider",
+    }
+  }
+
   if (lower.includes(RATE_LIMIT_SUBSTR) || lower.includes("rate limit")) {
     return {
       action: "open-github-settings",
@@ -238,5 +274,33 @@ export function buildSystemMessage(
     severity: classified.severity,
     source: classified.source,
     timestamp,
+  }
+}
+
+export function shouldStopStreamingForRuntimeError(error: unknown): boolean {
+  const classified = classifyRuntimeError(error)
+
+  return (
+    classified.source === "github" &&
+    classified.severity === "error" &&
+    classified.action === "open-github-settings"
+  )
+}
+
+type SnapshotWithError = {
+  error: string | undefined
+}
+
+export function withTerminalError<T extends SnapshotWithError>(
+  snapshot: T,
+  terminalErrorMessage?: string
+): T {
+  if (terminalErrorMessage === undefined || snapshot.error !== undefined) {
+    return snapshot
+  }
+
+  return {
+    ...snapshot,
+    error: terminalErrorMessage,
   }
 }

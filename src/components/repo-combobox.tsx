@@ -1,11 +1,11 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useLiveQuery } from "dexie-react-hooks"
 import { toast } from "sonner"
 import type { RepoSource } from "@/types/storage"
 import { Icons } from "@/components/icons"
 import { listRepositories } from "@/db/schema"
-import { githubApiFetch, isRateLimitError, showRateLimitToast } from "@/repo/github-fetch"
+import { githubApiFetch, handleGithubError } from "@/repo/github-fetch"
 import { parseRepoQuery } from "@/repo/parse"
 import { SUGGESTED_REPOS } from "@/repo/suggested-repos"
 import { buildRepoPathname, githubOwnerAvatarUrl } from "@/repo/url"
@@ -19,6 +19,7 @@ type RepoComboboxProps = {
   autoFocus?: boolean
   className?: string
   repoSource?: RepoSource
+  sessionId?: string
 }
 
 type Mode = "display" | "edit"
@@ -26,8 +27,19 @@ type Mode = "display" | "edit"
 export const RepoCombobox = React.forwardRef<
   RepoComboboxHandle,
   RepoComboboxProps
->(function RepoComboboxInner({ autoFocus = false, className, repoSource }, ref) {
+>(function RepoComboboxInner(
+  { autoFocus = false, className, repoSource, sessionId },
+  ref
+) {
   const navigate = useNavigate()
+  const search = useSearch({ strict: false })
+  const settings =
+    typeof search.settings === "string" ? search.settings : undefined
+  const sidebar = search.sidebar === "open" ? "open" : undefined
+  const q =
+    typeof search.q === "string" && search.q.trim().length > 0
+      ? search.q
+      : undefined
   const repositories = useLiveQuery(async () => await listRepositories(), [])
   const [mode, setMode] = React.useState<Mode>(
     repoSource && !autoFocus ? "display" : "edit"
@@ -96,9 +108,16 @@ export const RepoCombobox = React.forwardRef<
   const navigateToRepo = React.useCallback(
     (owner: string, repo: string, refArg?: string) => {
       const path = buildRepoPathname(owner, repo, refArg)
-      void navigate({ to: path })
+      void navigate({
+        search: {
+          q,
+          settings,
+          sidebar,
+        },
+        to: path,
+      })
     },
-    [navigate]
+    [navigate, q, settings, sidebar]
   )
 
   const handleSelect = React.useCallback(
@@ -144,9 +163,7 @@ export const RepoCombobox = React.forwardRef<
       setMode("display")
       navigateToRepo(parsed.owner, parsed.repo, resolvedRef)
     } catch (err) {
-      if (isRateLimitError(err)) {
-        showRateLimitToast()
-      } else {
+      if (!(await handleGithubError(err, { sessionId }))) {
         toast.error("Failed to validate repository")
       }
     } finally {

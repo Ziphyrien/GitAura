@@ -1,11 +1,22 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { ArrowRightIcon, StarIcon } from "@phosphor-icons/react"
+import { ArrowRightIcon, KeyIcon, StarIcon } from "@phosphor-icons/react"
 
 import { Icons } from "@/components/icons"
+import { Button } from "@/components/ui/button"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { formatGitHubStarCount } from "@/lib/format-github-stars"
 import { cn } from "@/lib/utils"
-import { githubApiFetch, isRateLimitError, showRateLimitToast } from "@/repo/github-fetch"
+import {
+  githubApiFetch,
+  handleGithubError,
+  openGithubTokenSettings,
+} from "@/repo/github-fetch"
+import { getGithubPersonalAccessToken } from "@/repo/github-token"
 import { githubOwnerAvatarUrl } from "@/repo/url"
 
 export type GithubRepoProps = {
@@ -14,6 +25,8 @@ export type GithubRepoProps = {
   /** When not `main`, shown after the repo name */
   ref?: string
   to: string
+  /** Preserved on navigation (e.g. settings dialog + sidebar open state). */
+  search?: Record<string, string | undefined>
   className?: string
   /** When false, renders as a static card without arrow or link behavior. Default true. */
   isLink?: boolean
@@ -50,6 +63,7 @@ function usePublicRepoMeta(owner: string, repo: string) {
     | { status: "loading" }
     | { status: "ok"; language: string | null; stargazers: number }
     | { status: "error" }
+    | { status: "no-token" }
   >({ status: "loading" })
 
   React.useEffect(() => {
@@ -58,6 +72,14 @@ function usePublicRepoMeta(owner: string, repo: string) {
 
     void (async () => {
       try {
+        const token = await getGithubPersonalAccessToken()
+        if (!token) {
+          if (!ac.signal.aborted) {
+            setState({ status: "no-token" })
+          }
+          return
+        }
+
         const res = await githubApiFetch(
           `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
           { signal: ac.signal }
@@ -73,10 +95,8 @@ function usePublicRepoMeta(owner: string, repo: string) {
           stargazers: data.stargazers_count,
         })
       } catch (err) {
-        if (isRateLimitError(err)) {
-          showRateLimitToast()
-          setState({ status: "error" })
-        } else if (!ac.signal.aborted) {
+        if (!ac.signal.aborted) {
+          await handleGithubError(err)
           setState({ status: "error" })
         }
       }
@@ -88,29 +108,134 @@ function usePublicRepoMeta(owner: string, repo: string) {
   return state
 }
 
-export function GithubRepo({ owner, repo, ref: refName, to, className, isLink = true }: GithubRepoProps) {
+function GithubRepoNoTokenMeta() {
+  return (
+    <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex max-w-[11rem] items-center gap-1.5 rounded-none border border-dashed border-border bg-muted/25 px-1.5 py-0.5">
+            <KeyIcon
+              aria-hidden
+              className="size-3.5 shrink-0 text-muted-foreground"
+            />
+            <span className="hidden truncate text-[10px] text-muted-foreground sm:inline">
+              No API token
+            </span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[280px] text-left" side="top" sideOffset={6}>
+          Star count and primary language come from the GitHub API. Add a personal
+          access token under Settings → GitHub (stored only on this device) to load
+          them and avoid rate limits.
+        </TooltipContent>
+      </Tooltip>
+      <Button
+        className="h-7 shrink-0 px-2 text-[10px]"
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          openGithubTokenSettings()
+        }}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        Add token
+      </Button>
+    </div>
+  )
+}
+
+export function GithubRepo({
+  owner,
+  repo,
+  ref: refName,
+  to,
+  search,
+  className,
+  isLink = true,
+}: GithubRepoProps) {
   const meta = usePublicRepoMeta(owner, repo)
   const avatarSrc = githubOwnerAvatarUrl(owner)
   const [avatarFailed, setAvatarFailed] = React.useState(false)
 
-  const language =
-    meta.status === "ok" ? meta.language : null
-  const stars =
-    meta.status === "ok" ? meta.stargazers : null
+  const language = meta.status === "ok" ? meta.language : null
+  const stars = meta.status === "ok" ? meta.stargazers : null
   const langColor =
     language != null && language !== "" ? LANGUAGE_DOT[language] : undefined
 
-  const refSuffix =
-    refName && refName !== "main" ? `@${refName}` : ""
+  const refSuffix = refName && refName !== "main" ? `@${refName}` : ""
+
+  const workspaceLabel = `Open ${owner}/${repo}${refSuffix ? ` at ${refName}` : ""} in workspace`
 
   const sharedClassName = cn(
-    "group relative flex min-h-11 w-full items-center gap-3 border border-sidebar-border bg-sidebar px-3 py-2 text-left shadow-none transition-colors",
+    "group relative flex min-h-11 w-full flex-nowrap items-center gap-3 border border-sidebar-border bg-sidebar px-3 py-2 text-left shadow-none transition-colors",
     "rounded-none",
     isLink && "hover:bg-sidebar-accent",
     className
   )
 
-  const content = (
+  const metaColumns =
+    meta.status === "no-token" ? (
+      <GithubRepoNoTokenMeta />
+    ) : (
+      <>
+        <div className="hidden min-w-0 shrink-0 items-center gap-1.5 sm:flex">
+          {meta.status === "loading" ? (
+            <span className="h-3 w-14 animate-pulse rounded bg-muted-foreground/15" />
+          ) : language ? (
+            <>
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full border border-border/50",
+                  langColor == null && "bg-muted-foreground/55"
+                )}
+                style={langColor ? { backgroundColor: langColor } : undefined}
+              />
+              <span className="max-w-[7rem] truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {language}
+              </span>
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/70">—</span>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1 tabular-nums">
+          <span className="relative size-3.5">
+            <StarIcon
+              className="absolute inset-0 size-3.5 text-muted-foreground/80 transition-opacity group-hover:opacity-0"
+              weight="regular"
+            />
+            <StarIcon
+              className="absolute inset-0 size-3.5 text-yellow-500 opacity-0 transition-opacity group-hover:opacity-100"
+              weight="fill"
+            />
+          </span>
+          {meta.status === "loading" ? (
+            <span className="h-3 w-8 animate-pulse rounded bg-muted-foreground/15" />
+          ) : stars != null ? (
+            <span className="text-[11px] text-muted-foreground">
+              {formatGitHubStarCount(stars)}
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/70">—</span>
+          )}
+        </div>
+      </>
+    )
+
+  /** Must be a flex row so language + stars stay on one line (same as pre-overlay layout). */
+  const metaSlot =
+    isLink ? (
+      <div className="pointer-events-auto flex min-w-0 shrink-0 items-center gap-3">
+        {metaColumns}
+      </div>
+    ) : (
+      metaColumns
+    )
+
+  const rowContent = (
     <>
       <div
         className="relative size-8 shrink-0 overflow-hidden border border-sidebar-border/80 bg-background"
@@ -145,48 +270,7 @@ export function GithubRepo({ owner, repo, ref: refName, to, className, isLink = 
         </div>
       </div>
 
-      <div className="hidden min-w-0 shrink-0 items-center gap-1.5 sm:flex">
-        {meta.status === "loading" ? (
-          <span className="h-3 w-14 animate-pulse rounded bg-muted-foreground/15" />
-        ) : language ? (
-          <>
-            <span
-              className={cn(
-                "size-2 shrink-0 rounded-full border border-border/50",
-                langColor == null && "bg-muted-foreground/55"
-              )}
-              style={langColor ? { backgroundColor: langColor } : undefined}
-            />
-            <span className="max-w-[7rem] truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {language}
-            </span>
-          </>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/70">—</span>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1 tabular-nums">
-        <span className="relative size-3.5">
-          <StarIcon
-            className="absolute inset-0 size-3.5 text-muted-foreground/80 transition-opacity group-hover:opacity-0"
-            weight="regular"
-          />
-          <StarIcon
-            className="absolute inset-0 size-3.5 text-yellow-500 opacity-0 transition-opacity group-hover:opacity-100"
-            weight="fill"
-          />
-        </span>
-        {meta.status === "loading" ? (
-          <span className="h-3 w-8 animate-pulse rounded bg-muted-foreground/15" />
-        ) : stars != null ? (
-          <span className="text-[11px] text-muted-foreground">
-            {formatGitHubStarCount(stars)}
-          </span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground/70">—</span>
-        )}
-      </div>
+      {metaSlot}
 
       {isLink ? (
         <ArrowRightIcon
@@ -198,20 +282,20 @@ export function GithubRepo({ owner, repo, ref: refName, to, className, isLink = 
   )
 
   if (!isLink) {
-    return (
-      <div className={sharedClassName}>
-        {content}
-      </div>
-    )
+    return <div className={sharedClassName}>{rowContent}</div>
   }
 
   return (
-    <Link
-      aria-label={`Open ${owner}/${repo}${refSuffix ? ` at ${refName}` : ""} in workspace`}
-      className={sharedClassName}
-      to={to}
-    >
-      {content}
-    </Link>
+    <div className={sharedClassName}>
+      <Link
+        aria-label={workspaceLabel}
+        className="absolute inset-0 z-0 rounded-none"
+        {...(search ? { search } : {})}
+        to={to}
+      />
+      <div className="relative z-10 flex w-full min-w-0 flex-nowrap items-center gap-3 pointer-events-none">
+        {rowContent}
+      </div>
+    </div>
   )
 }

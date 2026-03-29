@@ -542,6 +542,96 @@ describe("AgentHost persistence", () => {
     host.dispose()
   })
 
+  it("promotes the last streamed draft when the prompt settles without a completed assistant row", async () => {
+    const { AgentHost } = await import("@/agent/agent-host")
+    const host = new AgentHost(createSession(), [])
+
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true
+      agentState.streamMessage = createAssistantMessage({
+        content: [{ text: "Finished from draft", type: "text" }],
+        id: "assistant-draft-only",
+        stopReason: "stop",
+      })
+      subscriber?.({ type: "stream_update" })
+
+      agentState.isStreaming = false
+      agentState.streamMessage = null
+      agentState.messages = [
+        {
+          content: "hello",
+          role: "user",
+          timestamp: 1,
+        },
+      ]
+      await flushMicrotasks()
+    })
+
+    await host.prompt("hello")
+
+    expect(
+      putSessionAndMessages.mock.calls.some(
+        ([session, messages]) =>
+          session.isStreaming === false &&
+          messages.some(
+            (message) =>
+              message.role === "assistant" &&
+              message.status === "completed" &&
+              message.content[0]?.type === "text" &&
+              message.content[0].text === "Finished from draft"
+          )
+      )
+    ).toBe(true)
+
+    expect(
+      putSessionAndMessages.mock.calls.some(([_session, messages]) =>
+        messages.some(
+          (message) =>
+            message.role === "system" &&
+            message.fingerprint ===
+              "unknown:Runtime stopped before clearing the streaming state."
+        )
+      )
+    ).toBe(false)
+
+    host.dispose()
+  })
+
+  it("ignores a duplicate terminal snapshot after the turn already finalized", async () => {
+    const { AgentTurnPersistence } = await import(
+      "@/agent/agent-turn-persistence"
+    )
+    const persistence = new AgentTurnPersistence(createSession(), [])
+    const turn = persistence.createTurn("hello")
+    const finalSnapshot = {
+      error: undefined,
+      isStreaming: false,
+      messages: [
+        {
+          content: "hello",
+          role: "user" as const,
+          timestamp: 1,
+        },
+        createAssistantMessage({
+          content: [{ text: "Finished", type: "text" }],
+          id: "assistant-final-duplicate",
+        }),
+      ],
+      streamMessage: null,
+    }
+
+    await persistence.beginTurn(turn)
+    await persistence.applySnapshot({ snapshot: finalSnapshot })
+
+    putSessionAndMessages.mockClear()
+    replaceSessionMessages.mockClear()
+
+    await persistence.applySnapshot({ snapshot: finalSnapshot })
+
+    expect(putSessionAndMessages).not.toHaveBeenCalled()
+    expect(replaceSessionMessages).not.toHaveBeenCalled()
+  })
+
   it("records usage only once when duplicate assistant completion events arrive", async () => {
     const { AgentHost } = await import("@/agent/agent-host")
     const host = new AgentHost(createSession(), [])

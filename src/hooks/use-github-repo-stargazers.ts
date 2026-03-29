@@ -1,5 +1,5 @@
 import * as React from "react"
-import { githubApiFetch, isRateLimitError, showRateLimitToast } from "@/repo/github-fetch"
+import { githubApiFetch, handleGithubError } from "@/repo/github-fetch"
 
 /** Public app repo linked from the header and mobile menu (stars from GitHub API). */
 export const GITHUB_APP_REPO = {
@@ -30,10 +30,8 @@ export function useGitHubRepoStargazers(owner: string, repo: string) {
         const data = (await res.json()) as { stargazers_count: number }
         setState({ status: "ok", count: data.stargazers_count })
       } catch (err) {
-        if (isRateLimitError(err)) {
-          showRateLimitToast()
-          setState({ status: "error" })
-        } else if (!ac.signal.aborted) {
+        if (!ac.signal.aborted) {
+          await handleGithubError(err)
           setState({ status: "error" })
         }
       }

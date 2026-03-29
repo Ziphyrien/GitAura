@@ -22,7 +22,7 @@ import {
 import { Icons } from "@/components/icons"
 import { ChatLogo } from "@/components/chat-logo"
 import { cn } from "@/lib/utils"
-import { githubApiFetch, isRateLimitError, showRateLimitToast } from "@/repo/github-fetch"
+import { githubApiFetch, handleGithubError } from "@/repo/github-fetch"
 import { SUGGESTED_REPOS } from "@/repo/suggested-repos"
 
 function useSuggestedRepos(count: number) {
@@ -96,6 +96,7 @@ export function LandingPage() {
                       owner={row.owner}
                       ref={row.ref}
                       repo={row.repo}
+                      search={{ settings, sidebar }}
                       to={to}
                     />
                   </li>
@@ -113,6 +114,7 @@ export function LandingPage() {
                     <GithubRepo
                       owner={row.owner}
                       repo={row.repo}
+                      search={{ settings, sidebar }}
                       to={to}
                     />
                   </li>
@@ -146,6 +148,9 @@ export function LandingPage() {
 
 function LandingRepoForm() {
   const navigate = useNavigate()
+  const search = useSearch({ from: "/" })
+  const settings = typeof search.settings === "string" ? search.settings : undefined
+  const sidebar = search.sidebar === "open" ? "open" : undefined
   const [query, setQuery] = React.useState("")
   const [isValidating, setIsValidating] = React.useState(false)
 
@@ -171,11 +176,15 @@ function LandingRepoForm() {
         parsed.repo,
         parsed.ref && parsed.ref !== "main" ? parsed.ref : undefined
       )
-      void navigate({ to: path })
+      void navigate({
+        search: {
+          settings,
+          sidebar,
+        },
+        to: path,
+      })
     } catch (err) {
-      if (isRateLimitError(err)) {
-        showRateLimitToast()
-      } else {
+      if (!(await handleGithubError(err))) {
         const { toast } = await import("sonner")
         toast.error("Failed to validate repository")
       }

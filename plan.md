@@ -1,1248 +1,1260 @@
-# Runtime State Simplification Plan
+# Thin Comlink Runtime Worker Plan
 
-Date: 2026-03-27
+Goal: add a `DedicatedWorker` per tab, via `Comlink`, without reintroducing worker-owned session truth, cross-tab coordination, or a new FSM.
 
-Goal:
+Keep this mental model:
 
-- remove the prompt-beneath error display entirely
-- make first-send + stream recovery explicit
-- keep the worker model simple
-- make errors data-driven, persisted, chat-visible
-- fix stuck `isStreaming` without adding a lot of runtime machinery
+- main thread owns session truth
+- main thread owns Dexie session/message/runtime/lease writes
+- main thread owns tab identity + lease heartbeat + recovery
+- worker owns agent execution only
+- worker is best-effort for hidden tabs, not a correctness primitive
 
-Non-goal:
+## Verified facts. repo truth first.
 
-- do **not** build a global runtime manager now
-- do **not** add heartbeats / leases unless proven necessary
-- do **not** keep two user-facing error channels
+### 1. Vite already supports `ComlinkWorker`
 
-Core decision:
-
-- add one persisted bootstrap primitive
-- keep `isStreaming`
-- use one persisted system-notice pipeline for **all** user-visible runtime errors
-- reconcile orphaned streaming state on worker init
-
-Why this shape:
-
-- current code already has a good persisted error UI for `system` rows:
-  - `src/components/chat-message.tsx`
-  - `src/types/chat.ts`
-- current code still has a second, ad hoc prompt error channel:
-  - `src/components/chat-composer.tsx`
-  - `src/hooks/use-runtime-session.ts`
-  - `src/components/chat.tsx`
-- current code already has the real durability threshold:
-  - `AgentHost.prompt()` calls `persistPromptStart(...)` before the model prompt
-  - `src/agent/agent-host.ts:107-207`
-  - `src/agent/session-persistence.ts:209-221`
-
-So:
-
-- the simplest correct fix is not "more guards"
-- the fix is "make session bootstrap explicit, route all user-visible failures into persisted `system` rows, reconcile stale streaming at init"
-
----
-
-## TL;DR implementation
-
-1. Add `bootstrapStatus: "bootstrap" | "ready" | "failed"` to `SessionData`.
-2. Create one persisted notice appender, reusable from UI, worker init, and `AgentHost`.
-3. Delete `ChatComposer.error`.
-4. Delete `useRuntimeSession().error`.
-5. Move first-send orchestration into `bootstrapSessionAndSend(...)`.
-6. Promote session to `ready` only after `persistPromptStart(...)` succeeds.
-7. On worker init, if persisted session says `isStreaming === true` but there is no live host for that session, reconcile it immediately:
-   - clear `isStreaming`
-   - convert any streaming assistant row to terminal error
-   - append a system notice
-8. Retry / delete UX can come after. First pass: always show failure in chat, never under the prompt.
-
----
-
-## Evidence from code
-
-### 1. We already have two error channels. that is the root UI smell.
-
-Prompt-level error channel:
-
-- `src/components/chat-composer.tsx`
-- `src/hooks/use-runtime-session.ts`
-- `src/components/chat.tsx`
-
-Current code:
+`vite.config.ts:16-29`
 
 ```ts
-// src/components/chat-composer.tsx
-{props.error ? (
-  <div className="text-xs text-destructive">{props.error}</div>
-) : null}
-```
-
-and:
-
-```ts
-// src/hooks/use-runtime-session.ts
-const [actionError, setActionError] = React.useState<string | undefined>(undefined)
-...
-return {
-  abort,
-  error: actionError,
-  send,
-  setModelSelection,
-  setThinkingLevel,
-}
-```
-
-Persisted in-chat error channel:
-
-- `src/types/chat.ts`
-- `src/components/chat-message.tsx`
-- `src/agent/runtime-errors.ts`
-
-Current code:
-
-```ts
-export interface SystemMessage {
-  id: string
-  role: "system"
-  timestamp: number
-  kind: string
-  severity: "error" | "warning" | "info"
-  source: "github" | "provider" | "runtime"
-  message: string
-  action?: "open-github-settings"
-}
-```
-
-This second channel is the correct one. keep it. expand it. delete the first.
-
-### 2. The true bootstrap boundary already exists.
-
-Current code:
-
-```ts
-// src/agent/agent-host.ts
-await this.persistence.persistPromptStart(userRow, assistantRow)
-await this.agent.prompt(userMessage)
-```
-
-and:
-
-```ts
-// src/agent/session-persistence.ts
-async persistPromptStart(userRow: MessageRow, assistantRow: MessageRow) {
-  await this.persistSessionBoundary(
-    {
-      error: undefined,
-      isStreaming: true,
-    },
-    [userRow, assistantRow],
-    [...this.buildCompletedRows(), userRow, assistantRow]
-  )
-}
-```
-
-This is the right promotion point. not session creation.
-
-### 3. Worker ownership is already per-session.
-
-Current code:
-
-```ts
-// src/agent/runtime-client.ts
-name: `gitinspect-session-${sessionId}`
-```
-
-and:
-
-```ts
-// src/agent/runtime-worker-api.ts
-let host: AgentHost | undefined
-let activeSessionId: string | undefined
-```
-
-Conclusion:
-
-- one worker per session id
-- one host per worker instance
-- do not add a global session-map worker now
-
-### 4. Stuck `isStreaming` already exists as a real failure mode.
-
-Current code has a safety net:
-
-```ts
-// src/agent/agent-host.ts
-if (!this.isDisposed() && this.session.isStreaming) {
-  this.session = {
-    ...this.session,
-    isStreaming: false,
-    updatedAt: getIsoNow(),
-  }
-  await putSession(this.session)
-}
-```
-
-This is useful, but incomplete:
-
-- it only runs after `prompt()` returns
-- it does not help if worker dies
-- it does not help if page reloads mid-stream
-- it does not help if bootstrap fails before normal runtime settles
-
-Need a data-driven reconcile step at worker init.
-
----
-
-## Design
-
-### A. Add one bootstrap primitive
-
-Add:
-
-```ts
-export type BootstrapStatus = "bootstrap" | "failed" | "ready"
-```
-
-to `src/types/storage.ts`:
-
-```ts
-export interface SessionData {
-  bootstrapStatus: BootstrapStatus
-  cost: number
-  createdAt: string
-  error?: string
-  id: string
-  isStreaming: boolean
-  ...
-}
-```
-
-Rules:
-
-- `bootstrap`
-  - provisional session shell
-  - first prompt not durably persisted yet
-- `ready`
-  - `persistPromptStart(...)` succeeded at least once
-  - normal session behavior
-- `failed`
-  - bootstrap failed before promotion
-  - session remains visible
-  - user-visible failure appears as a system message in chat
-
-Keep `isStreaming`. do not invent a second streaming state enum.
-
-Why:
-
-- simplest new primitive
-- enough to model first-send correctly
-- no extra heartbeat / lease state yet
-
-### B. One error surface. persisted `system` rows only.
-
-All user-visible runtime failures should become persisted `system` rows:
-
-- provider failures
-- repo failures
-- worker init failures
-- worker transport failures
-- missing session runtime
-- busy session mutations
-- bootstrap failures
-- interrupted stream recovery
-- repo default-branch resolution failures
-
-Delete the prompt-level error surface:
-
-- delete `error?: string` from `ChatComposer`
-- delete the red text beneath the prompt
-- stop feeding `runtime.error ?? activeSession.error` into the prompt area
-- stop storing `actionError` in `useRuntimeSession`
-
-User-visible errors go into chat. nowhere else.
-
-### C. Replace `RuntimeNoticeService` with persisted dedupe
-
-Current code:
-
-- `src/agent/runtime-notice-service.ts`
-
-It dedupes in memory per host:
-
-```ts
-private readonly fingerprints: Array<string> = []
-```
-
-This is too local:
-
-- dedupe resets on reload
-- UI-originated errors cannot use the same path
-- worker-init recovery cannot use the same path
-
-Simpler long-term:
-
-1. add `fingerprint` to `SystemMessage`
-2. persist it
-3. dedupe by looking at existing persisted `system` rows for the session
-4. delete `RuntimeNoticeService`
-
-Proposed shape:
-
-```ts
-export interface SystemMessage {
-  id: string
-  role: "system"
-  timestamp: number
-  kind: string
-  severity: "error" | "warning" | "info"
-  source: "github" | "provider" | "runtime"
-  message: string
-  fingerprint: string
-  action?: "open-github-settings"
-}
-```
-
-Then introduce one helper:
-
-```ts
-async function appendSessionNotice(
-  sessionId: string,
-  error: unknown,
-  options?: {
-    clearStreaming?: boolean
-    bootstrapStatus?: BootstrapStatus
-    rewriteStreamingAssistant?: boolean
-  }
-): Promise<void>
-```
-
-Responsibilities:
-
-- classify error via `classifyRuntimeError(...)`
-- build `SystemMessage`
-- load session + messages
-- no-op if same fingerprint already present in recent/persisted system rows
-- optionally rewrite any streaming assistant row to terminal error
-- optionally clear `isStreaming`
-- optionally update `bootstrapStatus`
-- persist everything in one transaction
-
-This becomes the only path for persisted runtime notices.
-
-### D. Reconcile orphaned streaming on worker init. no heartbeat yet.
-
-Do **not** add heartbeat / lease in first pass.
-
-Why:
-
-- too much state
-- current runtime is already per-session worker
-- worker init is enough to detect the important broken case
-
-Simple invariant:
-
-- if a new worker instance loads a session from Dexie and sees `session.isStreaming === true`, the previous runtime is gone
-- therefore streaming is orphaned
-- reconcile immediately
-
-This is safe because:
-
-- if the runtime is actually still alive, `runtime-worker-api.init(id)` returns early:
-
-```ts
-if (host && activeSessionId === id) {
-  return true
-}
-```
-
-So reconciliation only runs when there is **not** already a live host in this worker.
-
-Implementation in `src/agent/runtime-worker-api.ts`:
-
-```ts
-export async function init(id: string): Promise<boolean> {
-  if (host && activeSessionId === id) {
-    return true
-  }
-
-  if (host) {
-    host.dispose()
-    host = undefined
-  }
-
-  activeSessionId = id
-  const loaded = await loadSessionWithMessages(id)
-
-  if (!loaded) {
-    activeSessionId = undefined
-    return false
-  }
-
-  if (loaded.session.isStreaming) {
-    await reconcileInterruptedSession(id, loaded)
-    const reloaded = await loadSessionWithMessages(id)
-    if (!reloaded) {
-      activeSessionId = undefined
-      return false
-    }
-    loaded = reloaded
-  }
-
-  host = new AgentHost(loaded.session, loaded.messages, ...)
-  return true
-}
-```
-
-`reconcileInterruptedSession(...)` should:
-
-- convert any `status: "streaming"` assistant row into terminal `error`
-- set `stopReason: "error"`
-- set a useful `errorMessage`, ex: `"Stream interrupted. The runtime stopped before completion."`
-- clear `session.isStreaming`
-- clear `session.error`
-- leave `bootstrapStatus` as:
-  - `failed` if it was `bootstrap`
-  - `ready` otherwise
-- append a runtime system message
-
-This fixes:
-
-- page reload during stream
-- worker crash / browser kill
-- transport disconnect followed by fresh init
-- stale `isStreaming` rows from previous broken runs
-
-### E. Introduce `bootstrapSessionAndSend(...)`
-
-Current orchestration is spread across:
-
-- `src/components/chat.tsx`
-- `src/sessions/session-actions.ts`
-- `src/agent/runtime-client.ts`
-
-Move first-send into one coordinator.
-
-New file:
-
-- `src/sessions/session-bootstrap.ts`
-
-Shape:
-
-```ts
-export async function bootstrapSessionAndSend(params: {
-  content: string
-  draft: SessionCreationBase
-  repoTarget?: RepoTarget
-}): Promise<SessionData> {
-  const repoSource =
-    params.repoTarget ? await resolveRepoSource(params.repoTarget) : undefined
-
-  const session = repoSource
-    ? await createSessionForRepo({
-        base: params.draft,
-        owner: repoSource.owner,
-        ref: repoSource.ref,
-        repo: repoSource.repo,
-      })
-    : await createSessionForChat(params.draft)
-
-  await persistSessionSnapshot({
-    ...session,
-    bootstrapStatus: "bootstrap",
-  })
-
-  try {
-    await runtimeClient.send(session.id, params.content)
-    return session
-  } catch (error) {
-    await appendSessionNotice(session.id, error, {
-      bootstrapStatus: "failed",
-      clearStreaming: true,
-      rewriteStreamingAssistant: true,
-    })
-    throw error
-  }
-}
-```
-
-But:
-
-- **do not** keep the thrown error for prompt rendering
-- UI catches only for control flow, not for user-visible display
-
-Why centralize:
-
-- removes `draftError`
-- removes `repoResolutionError`
-- removes ad hoc detached-send cleanup logic
-- gives one place to own first-send transitions
-
-### F. Promote to `ready` inside `persistPromptStart(...)`
-
-Smallest correct place:
-
-- inside `SessionPersistence.persistPromptStart(...)`
-
-Current code already persists the first durable prompt rows there.
-
-Change:
-
-```ts
-async persistPromptStart(userRow: MessageRow, assistantRow: MessageRow): Promise<void> {
-  await this.persistSessionBoundary(
-    {
-      bootstrapStatus: "ready",
-      error: undefined,
-      isStreaming: true,
-    },
-    [userRow, assistantRow],
-    [...this.buildCompletedRows(), userRow, assistantRow]
-  )
-}
-```
-
-Need to widen `persistSessionBoundary(...)` to accept `bootstrapStatus`.
-
-That keeps promotion close to the real durability event.
-
-### G. UI state rules
-
-Use data from Dexie only.
-
-Do not infer from side effects.
-
-Rules:
-
-- `bootstrapStatus === "bootstrap"`:
-  - show "Starting session..."
-  - do **not** show the normal empty state
-- `bootstrapStatus === "failed"`:
-  - show chat transcript with system notice
-  - composer remains usable for retry
-- `bootstrapStatus === "ready" && messages.length === 0`:
-  - normal empty state
-- `isStreaming === true`:
-  - show streaming controls
-
-Minimal `Chat` change:
-
-```ts
-if (activeSession?.bootstrapStatus === "bootstrap") {
-  return <LoadingState label="Starting session..." />
-}
-```
-
-Then delete:
-
-- `draftError`
-- `repoResolutionError`
-- `currentError`
-
-### H. Transport failure handling in `RuntimeClient`
-
-Need one extra simplification:
-
-- if a cached worker handle throws a transport-level error, drop the handle immediately
-- next call will create a fresh worker and `init(...)`
-- fresh init will reconcile stale streaming if needed
-
-Add helper:
-
-```ts
-function isWorkerTransportError(error: unknown): boolean {
-  return error instanceof Error && (
-    error.message.includes("disposed") ||
-    error.message.includes("closed") ||
-    error.message.includes("port") ||
-    error.message.includes("Worker")
-  )
-}
-```
-
-Then in `RuntimeClient.call(...)`:
-
-```ts
-try {
-  return await invoke(handle.api)
-} catch (error) {
-  if (isWorkerTransportError(error)) {
-    this.terminateHandle(handle)
-    this.workers.delete(sessionId)
-  }
-
-  if (error instanceof Error) {
-    throw reviveRuntimeCommandError(error, sessionId)
-  }
-
-  throw error
-}
-```
-
-No retry in first pass. keep simple.
-
-Why enough:
-
-- the handle is dropped
-- next action recreates worker
-- recreated worker reconciles stale stream state
-
-### I. Extend runtime error classification
-
-Current `runtime-errors.ts` covers:
-
-- GitHub auth / rate limit / not found / permission
-- provider connection
-- repo network
-- unknown runtime
-
-Need new explicit kinds:
-
-```ts
-type RuntimeErrorKind =
-  | "bootstrap_failed"
-  | "missing_session"
-  | "runtime_busy"
-  | "stream_interrupted"
-  | ...existing
-```
-
-Map:
-
-- `BusyRuntimeError` -> `runtime_busy`, severity `info` or `warning`
-- `MissingSessionRuntimeError` -> `missing_session`, severity `error`
-- orphaned streaming reconcile -> `stream_interrupted`, severity `error`
-- repo default-branch resolution / first-send bootstrap failures -> `bootstrap_failed`, severity `error`
-
-This keeps chat messages specific and actionable.
-
----
-
-## File-by-file plan
-
-### 1. `src/types/storage.ts`
-
-Add:
-
-```ts
-export type BootstrapStatus = "bootstrap" | "failed" | "ready"
-```
-
-Update:
-
-```ts
-export interface SessionData {
-  bootstrapStatus: BootstrapStatus
-  ...
-}
-```
-
-### 2. `src/types/chat.ts`
-
-Add persisted fingerprint:
-
-```ts
-export interface SystemMessage {
-  ...
-  fingerprint: string
-}
-```
-
-### 3. `src/sessions/session-service.ts`
-
-Set default on create:
-
-```ts
-return {
-  bootstrapStatus: "ready",
-  ...
-}
-```
-
-Rationale:
-
-- old/non-bootstrap sessions default to normal
-- first-send coordinator explicitly downgrades provisional sessions to `"bootstrap"`
-
-### 4. `src/agent/session-persistence.ts`
-
-Change `persistSessionBoundary(...)` override type from:
-
-```ts
-Pick<SessionData, "error" | "isStreaming">
-```
-
-to:
-
-```ts
-Pick<SessionData, "bootstrapStatus" | "error" | "isStreaming">
-```
-
-Use it in:
-
-- `persistPromptStart(...)` -> set `bootstrapStatus: "ready"`
-- normal final boundaries -> preserve current status unless explicitly changing
-
-### 5. `src/agent/runtime-errors.ts`
-
-Add missing runtime kinds.
-
-Ensure `buildSystemMessage(...)` includes `fingerprint`.
-
-### 6. `src/sessions/session-notices.ts` or `src/agent/session-notices.ts`
-
-New file. one helper module.
-
-Functions:
-
-- `appendSessionNotice(...)`
-- `reconcileInterruptedSession(...)`
-
-Put all persisted error-side effects here.
-
-### 7. `src/agent/runtime-notice-service.ts`
-
-Delete.
-
-Replace `AgentHost.appendSystemNoticeFromError(...)` usage with the new persisted helper.
-
-### 8. `src/agent/agent-host.ts`
-
-Changes:
-
-- no `RuntimeNoticeService`
-- call persisted notice helper directly
-- keep current safety net
-- keep host lean; no bootstrap orchestration here
-
-### 9. `src/agent/runtime-worker-api.ts`
-
-Changes:
-
-- reconcile stale `isStreaming` during `init(...)`
-- if bootstrap session loads in broken streaming state, mark failed and append notice before creating host
-
-### 10. `src/agent/runtime-client.ts`
-
-Changes:
-
-- drop broken handles on worker transport error
-- keep per-session worker naming
-- no global worker refactor
-
-### 11. `src/hooks/use-runtime-session.ts`
-
-Delete `actionError` state.
-
-New shape:
-
-```ts
-export function useRuntimeSession(sessionId: string | undefined) {
-  const runMutation = React.useEffectEvent(async (...) => {
-    if (!sessionId) return
-    try {
-      await action(sessionId)
-    } catch (error) {
-      await appendSessionNotice(sessionId, error)
-    }
-  })
-  ...
-  return { abort, send, setModelSelection, setThinkingLevel }
-}
-```
-
-Important:
-
-- model/thinking/runtime errors become chat notices too
-- no prompt-local error string anymore
-
-### 12. `src/components/chat-composer.tsx`
-
-Delete:
-
-- `error?: string`
-- `submitStatus` error branch
-- red error text beneath prompt
-
-Target:
-
-```ts
-const submitStatus: ChatStatus =
-  props.isStreaming ? "streaming" : "ready"
-```
-
-### 13. `src/components/chat.tsx`
-
-Delete:
-
-- `draftError`
-- `repoResolutionError`
-- `currentError`
-- `persistDetachedSendError(...)`
-
-Replace first-send path with `bootstrapSessionAndSend(...)`.
-
-Use persisted `bootstrapStatus` for UI branching.
-
-### 14. `src/sessions/session-bootstrap.ts`
-
-New file.
-
-Own:
-
-- repo resolution
-- provisional session creation
-- bootstrap state persist
-- first send dispatch
-- bootstrap failure notice persist
-
-This file is the biggest simplification win.
-
----
-
-## State transitions
-
-### Session lifecycle
-
-```text
-create provisional session
-  -> bootstrap / isStreaming=false
-
-runtime send starts, worker init ok
-  -> bootstrap / isStreaming=false
-
-persistPromptStart succeeds
-  -> ready / isStreaming=true
-
-normal completion
-  -> ready / isStreaming=false
-
-normal provider/repo/runtime error after prompt persisted
-  -> ready / isStreaming=false + system message
-
-bootstrap failure before persistPromptStart
-  -> failed / isStreaming=false + system message
-
-worker reload/crash while persisted session says isStreaming=true
-  -> reconcile on next init
-  -> ready|failed / isStreaming=false + system message
-```
-
-### Why no lease/heartbeat in v1
-
-Because this is enough:
-
-- worker is already per session
-- new worker init is already the reconstruct boundary
-- `init()` can detect stale persisted streaming
-
-Heartbeat adds more state than needed right now.
-
----
-
-## Migration + compatibility
-
-Need Dexie version bump for `sessions` store shape if required by existing codepath.
-
-But because `bootstrapStatus` is a field inside the value, not an indexed key, migration can stay simple:
-
-- old sessions load with `bootstrapStatus ?? "ready"`
-- normalize on load if missing
-
-Add to session normalization path:
-
-```ts
-function normalizeBootstrapStatus(
-  session: SessionData
-): SessionData {
-  return {
-    ...session,
-    bootstrapStatus: session.bootstrapStatus ?? "ready",
-  }
-}
-```
-
-Apply in:
-
-- `loadSession`
-- `loadMostRecentSession`
-- `buildPersistedSession`
-- any bootstrap/reconcile helper
-
----
-
-## Tests
-
-### Add / update tests for:
-
-1. bootstrap promotion
-
-```text
-create session -> bootstrap
-persistPromptStart -> ready + isStreaming=true
-```
-
-2. bootstrap failure
-
-```text
-session created
-runtime send fails before prompt persistence
-session becomes failed
-system notice appended
-no prompt-level error string used
-```
-
-3. worker init stale streaming reconcile
-
-```text
-persisted session has isStreaming=true
-worker init loads it with no existing host
-streaming assistant row rewritten to error
-system notice appended
-session.isStreaming cleared
-```
-
-4. transport failure on cached handle
-
-```text
-cached worker call throws transport error
-client drops handle
-next call creates new worker
-```
-
-5. no prompt error UI
-
-```text
-ChatComposer never renders error text beneath prompt
-runtime/user-visible failures only appear as chat system rows
-```
-
-6. busy mutation shown in chat
-
-```text
-setModelSelection during stream -> system notice row
-no prompt-local error
-```
-
----
-
-## Sequence snippets
-
-### First send, success
-
-```ts
-const session = await createSessionForRepo(...)
-
-await persistSessionSnapshot({
-  ...session,
-  bootstrapStatus: "bootstrap",
-})
-
-await runtimeClient.send(session.id, content)
-
-// AgentHost.persistPromptStart(...)
-await this.persistSessionBoundary(
-  {
-    bootstrapStatus: "ready",
-    error: undefined,
-    isStreaming: true,
+const config = defineConfig({
+  plugins: [
+    comlink(),
+    devtools(),
+    nitro(),
+    createTsConfigPathsPlugin(),
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+  ],
+  worker: {
+    plugins: () => [createTsConfigPathsPlugin(), comlink()],
   },
-  [userRow, assistantRow],
-  ...
+})
+```
+
+Local plugin docs in `node_modules/vite-plugin-comlink/README.md` confirm the expected API:
+
+```ts
+const instance = new ComlinkWorker<typeof import("./worker")>(
+  new URL("./worker", import.meta.url),
+  { /* Worker options */ }
 )
 ```
 
-### First send, bootstrap failure
+Important: do not hand-roll `wrap()` / `expose()` unless plugin behavior forces it. current stack already chose the plugin path.
+
+### 2. Runtime authority is on main thread today
+
+`src/agent/runtime-client.ts:57-160`
 
 ```ts
-try {
-  await runtimeClient.send(session.id, content)
-} catch (error) {
-  await appendSessionNotice(session.id, error, {
-    bootstrapStatus: "failed",
-    clearStreaming: true,
-    rewriteStreamingAssistant: true,
+export class RuntimeClient {
+  private readonly activeTurns = new Map<string, AgentHost>()
+  private readonly leaseHeartbeats = new Map<
+    string,
+    ReturnType<typeof setInterval>
+  >()
+
+  private installListeners(): void {
+    const release = () => {
+      void this.releaseAll()
+    }
+
+    window.addEventListener("beforeunload", release)
+    window.addEventListener("pagehide", release)
+  }
+}
+```
+
+This is already the right authority layer. keep it.
+
+### 3. Lease truth depends on tab identity. cannot move this into worker.
+
+`src/db/session-leases.ts:7-8`
+
+```ts
+export const LEASE_HEARTBEAT_MS = 5_000
+export const LEASE_STALE_MS = 20_000
+```
+
+`src/agent/tab-id.ts:7-16`
+
+```ts
+export function getCurrentTabId(): string {
+  if (typeof window === "undefined") {
+    throw new Error("Tab identity requires a browser environment")
+  }
+
+  const existing = window.sessionStorage.getItem(TAB_ID_STORAGE_KEY)
+```
+
+`src/db/session-runtime.ts:38-51`
+
+```ts
+export async function markTurnStarted(params: {
+  assistantMessageId: string
+  sessionId: string
+  turnId: string
+}): Promise<SessionRuntimeRow> {
+  const now = getIsoNow()
+  return await putRuntimeUpdate(params.sessionId, "streaming", {
+    ownerTabId: getCurrentTabId(),
+```
+
+Conclusion: worker must not become the owner of lease/runtime rows. the main thread is the only place with stable tab identity.
+
+### 4. Recovery is already UI/main-thread driven
+
+`src/components/chat.tsx:461-479`
+
+```ts
+React.useEffect(() => {
+  const handleVisibilityChange = () => {
+    if (document.visibilityState !== "visible") {
+      return
+    }
+
+    if (!activeSession || recoveryIntent !== "run-now") {
+      return
+    }
+
+    void maybeRecoverInterruptedSession("visibility")
+  }
+
+  document.addEventListener("visibilitychange", handleVisibilityChange)
+```
+
+Do not move this to worker land.
+
+### 5. `AgentHost` currently mixes execution + persistence + recovery bookkeeping
+
+`src/agent/agent-host.ts:97-120`
+
+```ts
+export class AgentHost {
+  readonly agent: Agent
+
+  private assignedAssistantIds = new Map<string, string>()
+  private persistedMessageIds = new Set<string>()
+  private recordedAssistantMessageIds = new Set<string>()
+  private currentAssistantMessageId?: string
+  private currentTurnId?: string
+  private lastDraftAssistant?: AssistantMessage
+  private lastTerminalStatus: TerminalAssistantStatus = undefined
+  private disposed = false
+  private promptPending = false
+  private runningTurn?: Promise<void>
+  private persistQueue = Promise.resolve()
+  private eventQueue = Promise.resolve()
+```
+
+Persistence code is embedded in the same class:
+
+`src/agent/agent-host.ts:690-699`
+
+```ts
+private snapshotAgentState(): AgentStateSnapshot {
+  return {
+    error: this.agent.state.error,
+    isStreaming: this.agent.state.isStreaming,
+    messages: cloneValue(this.agent.state.messages),
+    streamMessage:
+      this.agent.state.streamMessage === null
+        ? null
+        : cloneValue(this.agent.state.streamMessage),
+  }
+}
+```
+
+`src/agent/agent-host.ts:890-928`
+
+```ts
+private async persistStreamingProgress(
+  currentAssistantRow: MessageRow | undefined,
+  newlyCompletedRows: Array<MessageRow>
+): Promise<void> {
+  this.persistQueue = this.persistQueue.then(async () => {
+    if (newlyCompletedRows.length > 0) {
+      await putMessages(newlyCompletedRows)
+    }
+
+    if (currentAssistantRow) {
+      await putMessage(currentAssistantRow)
+    }
+
+    await markTurnProgress({
+      sessionId: this.session.id,
+      turnId: this.currentTurnId,
+    })
   })
 }
 ```
 
-### Worker init stale stream reconcile
+This is the seam to split. do not try to lift the whole class into a worker in one move.
+
+### 6. Existing tests already pin the persistence contract
+
+`tests/agent-host-persistence.test.ts:304-346`
 
 ```ts
-if (loaded.session.isStreaming) {
-  await reconcileInterruptedSession(id, loaded)
-  loaded = await loadSessionWithMessages(id)
+it("persists optimistic user and streaming assistant rows before completion", async () => {
+  const { AgentHost } = await import("@/agent/agent-host")
+  const host = new AgentHost(createSession(), [])
+
+  await host.prompt("read the repo")
+
+  expect(putSessionAndMessages).toHaveBeenCalledWith(
+    expect.objectContaining({
+      isStreaming: true,
+    }),
+```
+
+Use these tests. do not throw them away.
+
+### 7. README is stale. code wins.
+
+`README.md:16`
+
+```md
+- **Local first** — Agent in a SharedWorker; durable state in IndexedDB.
+```
+
+Current code does not do that. trust code, not README.
+
+## Verified facts. browser/platform truth.
+
+External sources checked before writing this plan:
+
+- `Comlink` official README: functions/callbacks are not structured-cloneable; use `Comlink.proxy(...)` for callbacks.
+  - source: [GoogleChromeLabs/comlink README](https://github.com/GoogleChromeLabs/comlink)
+- Chrome Page Lifecycle: hidden tabs can be frozen/discarded; in frozen state, timers and fetch callbacks do not run.
+  - source: [Page Lifecycle API](https://developer.chrome.com/articles/page-lifecycle-api)
+- MDN Page Visibility: background tabs get timer throttling; `requestAnimationFrame` stops; IndexedDB is not throttled the same way.
+  - source: [Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)
+- Chrome timer throttling: hidden pages can be checked as slowly as once per second, and in some conditions once per minute.
+  - source: [Heavy throttling of chained JS timers beginning in Chrome 88](https://developer.chrome.com/blog/timer-throttling-in-chrome-88/)
+
+Conclusion:
+
+- `DedicatedWorker` is worth using for off-main-thread work and some hidden-tab continuity
+- not a guarantee against freeze/discard
+- plan must preserve interrupted-turn recovery as the hard safety net
+
+## Architecture decision
+
+Use:
+
+- one `DedicatedWorker` per tab
+- created lazily
+- reused for all sessions in that tab
+- `ComlinkWorker`, not `SharedWorker`, not `ServiceWorker`
+
+Why:
+
+- `SharedWorker` would reintroduce cross-tab runtime ownership. wrong direction.
+- `ServiceWorker` is the wrong execution model for long-lived chat turns. browser may terminate when idle.
+- per-session workers also works, but a single tab worker is lower overhead and still keeps authority on the main thread.
+
+## Non-goals
+
+- no worker-owned lease FSM
+- no worker writes to `session_leases`
+- no worker writes to `session_runtime`
+- no worker writes `sessions` / `messages`
+- no `BroadcastChannel`
+- no `SharedWorker`
+- no attempt to guarantee immortal hidden-tab execution
+
+## Implementation shape
+
+### High-level split
+
+Main thread:
+
+- claim/release lease
+- heartbeat interval
+- create optimistic user row + assistant placeholder
+- persist progress / completion to Dexie
+- drive recovery on `visibilitychange`
+- own `turnId`, `assistantMessageId`, `userMessageId`
+
+Worker:
+
+- create `Agent`
+- create repo runtime/tools
+- run provider stream
+- emit coarse snapshots
+- keep local abort controller(s)
+- keep local watchdog for "agent stopped making progress"
+
+## Step 0. preflight spike. prove worker-safe imports.
+
+Before the refactor, do 1 tiny spike PR or draft commit.
+
+Target: instantiate these in a worker and make one happy-path call:
+
+- `createRepoRuntime()` from `src/repo/repo-runtime.ts`
+- `streamChatWithPiAgent()` from `src/agent/provider-stream.ts`
+- `resolveApiKeyForProvider()` from `src/auth/resolve-api-key.ts`
+
+Reason:
+
+- `getCurrentTabId()` is not worker-safe. already known.
+- repo/runtime code mostly looks worker-safe.
+- auth code uses Dexie + fetch. likely okay, but validate.
+
+One real wrinkle already found:
+
+- `src/repo/github-fetch.ts:101-113` uses `window.location`, `history`, `PopStateEvent`
+- that file is UI-only today, and not used by `createRepoRuntime()`
+- keep it that way. do not import it from worker paths.
+
+Spike snippet:
+
+```ts
+// src/agent/runtime-worker-smoke.ts
+export async function smokeRepoRuntime(source: RepoSource) {
+  const runtime = createRepoRuntime(source)
+  const text = await runtime.fs.readFile("/README.md")
+  return text.slice(0, 40)
 }
 ```
 
----
+If this spike fails because of a worker-unsafe import chain:
 
-## Explicit simplifications. keep these.
+- first choice: fix the import boundary
+- fallback: keep only provider stream in worker, repo tools on main thread via proxied callbacks
 
-Do:
+Do not guess. prove it first.
 
-- add `bootstrapStatus`
-- keep `isStreaming`
-- one persisted notice helper
-- reconcile on worker init
-- delete prompt-local errors
-- keep per-session worker model
+## Step 1. extract persistence engine from `AgentHost`
 
-Do **not** do now:
+Create a new main-thread-only class.
 
-- global worker host map
-- background daemon semantics
-- heartbeat / lease tables
-- multi-step retry orchestration in v1
-- extra UI error surfaces
+Suggested file:
 
----
+- `src/agent/agent-turn-persistence.ts`
 
-## End state
+Purpose:
 
-After this plan:
+- move all Dexie/session/message/runtime-row behavior here
+- keep the exact persistence semantics currently tested in `tests/agent-host-persistence.test.ts`
+- feed it snapshots from either:
+  - current in-thread `AgentHost`
+  - future worker-backed runner
 
-- every user-visible runtime failure is a persisted chat message
-- prompt area has no error banner
-- first-send lifecycle is explicit
-- stuck `isStreaming` is reconciled data-first
-- worker model stays simple
-- LOC goes down in UI/runtime glue
+Suggested API:
 
-This is the smallest plan that fixes the real state-transition bugs, instead of layering more watchdogs on top.
+```ts
+export type AgentStateSnapshot = {
+  error: string | undefined
+  isStreaming: boolean
+  messages: AgentMessage[]
+  streamMessage: AgentMessage | null
+}
 
----
+export type SnapshotEnvelope = {
+  snapshot: AgentStateSnapshot
+  terminalStatus?: "aborted" | "error"
+}
 
-## TODO checklist
+export type TurnEnvelope = {
+  assistantMessageId: string
+  turnId: string
+  userMessage: Message & { id: string }
+}
 
-Legend:
+export class AgentTurnPersistence {
+  constructor(session: SessionData, seededMessages: MessageRow[])
 
-- `[ ]` not started
-- `[~]` in progress
-- `[x]` done
+  isBusy(): boolean
+  async beginTurn(turn: TurnEnvelope): Promise<void>
+  async applySnapshot(envelope: SnapshotEnvelope): Promise<void>
+  async updateModelSelection(providerGroup: ProviderGroupId, modelId: string): Promise<void>
+  async updateThinkingLevel(thinkingLevel: ThinkingLevel): Promise<void>
+  async repairTurnFailure(error: Error | string): Promise<void>
+  async flush(): Promise<void>
+  dispose(): void
+}
+```
 
-### Phase 0. lock the target behavior
+Move, mostly unchanged, from `src/agent/agent-host.ts`:
 
-- [x] confirm final invariants in code comments at top of the implementation PR / patch:
-  - [x] no prompt-beneath error UI
-  - [x] all user-visible runtime failures become persisted chat rows
-  - [x] bootstrap session is not treated like a normal empty chat
-  - [x] stuck `isStreaming` is reconciled on worker init
-  - [x] keep per-session worker model
-- [x] re-read current call sites before edits:
-  - [x] `src/components/chat.tsx`
-  - [x] `src/components/chat-composer.tsx`
-  - [x] `src/hooks/use-runtime-session.ts`
-  - [x] `src/agent/runtime-client.ts`
-  - [x] `src/agent/runtime-worker-api.ts`
-  - [x] `src/agent/agent-host.ts`
-  - [x] `src/agent/session-persistence.ts`
+- `assignedAssistantIds`
+- `persistedMessageIds`
+- `recordedAssistantMessageIds`
+- `currentAssistantMessageId`
+- `currentTurnId`
+- `lastDraftAssistant`
+- `lastTerminalStatus`
+- `persistQueue`
+- `eventQueue`
+- `snapshotAgentState()` consumers that are snapshot-only
+- `buildCompletedRows()`
+- `buildCurrentAssistantRow()`
+- `buildCurrentRows()`
+- `getNewlyCompletedRows()`
+- `persistPromptStart()`
+- `persistStreamingProgress()`
+- `persistCurrentTurnBoundaryFromSnapshot()`
+- `persistSessionBoundary()`
+- `recordAssistantUsage()`
 
-### Phase 1. add the new persisted primitives
+Do not move:
 
-- [x] update `src/types/storage.ts`
-  - [x] add `BootstrapStatus = "bootstrap" | "failed" | "ready"`
-  - [x] add `bootstrapStatus` to `SessionData`
-- [x] update `src/types/chat.ts`
-  - [x] add `fingerprint` to `SystemMessage`
-- [x] update session normalization so old rows remain valid
-  - [x] add helper to default missing `bootstrapStatus` to `"ready"`
-  - [x] use helper in `src/sessions/session-service.ts`
-  - [x] use helper in any session read/normalize path
-- [x] verify Dexie schema impact
-  - [x] confirm `bootstrapStatus` is not needed as an index
-  - [x] confirm no store version bump is required for a non-indexed field
+- actual `Agent`
+- repo runtime
+- provider stream
+- worker/watchdog execution loop
 
-### Phase 2. make bootstrap explicit in session creation
+Why this step first:
 
-- [x] update `src/sessions/session-service.ts`
-  - [x] ensure newly created normal sessions default to `bootstrapStatus: "ready"`
-- [x] create new orchestration module
-  - [x] add `src/sessions/session-bootstrap.ts`
-  - [x] define `bootstrapSessionAndSend(...)`
-  - [x] move repo resolution into the coordinator
-  - [x] move provisional session creation into the coordinator
-  - [x] persist `bootstrapStatus: "bootstrap"` before first send
-  - [x] call `runtimeClient.send(...)` from the coordinator
-  - [x] on bootstrap failure, persist failure notice + state transition
-- [x] update `src/components/chat.tsx`
-  - [x] replace first-send orchestration with `bootstrapSessionAndSend(...)`
-  - [x] remove old detached first-send cleanup path
-  - [x] remove bootstrap-specific local error bookkeeping
+- isolates the exact logic that must remain main-thread authoritative
+- derisks the worker refactor
+- lets existing tests stay useful
 
-### Phase 3. promote bootstrap only at the real durability boundary
+## Step 2. keep current `AgentHost` working, but route through persistence engine
 
-- [x] update `src/agent/session-persistence.ts`
-  - [x] widen `persistSessionBoundary(...)` override type to include `bootstrapStatus`
-  - [x] update internal merge logic to preserve / override bootstrap state correctly
-  - [x] change `persistPromptStart(...)` to set `bootstrapStatus: "ready"`
-  - [x] make sure later persistence paths do not accidentally reset `"failed"` to `"ready"`
-- [x] update `src/agent/agent-host.ts`
-  - [x] verify no direct session writes bypass the new bootstrap semantics
-  - [x] verify prompt-start path is still the first durable conversation boundary
+Refactor `AgentHost` to become:
 
-### Phase 4. delete the prompt-level error channel
+- execution wrapper around `Agent`
+- event producer
+- user of `AgentTurnPersistence`
 
-- [x] update `src/components/chat-composer.tsx`
-  - [x] remove `error?: string` prop
-  - [x] remove prompt error rendering under the input
-  - [x] simplify submit status to `ready | streaming`
-- [x] update `src/hooks/use-runtime-session.ts`
-  - [x] remove `actionError` state
-  - [x] remove `error` from the returned hook object
-  - [x] on mutation failure, route through persisted session-notice path instead
-- [x] update `src/components/chat.tsx`
-  - [x] remove `currentError`
-  - [x] remove `draftError`
-  - [x] remove `repoResolutionError` as a prompt-surface concern
-  - [x] ensure repo resolution failures also become persisted notices when tied to a session
-- [x] search for remaining prompt-level error consumers
-  - [x] `rg -n "error\\?: string|runtime.error|draftError|currentError|actionError" src tests`
-  - [x] remove or rewrite them
+Target shape:
 
-### Phase 5. unify runtime notices into one persisted path
+```ts
+export class AgentHost {
+  readonly agent: Agent
+  private readonly persistence: AgentTurnPersistence
 
-- [x] create new helper module
-  - [x] add `src/agent/session-notices.ts` or `src/sessions/session-notices.ts`
-  - [x] implement `appendSessionNotice(sessionId, error, options?)`
-  - [x] load session + messages inside helper
-  - [x] classify with `classifyRuntimeError(...)`
-  - [x] build persisted `SystemMessage`
-  - [x] dedupe by persisted `fingerprint`
-  - [x] optionally clear `isStreaming`
-  - [x] optionally rewrite streaming assistant row
-  - [x] optionally update `bootstrapStatus`
-  - [x] persist in one transaction
-- [x] delete `src/agent/runtime-notice-service.ts`
-- [x] update `src/agent/agent-host.ts`
-  - [x] remove `RuntimeNoticeService` dependency
-  - [x] replace `appendSystemNoticeFromError(...)` implementation with call into persisted helper
-  - [x] verify repo tool errors still land in chat as `system` rows
-- [x] update any UI-side runtime failure path
-  - [x] `useRuntimeSession`
-  - [x] bootstrap coordinator
-  - [x] worker-init reconciliation
+  constructor(session: SessionData, messages: MessageRow[], options?: ...) {
+    this.persistence = new AgentTurnPersistence(session, messages)
+    this.agent = new Agent(...)
+  }
+}
+```
 
-### Phase 6. extend runtime error classification
+`handleEvent()` becomes thinner:
 
-- [x] update `src/agent/runtime-errors.ts`
-  - [x] add `bootstrap_failed`
-  - [x] add `missing_session`
-  - [x] add `runtime_busy`
-  - [x] add `stream_interrupted`
-  - [x] decide severity for each new kind
-  - [x] decide `source` for each new kind
-  - [x] decide CTA behavior, if any
-- [x] update `buildSystemMessage(...)`
-  - [x] include `fingerprint`
-- [x] update tests in `tests/runtime-errors.test.ts`
-  - [x] add coverage for `BusyRuntimeError`
-  - [x] add coverage for `MissingSessionRuntimeError`
-  - [x] add coverage for stream interruption classification
-  - [x] add coverage for bootstrap failure classification
+```ts
+private async handleEvent(event: AgentEvent): Promise<void> {
+  const snapshot = this.snapshotAgentState()
+  const terminalStatus =
+    !snapshot.isStreaming && this.agent.state.error
+      ? (this.lastTerminalStatus ?? "error")
+      : this.lastTerminalStatus
 
-### Phase 7. reconcile stale `isStreaming` at worker init
+  await this.persistence.applySnapshot({
+    snapshot,
+    terminalStatus,
+  })
+}
+```
 
-- [x] update `src/agent/runtime-worker-api.ts`
-  - [x] add `reconcileInterruptedSession(...)` helper or import it
-  - [x] after `loadSessionWithMessages(id)`, check `loaded.session.isStreaming`
-  - [x] if true and no existing live host for this session, reconcile before constructing `AgentHost`
-  - [x] reload session/messages after reconciliation
-  - [x] keep existing early-return behavior for already-live host
-- [x] define exact reconcile behavior
-  - [x] clear `session.isStreaming`
-  - [x] if `bootstrapStatus === "bootstrap"`, set to `"failed"`
-  - [x] otherwise leave / normalize to `"ready"`
-  - [x] rewrite any assistant row with `status: "streaming"` to terminal `error`
-  - [x] attach a useful `errorMessage`
-  - [x] append a persisted `stream_interrupted` system notice
-- [x] verify reconcile path is idempotent
-  - [x] repeated init should not append duplicate notices
-  - [x] repeated init should not keep rewriting rows unnecessarily
+End of step 2 should be zero behavior change. all tests green.
 
-### Phase 8. harden worker client lifecycle with minimal logic
+## Step 3. define the worker contract
 
-- [x] update `src/agent/runtime-client.ts`
-  - [x] add worker transport error detection helper
-  - [x] on transport failure, terminate handle
-  - [x] remove broken handle from cache
-  - [x] keep thrown error semantics unchanged for callers
-- [x] verify no retry loop in first pass
-  - [x] next user action should recreate worker naturally
-- [x] verify `releaseSession(...)` behavior still works
-  - [x] delete flow
-  - [x] session switch flow
+Create:
 
-### Phase 9. make UI rendering fully data-driven
+- `src/agent/runtime-worker-types.ts`
 
-- [x] update `src/components/chat.tsx`
-  - [x] if `bootstrapStatus === "bootstrap"`, show startup loading state
-  - [x] if `bootstrapStatus === "failed"`, show transcript + composer, not the normal empty state
-  - [x] if `bootstrapStatus === "ready"` and no messages, show normal empty state
-  - [x] preserve streaming UI from persisted `isStreaming`
-- [x] verify `src/components/chat-message.tsx` already handles new `system` rows without extra branches
-- [x] verify no fallback UI depends on ephemeral hook error state anymore
+Keep it coarse. do not tunnel raw DOM events or every token.
 
-### Phase 10. remove dead code and old assumptions
+Suggested types:
 
-- [x] delete `persistDetachedSendError(...)` if obsolete
-- [x] remove old runtime error plumbing in `src/components/chat.tsx`
-- [x] remove `RuntimeNoticeService` references
-- [x] remove dead tests for prompt-level error rendering, if any
-- [x] search for stale state assumptions
-  - [x] `rg -n "isStreaming.*false|session.error|draftError|RuntimeNoticeService|persistDetachedSendError|bootstrapStatus" src tests`
-  - [x] clean up any now-invalid branches
+```ts
+import type { Message } from "@mariozechner/pi-ai"
+import type { AgentMessage } from "@mariozechner/pi-agent-core"
+import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
+import type { MessageRow, SessionData } from "@/types/storage"
 
-### Phase 11. tests
+export type WorkerSnapshot = {
+  error: string | undefined
+  isStreaming: boolean
+  messages: AgentMessage[]
+  streamMessage: AgentMessage | null
+}
 
-- [x] update existing tests for `SessionData` shape
-  - [x] `tests/session-actions.test.ts`
-  - [x] `tests/chat-first-send.test.tsx`
-  - [x] `tests/agent-host-persistence.test.ts`
-  - [x] `tests/runtime-client.test.ts`
-- [x] add unit tests for bootstrap transitions
-  - [x] create session -> bootstrap
-  - [x] `persistPromptStart(...)` -> ready
-  - [x] bootstrap failure -> failed + system row
-- [x] add unit tests for persisted notice helper
-  - [x] dedupe by fingerprint
-  - [x] clear `isStreaming`
-  - [x] rewrite streaming assistant row
-  - [x] preserve existing completed rows
-- [x] add worker-init reconciliation tests
-  - [x] stale `isStreaming` session is repaired on `init(...)`
-  - [x] no duplicate notice on repeated `init(...)`
-  - [x] bootstrap session interrupted before ready becomes failed
-- [x] add UI tests
-  - [x] no prompt-beneath error text
-  - [x] `bootstrap` shows startup state
-  - [x] `failed` shows in-chat system notice
-  - [x] normal empty chat only when `ready` and empty
-- [x] add runtime transport failure test
-  - [x] broken cached worker handle gets dropped
-  - [x] subsequent send re-inits worker
+export type WorkerSnapshotEnvelope = {
+  sessionId: string
+  snapshot: WorkerSnapshot
+  terminalStatus?: "aborted" | "error"
+}
 
-### Phase 12. verification
+export interface RuntimeWorkerEvents {
+  pushSnapshot(envelope: WorkerSnapshotEnvelope): Promise<void>
+}
 
-- [x] run targeted tests:
-  - [x] `bun run test tests/runtime-client.test.ts tests/agent-host-persistence.test.ts`
-  - [x] bootstrap / chat tests added in this change
-- [x] run broader tests if stable
-  - [x] runtime-related
-  - [x] chat-related
-- [x] run `bun run typecheck`
-- [x] note any pre-existing unrelated typecheck failures separately
-- [x] manually inspect the final UX behavior in code:
-  - [x] no prompt-level error rendering path remains
-  - [x] all failure paths write to chat
-  - [x] bootstrap is explicit in session state
-  - [x] stale streaming is repaired on re-entry
+export type StartTurnInput = {
+  session: SessionData
+  messages: MessageRow[]
+  turn: {
+    assistantMessageId: string
+    turnId: string
+    userMessage: Message & { id: string }
+  }
+  githubRuntimeToken?: string
+}
 
-### Phase 13. optional follow-ups, explicitly deferred
+export type ConfigureSessionInput = {
+  sessionId: string
+  providerGroup: ProviderGroupId
+  modelId: string
+}
+```
 
-- [ ] retry CTA for failed bootstrap sessions
-- [ ] delete/discard CTA for failed bootstrap sessions
-- [ ] idle worker release policy on session switch
-- [ ] global runtime manager worker with `Map<sessionId, AgentHost>`
-- [ ] heartbeat / lease if worker-init reconciliation proves insufficient
+Notes:
+
+- include `sessionId` on every envelope. simpler debugging.
+- do not pass `AbortSignal` through `Comlink`. use explicit `abortTurn(sessionId)`.
+- functions in `RuntimeWorkerEvents` must cross boundary via `Comlink.proxy(...)`.
+
+## Step 4. add the worker module
+
+Create:
+
+- `src/agent/runtime-worker.ts`
+
+Pattern: module-level maps + named exports.
+
+Why named exports:
+
+- matches `vite-plugin-comlink` docs
+- no need to hand-roll `expose()`
+
+Suggested worker skeleton:
+
+```ts
+import { Agent } from "@mariozechner/pi-agent-core"
+import type { MessageRow, SessionData } from "@/types/storage"
+import { buildInitialAgentState } from "@/agent/session-adapter"
+import { webMessageTransformer } from "@/agent/message-transformer"
+import { streamChatWithPiAgent } from "@/agent/provider-stream"
+import { createRepoRuntime } from "@/repo/repo-runtime"
+import { createRepoTools } from "@/tools"
+import type {
+  RuntimeWorkerEvents,
+  StartTurnInput,
+  WorkerSnapshotEnvelope,
+} from "@/agent/runtime-worker-types"
+
+const runners = new Map<string, WorkerAgentRunner>()
+
+export async function startTurn(
+  input: StartTurnInput,
+  events: RuntimeWorkerEvents
+): Promise<void> {
+  let runner = runners.get(input.session.id)
+
+  if (!runner) {
+    runner = new WorkerAgentRunner(input.session, input.messages, events, {
+      githubRuntimeToken: input.githubRuntimeToken,
+    })
+    runners.set(input.session.id, runner)
+  }
+
+  await runner.startTurn(input.turn)
+}
+
+export async function abortTurn(sessionId: string): Promise<void> {
+  runners.get(sessionId)?.abort()
+}
+
+export async function disposeSession(sessionId: string): Promise<void> {
+  runners.get(sessionId)?.dispose()
+  runners.delete(sessionId)
+}
+```
+
+`WorkerAgentRunner` is roughly current `AgentHost` minus:
+
+- Dexie session/message/runtime writes
+- lease writes
+- tab-id usage
+
+Keep inside worker:
+
+- `Agent`
+- `repoRuntime`
+- `getApiKey` path
+- `refreshGithubToken`
+- `setModelSelection`
+- `setThinkingLevel`
+- watchdog / abort logic
+- `snapshotAgentState()`
+
+## Step 5. buffer snapshots inside the worker
+
+Do not send one RPC per token chunk. too chatty.
+
+Plan:
+
+- on every `agent.subscribe(...)` event, update `latestSnapshot`
+- flush at most every `50ms`
+- flush immediately on:
+  - `message_end`
+  - `turn_end`
+  - abort
+  - error
+
+Suggested code:
+
+```ts
+class WorkerAgentRunner {
+  private flushTimer: ReturnType<typeof setTimeout> | undefined
+  private latestTerminalStatus: "aborted" | "error" | undefined
+
+  private queueSnapshotFlush(force = false) {
+    if (force) {
+      this.flushSnapshotNow()
+      return
+    }
+
+    if (this.flushTimer) {
+      return
+    }
+
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = undefined
+      void this.flushSnapshotNow()
+    }, 50)
+  }
+
+  private async flushSnapshotNow() {
+    const envelope: WorkerSnapshotEnvelope = {
+      sessionId: this.session.id,
+      snapshot: this.snapshotAgentState(),
+      terminalStatus: this.latestTerminalStatus,
+    }
+
+    await this.events.pushSnapshot(envelope)
+  }
+}
+```
+
+This is enough. do not invent stream diff protocols unless profiling proves RPC pressure is real.
+
+## Step 6. main-thread worker client
+
+Create:
+
+- `src/agent/runtime-worker-client.ts`
+
+Singleton worker. lazy init.
+
+```ts
+import * as Comlink from "comlink"
+import type { RuntimeWorkerEvents } from "@/agent/runtime-worker-types"
+
+let workerApi:
+  | Comlink.Remote<typeof import("./runtime-worker")>
+  | undefined
+
+export function getRuntimeWorker() {
+  workerApi ??= new ComlinkWorker<typeof import("./runtime-worker")>(
+    new URL("./runtime-worker", import.meta.url),
+    { name: "gitinspect-runtime-worker", type: "module" }
+  )
+  return workerApi
+}
+
+export function createRuntimeWorkerEvents(
+  sink: RuntimeWorkerEvents
+): RuntimeWorkerEvents {
+  return Comlink.proxy(sink)
+}
+```
+
+Reason for explicit `Comlink.proxy`:
+
+- official Comlink docs say callbacks/functions are not structured-cloneable
+- this is exactly what the sink is
+
+## Step 7. add a worker-backed session controller on main thread
+
+Create:
+
+- `src/agent/worker-backed-agent-host.ts`
+
+This is not a real host. it is a bridge. name can vary.
+
+Suggested shape:
+
+```ts
+export class WorkerBackedAgentHost {
+  private readonly persistence: AgentTurnPersistence
+  private readonly worker = getRuntimeWorker()
+  private readonly session: SessionData
+
+  constructor(session: SessionData, messages: MessageRow[]) {
+    this.session = session
+    this.persistence = new AgentTurnPersistence(session, messages)
+  }
+
+  async startTurn(content: string): Promise<void> {
+    const turn = this.persistence.createTurnEnvelope(content)
+    await this.persistence.beginTurn(turn)
+
+    await this.worker.startTurn(
+      {
+        session: this.session,
+        messages: await this.persistence.getSeedMessages(),
+        turn,
+        githubRuntimeToken: await getGithubPersonalAccessToken(),
+      },
+      createRuntimeWorkerEvents({
+        pushSnapshot: async (envelope) => {
+          await this.persistence.applySnapshot({
+            snapshot: envelope.snapshot,
+            terminalStatus: envelope.terminalStatus,
+          })
+        },
+      })
+    )
+  }
+
+  abort() {
+    return this.worker.abortTurn(this.session.id)
+  }
+}
+```
+
+Important detail:
+
+- generate `turnId`, `userMessageId`, `assistantMessageId`, timestamp on main thread
+- persist optimistic rows before starting the worker
+- pass those IDs into the worker
+
+Why:
+
+- ids remain deterministic
+- session history shape does not depend on worker timing
+- retries/recovery stay identical
+
+## Step 8. switch `RuntimeClient` to a host interface
+
+Current `RuntimeClient` uses `Map<string, AgentHost>`.
+
+`src/agent/runtime-client.ts:57-62`
+
+```ts
+private readonly activeTurns = new Map<string, AgentHost>()
+private readonly leaseHeartbeats = new Map<
+  string,
+  ReturnType<typeof setInterval>
+>()
+```
+
+Change to:
+
+```ts
+interface SessionRunner {
+  isBusy(): boolean
+  startTurn(content: string): Promise<void>
+  waitForTurn(): Promise<void>
+  abort(): void | Promise<void>
+  dispose(): void | Promise<void>
+  setModelSelection(providerGroup: ProviderGroupId, modelId: string): Promise<void>
+  setThinkingLevel(thinkingLevel: ThinkingLevel): Promise<void>
+  refreshGithubToken(): Promise<void>
+}
+```
+
+Then:
+
+```ts
+private readonly activeTurns = new Map<string, SessionRunner>()
+```
+
+Now `RuntimeClient` can choose:
+
+- main-thread `AgentHost` behind a feature flag at first
+- worker-backed runner once stable
+
+Suggested temporary flag:
+
+- `src/agent/runtime-flags.ts`
+
+```ts
+export const ENABLE_RUNTIME_WORKER = true
+```
+
+Use the flag for rollout + rollback. delete later.
+
+## Step 9. add `freeze` listener. release early, recover later.
+
+Current `RuntimeClient.installListeners()` listens to:
+
+- `beforeunload`
+- `pagehide`
+
+Add:
+
+- `document.addEventListener("freeze", release)` when available
+
+Suggested code:
+
+```ts
+private installListeners(): void {
+  if (this.listenersInstalled || typeof window === "undefined") {
+    return
+  }
+
+  const release = () => {
+    void this.releaseAll()
+  }
+
+  window.addEventListener("beforeunload", release)
+  window.addEventListener("pagehide", release)
+  document.addEventListener("freeze", release as EventListener)
+  this.listenersInstalled = true
+}
+```
+
+Reason:
+
+- if Chrome freezes the hidden page, release lease earlier than waiting for `LEASE_STALE_MS`
+- if that event never fires in some browser, stale-lease logic still covers it
+- recovery already exists on visibility/mount
+
+Do not do anything fancy on `resume`. existing recovery path is enough.
+
+## Step 10. model changes and token refresh
+
+Keep these on main thread entrypoints in `RuntimeClient`:
+
+- `setModelSelection()`
+- `setThinkingLevel()`
+- `refreshGithubToken()`
+
+But implementation changes:
+
+- if session has active worker runner, forward config change to worker
+- also update `AgentTurnPersistence` session snapshot on main thread
+
+Suggested pattern:
+
+```ts
+async setModelSelection(sessionId: string, providerGroup: ProviderGroupId, modelId: string) {
+  const host = this.activeTurns.get(sessionId)
+
+  if (host) {
+    await host.setModelSelection(providerGroup, modelId)
+    return
+  }
+
+  // existing persisted-session path stays unchanged
+}
+```
+
+Worker side:
+
+```ts
+export async function setModelSelection(
+  sessionId: string,
+  providerGroup: ProviderGroupId,
+  modelId: string
+) {
+  await runners.get(sessionId)?.setModelSelection(providerGroup, modelId)
+}
+```
+
+## Step 11. test plan
+
+### Unit tests. keep and extend.
+
+1. Keep `tests/agent-host-persistence.test.ts`.
+2. After extraction, either:
+   - rename to `tests/agent-turn-persistence.test.ts`, or
+   - keep old file and point it at the new persistence engine through the host wrapper.
+3. Add `tests/runtime-worker-client.test.ts`:
+   - worker created lazily
+   - `Comlink.proxy` sink used
+   - `abortTurn(sessionId)` is called, no `AbortSignal` crossing boundary
+4. Add `tests/runtime-client.test.ts` or extend current runtime tests:
+   - lease claim/release semantics unchanged
+   - stale lock handling unchanged
+   - `releaseAll()` clears worker-backed runners too
+5. Add `tests/runtime-worker.test.ts`:
+   - snapshot buffering coalesces high-frequency updates
+   - terminal events flush immediately
+   - abort emits `terminalStatus: "aborted"`
+
+### Manual QA. browser truth, not theory.
+
+Use Chrome desktop first.
+
+1. Start a long response in tab A.
+2. Switch away for 30s.
+3. Confirm:
+   - UI remains responsive on return
+   - session rows persisted during stream
+   - no duplicate assistant/tool rows
+4. Open same session in tab B while tab A owns lease.
+5. Confirm tab B still sees locked/remote state.
+6. In Chrome, use `chrome://discards` to freeze tab A.
+7. Confirm:
+   - lease is released quickly if `freeze` fired, else within `LEASE_STALE_MS`
+   - returning to tab A/B triggers interrupted-turn recovery
+8. Start a turn, hide tab, then abort from UI on return.
+9. Confirm `aborted` state is preserved exactly once.
+
+Manual QA here matters. workers + hidden tab lifecycle is browser behavior, not just code behavior.
+
+## Migration order. safest path.
+
+PR 1:
+
+- extract `AgentTurnPersistence`
+- zero behavior change
+- keep `AgentHost` on main thread
+
+PR 2:
+
+- add worker contract + worker spike
+- no default runtime switch yet
+- tests for worker client + snapshot buffering
+
+PR 3:
+
+- add `WorkerBackedAgentHost`
+- gate with `ENABLE_RUNTIME_WORKER`
+- keep fallback to old `AgentHost`
+
+PR 4:
+
+- switch default on
+- soak
+- remove old in-thread execution path if no regressions
+
+PR 5:
+
+- update stale docs, especially `README.md` shared-worker claim
+
+## Detailed todo
+
+### Phase 0. preflight + truth gathering
+
+- [x] Confirm current branch state and preserve unrelated user changes.
+- [x] Re-read `src/agent/runtime-client.ts` before coding. this remains authority.
+- [x] Re-read `src/agent/agent-host.ts` and mark exact execution vs persistence seams.
+- [x] Re-read `tests/agent-host-persistence.test.ts` and treat it as the persistence contract.
+- [x] Re-read `src/db/session-leases.ts` and `src/db/session-runtime.ts` and keep their ownership semantics unchanged.
+- [x] Verify `vite-plugin-comlink` usage against local package docs in `node_modules/vite-plugin-comlink/README.md`.
+- [x] Verify `Comlink.proxy(...)` callback rules against local `comlink` docs if needed during implementation.
+- [x] Decide whether to keep `type: "module"` on the worker constructor in production. current plan assumes yes.
+
+### Phase 1. worker-safety spike
+
+- [x] Add a temporary worker smoke file, e.g. `src/agent/runtime-worker-smoke.ts`.
+- [x] In the smoke worker, instantiate `createRepoRuntime()` from `src/repo/repo-runtime.ts`.
+- [x] In the smoke worker, perform one repo fs read using the runtime.
+- [x] In the smoke worker, verify `resolveApiKeyForProvider()` from `src/auth/resolve-api-key.ts` can run in worker context.
+- [x] In the smoke worker, verify `streamChatWithPiAgent()` imports cleanly in worker context.
+- [x] Confirm no worker import path reaches `src/repo/github-fetch.ts` UI-only `window` code.
+- [x] If a worker-unsafe import path appears, document the exact chain in the plan or commit message before fixing.
+- [x] If needed, split DOM/UI helpers out of shared modules rather than weakening the worker boundary.
+- [x] Remove the smoke-only code or convert it into a retained test helper after the spike is done.
+
+### Phase 2. extract main-thread persistence engine
+
+- [x] Create `src/agent/agent-turn-persistence.ts`.
+- [ ] Move persistence state fields out of `AgentHost` into the new class:
+  - [x] `assignedAssistantIds`
+  - [x] `persistedMessageIds`
+  - [x] `recordedAssistantMessageIds`
+  - [x] `currentAssistantMessageId`
+  - [x] `currentTurnId`
+  - [x] `lastDraftAssistant`
+  - [x] `lastTerminalStatus`
+  - [x] `persistQueue`
+  - [x] `eventQueue` if still needed on the persistence side
+- [ ] Move row-building helpers into the new class:
+  - [x] `buildCompletedRows()`
+  - [x] `buildCurrentAssistantRow()`
+  - [x] `buildCurrentRows()`
+  - [x] `getNewlyCompletedRows()`
+- [ ] Move persistence writers into the new class:
+  - [x] `persistPromptStart()`
+  - [x] `persistStreamingProgress()`
+  - [x] `persistCurrentTurnBoundaryFromSnapshot()`
+  - [x] `persistSessionBoundary()`
+  - [x] `recordAssistantUsage()`
+  - [x] repair/failure persistence path
+- [x] Define stable snapshot types in the new file or a shared types file.
+- [x] Add a small API for creating turn envelopes on the main thread.
+- [x] Add a small API for applying snapshots from any execution source.
+- [x] Keep session/message/runtime writes in the persistence class only.
+- [x] Do not move `Agent`, repo runtime, or provider streaming into this class.
+
+### Phase 3. refactor `AgentHost` to use extracted persistence
+
+- [x] Update `src/agent/agent-host.ts` to construct `AgentTurnPersistence`.
+- [x] Keep current public behavior of `AgentHost` unchanged.
+- [x] Keep current `Agent` setup unchanged.
+- [x] Change `startTurn()` so optimistic rows are created through persistence.
+- [x] Change event handling to translate `Agent` state into snapshots and send them to persistence.
+- [x] Keep abort/error/watchdog behavior unchanged while routing final state through persistence.
+- [x] Keep `setModelSelection()` and `setThinkingLevel()` behavior intact.
+- [x] Keep `refreshGithubToken()` behavior intact.
+- [x] Remove duplicate persistence fields from `AgentHost` after the refactor is stable.
+- [x] Verify `AgentHost` no longer directly writes Dexie session/message/runtime rows except via the new persistence layer.
+
+### Phase 4. stabilize tests after persistence extraction
+
+- [x] Run the existing persistence tests against the refactored main-thread path.
+- [x] Decide whether to rename `tests/agent-host-persistence.test.ts` or keep the filename unchanged.
+- [x] Add or update tests for the extracted persistence class directly if helpful.
+- [ ] Ensure these behaviors remain covered:
+  - [x] optimistic user + streaming assistant rows persist before completion
+  - [x] completion boundary finalizes cleanly
+  - [x] error repair path rewrites streaming assistant rows correctly
+  - [x] orphan tool results are dropped on repair
+  - [x] matching tool results survive repair
+  - [x] usage is recorded once per assistant message
+- [x] Ensure refactor does not break unrelated route/UI tests that mock `runtimeClient`.
+
+### Phase 5. define worker contract
+
+- [x] Create `src/agent/runtime-worker-types.ts`.
+- [x] Add `WorkerSnapshot` type.
+- [x] Add `WorkerSnapshotEnvelope` type.
+- [x] Add `RuntimeWorkerEvents` callback interface.
+- [x] Add `StartTurnInput` type.
+- [x] Add config/update input types for model/thinking/token refresh as needed.
+- [x] Keep all worker contract payloads structured-clone-safe.
+- [x] Do not put `AbortSignal` in the worker contract.
+- [x] Do not put Dexie row mutation commands in the worker contract.
+- [x] Include `sessionId` in every event envelope for sanity/debugging.
+
+### Phase 6. implement runtime worker module
+
+- [x] Create `src/agent/runtime-worker.ts`.
+- [x] Use named exports so the file matches `vite-plugin-comlink` expectations.
+- [x] Add a module-level `Map<string, WorkerAgentRunner>`.
+- [x] Implement `startTurn(...)`.
+- [x] Implement `abortTurn(sessionId)`.
+- [x] Implement `disposeSession(sessionId)`.
+- [x] Implement `setModelSelection(sessionId, providerGroup, modelId)`.
+- [x] Implement `setThinkingLevel(sessionId, thinkingLevel)`.
+- [x] Implement `refreshGithubToken(sessionId, token?)`.
+- [x] Keep one worker-side runner per active session inside the tab worker.
+- [x] Ensure runner reuse is correct when the same session receives multiple turns over time.
+- [x] Ensure disposal removes stale runners from the map.
+
+### Phase 7. implement `WorkerAgentRunner`
+
+- [x] Add a worker-only runner class inside `src/agent/runtime-worker.ts` or split into its own file if it grows.
+- [x] Port execution-only state from `AgentHost`.
+- [x] Keep `Agent` construction inside the worker.
+- [x] Keep repo runtime creation inside the worker if Phase 1 proved it safe.
+- [x] Keep repo tools creation inside the worker if Phase 1 proved it safe.
+- [x] Keep provider stream creation inside the worker.
+- [x] Keep worker-local abort controller / abort state.
+- [x] Keep worker-local watchdog / progress timer.
+- [x] Add `snapshotAgentState()` in the worker.
+- [x] Add event subscription from `Agent`.
+- [x] Remove all Dexie writes from this runner.
+- [x] Remove all lease writes from this runner.
+- [x] Remove all `getCurrentTabId()` / `sessionStorage` assumptions from this runner.
+- [x] Ensure worker runner can be recreated from persisted session + message seed state.
+
+### Phase 8. add snapshot buffering
+
+- [x] Add `latestSnapshot` storage in worker runner.
+- [x] Add `flushTimer`.
+- [x] Add `latestTerminalStatus`.
+- [x] Buffer frequent stream events.
+- [x] Flush snapshots at most every `50ms` initially.
+- [ ] Flush immediately on:
+  - [x] `message_end`
+  - [x] `turn_end`
+  - [x] abort
+  - [x] terminal error
+- [x] Ensure final flush happens before worker runner settles/disposes.
+- [x] Ensure buffered flush does not emit stale snapshots after dispose.
+- [x] Add debug logging only if necessary; keep it easy to remove.
+
+### Phase 9. add main-thread worker client
+
+- [x] Create `src/agent/runtime-worker-client.ts`.
+- [x] Add lazy singleton worker creation with `new ComlinkWorker(...)`.
+- [x] Type the worker API with `typeof import("./runtime-worker")`.
+- [x] Add helper to wrap event sinks with `Comlink.proxy(...)`.
+- [x] Decide whether to expose a `releaseProxy`/dispose path for app shutdown.
+- [x] Ensure the worker is not eagerly created on app boot.
+- [x] Ensure the worker client stays browser-only and is not imported from SSR-sensitive code paths.
+
+### Phase 10. add worker-backed main-thread runner
+
+- [x] Create `src/agent/worker-backed-agent-host.ts`.
+- [x] Make it implement the same runner interface expected by `RuntimeClient`.
+- [x] Construct `AgentTurnPersistence` on the main thread.
+- [x] Generate `turnId`, `userMessageId`, `assistantMessageId`, and timestamp on the main thread.
+- [x] Persist optimistic rows before invoking the worker.
+- [x] Pass seeded session/messages + turn envelope into worker `startTurn(...)`.
+- [x] Pass proxied event sink into worker `startTurn(...)`.
+- [x] On each worker snapshot, call `persistence.applySnapshot(...)`.
+- [x] Implement `abort()` by forwarding to worker `abortTurn(sessionId)`.
+- [x] Implement `dispose()` by forwarding to worker `disposeSession(sessionId)` and disposing main-thread persistence.
+- [x] Implement `setModelSelection(...)` and `setThinkingLevel(...)`.
+- [x] Implement `refreshGithubToken()` by fetching token on main thread and forwarding it to worker.
+- [x] Ensure no persistence work is duplicated between the bridge and persistence class.
+
+### Phase 11. generalize `RuntimeClient` around a runner interface
+
+- [x] Introduce a `SessionRunner` interface in `src/agent/runtime-client.ts` or a shared file.
+- [x] Change `activeTurns` map from `Map<string, AgentHost>` to `Map<string, SessionRunner>`.
+- [x] Keep all lease and recovery logic in `RuntimeClient`.
+- [x] Keep `claimOwnership()` behavior unchanged.
+- [x] Keep `startLeaseHeartbeat()` behavior unchanged initially.
+- [x] Keep `watchActiveTurn()` logic, but make it runner-interface based.
+- [x] Add host/runner factory method.
+- [x] Add a runtime feature flag, e.g. `src/agent/runtime-flags.ts`.
+- [x] Default the flag conservatively during rollout if desired.
+- [x] Keep fallback path to old in-thread `AgentHost` until worker path is proven.
+- [x] Ensure `releaseSession()` works for both implementations.
+- [x] Ensure `releaseAll()` disposes worker-backed runners too.
+- [x] Ensure `startInitialTurn()` works for both implementations.
+- [x] Ensure `resumeInterruptedTurn()` still flows through the same mutation/ownership gate.
+
+### Phase 12. lifecycle hooks and hidden-tab behavior
+
+- [x] Extend `RuntimeClient.installListeners()` to handle `freeze` where supported.
+- [x] Keep `beforeunload` and `pagehide` listeners.
+- [x] Confirm `releaseAll()` is safe to call from `freeze`.
+- [x] Do not add complex `resume` logic unless tests/manual QA prove it is necessary.
+- [x] Keep `src/components/chat.tsx` visibility-driven recovery behavior intact.
+- [x] Consider whether `LEASE_STALE_MS` should be increased before claiming reliable hidden-tab continuity.
+- [x] Decide whether stale lease timing changes belong in the same PR or a follow-up PR.
+- [ ] Document the behavioral tradeoff if `LEASE_STALE_MS` is changed:
+  - [x] longer background continuity
+  - [x] slower failover after crash
+
+### Phase 13. token/auth/repo-runtime details
+
+- [x] Verify worker-side `resolveApiKeyForProvider()` refresh path is safe with Dexie from worker.
+- [x] If worker-side auth refresh is unsafe or awkward, proxy auth/token lookup from main thread instead.
+- [x] Verify `getGithubPersonalAccessToken()` access from worker is safe if used there directly.
+- [x] Prefer main-thread token fetch + explicit worker `refreshGithubToken(...)` if that keeps boundaries cleaner.
+- [x] Verify repo runtime refresh after token change works in worker without recreating unrelated state.
+- [x] Verify model changes mid-session still update subsequent provider calls correctly.
+- [x] Verify thinking-level changes mid-session still update subsequent provider calls correctly.
+
+### Phase 14. tests for worker integration
+
+- [x] Add worker client tests.
+- [x] Add worker runner tests.
+- [x] Add `RuntimeClient` tests for worker-backed path.
+- [x] Add buffering tests for snapshot coalescing.
+- [x] Add abort tests for worker-backed path.
+- [x] Add disposal tests for worker-backed path.
+- [x] Add hidden-route/intra-app switching tests if feasible.
+- [x] Ensure existing component tests that mock `runtimeClient` still pass.
+- [x] Ensure no test depends on actual browser worker execution unless deliberately written as such.
+
+### Phase 15. manual QA
+
+- [ ] Stream response in one session, navigate to another session inside the app, return, confirm stream continuity.
+- [ ] Stream response, switch to another browser tab for a short interval, return, confirm whether stream continued.
+- [ ] Repeat browser-tab switch for a longer interval, observe whether lease staleness interrupts.
+- [ ] Open the same session in another browser tab while first tab is active, verify lock semantics remain correct.
+- [ ] Freeze/discard the tab in Chrome via `chrome://discards`, confirm recovery path remains correct.
+- [ ] Abort a running worker-backed turn, confirm assistant row status is exactly `aborted`.
+- [ ] Trigger an error during a worker-backed turn, confirm repair path is identical to current behavior.
+- [ ] Refresh GitHub token during an active session, confirm repo tools continue to function.
+- [ ] Change model mid-session between turns, confirm next turn uses the new model.
+- [ ] Observe UI responsiveness during heavy streaming compared with baseline.
+
+Manual browser QA was not executed in this environment; automated coverage was completed instead.
+
+### Phase 16. cleanup + docs
+
+- [x] Remove spike-only files/helpers left from Phase 1.
+- [x] Remove dead code from old in-thread path once worker path is stable.
+- [x] Remove feature flag only after soak period if desired.
+- [x] Update `README.md` to remove stale SharedWorker claim.
+- [x] Update any internal docs/comments that still imply worker-owned runtime truth.
+- [x] Keep docs explicit that workers improve off-main-thread execution, not hidden-tab guarantees.
+- [x] Add a short note about lease/recovery behavior under freeze/discard.
+
+### Phase 17. optional follow-up tasks. not required for initial ship.
+
+- [ ] Evaluate whether `LEASE_STALE_MS` should be made configurable.
+- [ ] Evaluate whether worker-side liveness signaling with main-thread tab id is worth the complexity.
+- [ ] Evaluate whether repo-only background warmup jobs should also move into the same worker.
+- [ ] Evaluate whether snapshot diffing is needed if cross-thread payload volume becomes measurable.
+- [ ] Evaluate whether the old main-thread `AgentHost` should remain as an explicit fallback path for unsupported browsers.
+
+## Expected code changes
+
+Likely new files:
+
+- `src/agent/agent-turn-persistence.ts`
+- `src/agent/runtime-worker-types.ts`
+- `src/agent/runtime-worker.ts`
+- `src/agent/runtime-worker-client.ts`
+- `src/agent/worker-backed-agent-host.ts`
+- `src/agent/runtime-flags.ts`
+
+Likely edited files:
+
+- `src/agent/agent-host.ts`
+- `src/agent/runtime-client.ts`
+- `src/components/chat.tsx` maybe none, maybe tiny recovery hook touch only
+- `tests/agent-host-persistence.test.ts`
+- new worker/runtime tests
+
+## Risks and mitigations
+
+Risk: worker import chain accidentally touches DOM-only code.
+
+- mitigation: do Step 0 spike first
+
+Risk: too many cross-thread callbacks during streaming.
+
+- mitigation: snapshot batching, 50ms max flush, immediate terminal flush
+
+Risk: freeze/discard still interrupts work.
+
+- mitigation: keep lease + recovery as truth; add `freeze` release
+
+Risk: duplicate persistence logic after refactor.
+
+- mitigation: extract persistence first; make both implementations consume the same class
+
+Risk: worker-side auth refresh writes Dexie from worker.
+
+- mitigation: acceptable if spike proves safe; if not, proxy auth lookup from main thread
+
+## Acceptance criteria
+
+- `RuntimeClient` remains the authority for ownership and retries
+- worker does not write session/message/runtime/lease rows
+- hidden-tab work can continue when browser allows it
+- freeze/discard still degrades into interrupted-turn recovery, not corruption
+- existing optimistic persistence semantics stay intact
+- no duplicate assistant IDs
+- no orphan tool-result regressions
+- no reintroduction of `SharedWorker` complexity
+
+## Bottom line
+
+This should be implemented as a refactor of boundaries, not a rewrite of behavior.
+
+Bad plan:
+
+- "move AgentHost to worker"
+- "let worker own runtime rows"
+- "let worker own leases"
+
+Good plan:
+
+- extract persistence
+- keep main thread authoritative
+- add thin `ComlinkWorker`
+- send snapshots, not token spam
+- treat worker as execution engine only

@@ -15,6 +15,9 @@ const useRuntimeSessionMock = vi.fn(() => ({
   setThinkingLevel: vi.fn(),
 }))
 const toastErrorMock = vi.fn()
+const handleGithubErrorMock = vi.fn(
+  async (_error: unknown, _options?: { sessionId?: string }) => false
+)
 
 vi.mock("dexie-react-hooks", () => ({
   useLiveQuery: useLiveQueryMock,
@@ -27,7 +30,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
-    error: toastErrorMock,
+    error: (...args: unknown[]) => toastErrorMock(...args),
   },
 }))
 
@@ -48,6 +51,26 @@ vi.mock("@/agent/runtime-client", () => ({
 
 vi.mock("@/sessions/session-notices", () => ({
   reconcileInterruptedSession: vi.fn(async () => ({ kind: "noop" })),
+}))
+
+vi.mock("@/repo/github-fetch", () => ({
+  handleGithubError: (
+    error: unknown,
+    options?: { sessionId?: string }
+  ) => handleGithubErrorMock(error, options),
+  showGithubSystemNoticeToast: vi.fn((message: { source?: string }) => {
+    if (message.source !== "github") {
+      return false
+    }
+
+    toastErrorMock("GitHub requests are rate limited right now.", {
+      action: {
+        label: "Add token",
+        onClick: vi.fn(),
+      },
+    })
+    return true
+  }),
 }))
 
 vi.mock("@/sessions/session-actions", () => ({
@@ -202,6 +225,8 @@ describe("Chat state", () => {
     hasActiveTurnMock.mockReturnValue(false)
     useRuntimeSessionMock.mockClear()
     toastErrorMock.mockReset()
+    handleGithubErrorMock.mockReset()
+    handleGithubErrorMock.mockResolvedValue(false)
   })
 
   it("shows the normal empty state when the active session has no messages", async () => {
@@ -340,6 +365,61 @@ describe("Chat state", () => {
 
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it("shows the GitHub token action when a new GitHub system notice appears", async () => {
+    let loadedSessionState = buildSession()
+    const defaults = {
+      model: "gpt-5.1-codex-mini",
+      providerGroup: "openai-codex",
+      thinkingLevel: "medium",
+    }
+
+    mockChatQueries({
+      defaults,
+      loadedSessionState,
+    })
+
+    const { Chat } = await import("@/components/chat")
+    const { rerender } = render(<Chat sessionId="session-1" />)
+
+    loadedSessionState = {
+      ...loadedSessionState,
+      messages: [
+        {
+          action: "open-github-settings",
+          fingerprint:
+            "github_rate_limit:GitHub API rate limit exceeded (retry after 3:00:00 PM): /:/",
+          id: "system-github-1",
+          kind: "github_rate_limit",
+          message: "GitHub API rate limit exceeded (retry after 3:00:00 PM): /",
+          role: "system",
+          sessionId: "session-1",
+          severity: "error",
+          source: "github",
+          status: "completed",
+          timestamp: 2,
+        } as MessageRow,
+      ],
+    }
+
+    mockChatQueries({
+      defaults,
+      loadedSessionState,
+    })
+
+    rerender(<Chat sessionId="session-1" />)
+
+    await waitFor(() => {
+      expect(toastErrorMock).toHaveBeenCalledWith(
+        "GitHub requests are rate limited right now.",
+        expect.objectContaining({
+          action: expect.objectContaining({
+            label: "Add token",
+          }),
+        })
+      )
     })
   })
 })

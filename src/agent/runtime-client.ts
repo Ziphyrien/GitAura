@@ -1,6 +1,14 @@
-import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
+import type {
+  ProviderGroupId,
+  ThinkingLevel,
+} from "@/types/models"
 import type { MessageRow, SessionData } from "@/types/storage"
-import { AgentHost } from "@/agent/agent-host"
+import {
+  BusyRuntimeError,
+  MissingSessionRuntimeError,
+} from "@/agent/runtime-command-errors"
+import type { SessionRunner } from "@/agent/session-runner"
+import { WorkerBackedAgentHost } from "@/agent/worker-backed-agent-host"
 import {
   claimSessionLease,
   LEASE_HEARTBEAT_MS,
@@ -9,14 +17,9 @@ import {
   releaseSessionLease,
   renewSessionLease,
 } from "@/db/session-leases"
-import {
-  BusyRuntimeError,
-  MissingSessionRuntimeError,
-} from "@/agent/runtime-command-errors"
 import { getSessionRuntime, putSession } from "@/db/schema"
 import { getIsoNow } from "@/lib/dates"
 import { getCanonicalProvider } from "@/models/catalog"
-import { getGithubPersonalAccessToken } from "@/repo/github-token"
 import { loadSession, loadSessionWithMessages } from "@/sessions/session-service"
 import { reconcileInterruptedSession } from "@/sessions/session-notices"
 import {
@@ -55,7 +58,7 @@ function assertTurnMutationAllowed(
 }
 
 export class RuntimeClient {
-  private readonly activeTurns = new Map<string, AgentHost>()
+  private readonly activeTurns = new Map<string, SessionRunner>()
   private readonly leaseHeartbeats = new Map<
     string,
     ReturnType<typeof setInterval>
@@ -80,19 +83,15 @@ export class RuntimeClient {
 
     window.addEventListener("beforeunload", release)
     window.addEventListener("pagehide", release)
+    document.addEventListener("freeze", release as EventListener)
     this.listenersInstalled = true
   }
 
   private async createHost(
     session: SessionData,
     messages: MessageRow[]
-  ): Promise<AgentHost> {
-    const githubRuntimeToken = await getGithubPersonalAccessToken()
-    const host = new AgentHost(session, messages, {
-      getGithubToken: getGithubPersonalAccessToken,
-      githubRuntimeToken,
-    })
-    return host
+  ): Promise<SessionRunner> {
+    return new WorkerBackedAgentHost(session, messages)
   }
 
   private async claimOwnership(
@@ -133,7 +132,7 @@ export class RuntimeClient {
     this.leaseHeartbeats.delete(sessionId)
   }
 
-  private watchActiveTurn(sessionId: string, host: AgentHost): void {
+  private watchActiveTurn(sessionId: string, host: SessionRunner): void {
     void host
       .waitForTurn()
       .catch((error) => {
@@ -148,15 +147,22 @@ export class RuntimeClient {
         }
       })
       .finally(() => {
-        if (this.activeTurns.get(sessionId) !== host) {
-          return
-        }
-
-        host.dispose()
-        this.activeTurns.delete(sessionId)
-        this.stopLeaseHeartbeat(sessionId)
-        void releaseSessionLease(sessionId)
+        void this.finishActiveTurn(sessionId, host)
       })
+  }
+
+  private async finishActiveTurn(
+    sessionId: string,
+    host: SessionRunner
+  ): Promise<void> {
+    if (this.activeTurns.get(sessionId) !== host) {
+      return
+    }
+
+    await host.dispose()
+    this.activeTurns.delete(sessionId)
+    this.stopLeaseHeartbeat(sessionId)
+    await releaseSessionLease(sessionId)
   }
 
   private async loadPersistedState(sessionId: string): Promise<{
@@ -228,7 +234,7 @@ export class RuntimeClient {
       this.startLeaseHeartbeat(sessionId)
       this.watchActiveTurn(sessionId, host)
     } catch (error) {
-      host.dispose()
+      await host.dispose()
       this.activeTurns.delete(sessionId)
       this.stopLeaseHeartbeat(sessionId)
       await releaseSessionLease(sessionId)
@@ -248,7 +254,7 @@ export class RuntimeClient {
       await host.startTurn(content)
       this.watchActiveTurn(session.id, host)
     } catch (error) {
-      host.dispose()
+      await host.dispose()
       this.activeTurns.delete(session.id)
       this.stopLeaseHeartbeat(session.id)
       await releaseSessionLease(session.id)
@@ -264,7 +270,7 @@ export class RuntimeClient {
     }
 
     await this.claimOwnership(sessionId)
-    host.abort()
+    await host.abort()
   }
 
   hasActiveTurn(sessionId: string): boolean {
@@ -274,15 +280,20 @@ export class RuntimeClient {
   async releaseSession(sessionId: string): Promise<void> {
     const host = this.activeTurns.get(sessionId)
 
-    host?.dispose()
+    if (host) {
+      await host.dispose()
+    }
+
     this.activeTurns.delete(sessionId)
     this.stopLeaseHeartbeat(sessionId)
     await releaseSessionLease(sessionId)
   }
 
   async releaseAll(): Promise<void> {
-    for (const host of this.activeTurns.values()) {
-      host.dispose()
+    const hosts = [...this.activeTurns.values()]
+
+    for (const host of hosts) {
+      await host.dispose()
     }
 
     this.activeTurns.clear()

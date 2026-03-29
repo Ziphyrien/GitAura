@@ -64,8 +64,8 @@ export default defineHandler(async (event) => {
       headers: forwardHeaders,
       body,
     })
-  } catch {
-    throw
+  } catch (error) {
+    throw error
   }
 
   event.res.headers.set(

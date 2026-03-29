@@ -275,7 +275,9 @@ describe("provider stream", () => {
         thinkingLevel: "medium",
         tools: [],
       })
-    ).rejects.toThrow("Boom")
+    ).rejects.toThrow(
+      "Boom [fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo → https://api.fireworks.ai/inference/v1]"
+    )
 
     expect(deltas).toEqual(["Partial"])
   })

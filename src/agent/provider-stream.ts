@@ -144,6 +144,20 @@ function formatConnectionDiagnostic(
   return `${detail} [${model.provider}/${model.id} → ${target}]`
 }
 
+function attachProviderDiagnostic(
+  model: ModelDefinition,
+  detail: string
+): string {
+  if (
+    detail.includes(model.baseUrl) ||
+    detail.includes(`${model.provider}/${model.id}`)
+  ) {
+    return detail
+  }
+
+  return formatConnectionDiagnostic(model, detail)
+}
+
 function createStreamErrorMessage(
   model: ModelDefinition,
   id: string,
@@ -152,10 +166,7 @@ function createStreamErrorMessage(
   aborted: boolean
 ): AssistantMessage {
   const raw = extractErrorDetail(error)
-  const errorMessage =
-    raw === "Connection error."
-      ? formatConnectionDiagnostic(model, raw)
-      : raw
+  const errorMessage = attachProviderDiagnostic(model, raw)
 
   return {
     ...createAssistantDraft(model, id, timestamp),
@@ -303,8 +314,11 @@ function wrapAssistantMessageEventStream(
       }
       case "error": {
         const error = decorateAssistant(event.error)
-        if (error.errorMessage === "Connection error.") {
-          error.errorMessage = formatConnectionDiagnostic(model, error.errorMessage)
+        if (error.errorMessage) {
+          error.errorMessage = attachProviderDiagnostic(
+            model,
+            error.errorMessage
+          )
         }
         console.error(
           `[provider-stream] Error from ${model.provider}/${model.id} (${model.baseUrl}):`,

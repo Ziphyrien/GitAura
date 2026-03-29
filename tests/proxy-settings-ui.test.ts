@@ -36,7 +36,7 @@ describe("proxy settings ui", () => {
 
     expect(
       screen.getByText(
-        /Sitegeist-style proxy support is enabled by default/i
+        /When enabled, OpenAI, OpenAI Codex, OpenCode, and OpenCode Go requests use the proxy/i
       )
     ).toBeTruthy()
 

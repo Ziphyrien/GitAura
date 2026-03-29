@@ -1,4 +1,5 @@
 import { defineConfig } from "vite"
+import { fileURLToPath } from "node:url"
 import { comlink } from "vite-plugin-comlink"
 import { devtools } from "@tanstack/devtools-vite"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
@@ -13,9 +14,29 @@ function createTsConfigPathsPlugin() {
   })
 }
 
+function createBrowserNodeZlibAliasPlugin() {
+  const replacement = fileURLToPath(
+    new URL("./src/shims/node-zlib.ts", import.meta.url)
+  )
+
+  return {
+    applyToEnvironment(environment) {
+      return environment.config.consumer === "client"
+    },
+    enforce: "pre" as const,
+    name: "browser-node-zlib-alias",
+    resolveId(id: string) {
+      if (id === "node:zlib") {
+        return replacement
+      }
+    },
+  }
+}
+
 const config = defineConfig({
   plugins: [
     comlink(),
+    createBrowserNodeZlibAliasPlugin(),
     devtools(),
     nitro(),
     // this is the plugin that enables path aliases
@@ -25,7 +46,12 @@ const config = defineConfig({
     viteReact(),
   ],
   worker: {
-    plugins: () => [createTsConfigPathsPlugin(), comlink()],
+    format: "es",
+    plugins: () => [
+      createTsConfigPathsPlugin(),
+      createBrowserNodeZlibAliasPlugin(),
+      comlink(),
+    ],
   },
 })
 

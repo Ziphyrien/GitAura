@@ -17,7 +17,7 @@ vi.mock("@/db/schema", () => ({
   setProviderKey,
 }))
 
-vi.mock("@/auth/auth-service", () => ({
+vi.mock("@/auth/oauth-refresh", () => ({
   oauthRefresh,
 }))
 

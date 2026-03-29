@@ -4,6 +4,10 @@ import {
   type GitHubContentResponse,
   type GitHubTreeResponse,
 } from "./types.js";
+import {
+  GitHubRateLimitController,
+  parseGitHubRateLimitInfo,
+} from "./github-rate-limit.js";
 
 export interface GitHubClientOptions {
   owner: string;
@@ -42,6 +46,7 @@ export class GitHubClient {
   private readonly ref: string;
   private readonly token?: string;
   private readonly baseUrl: string;
+  private readonly rateLimitController = new GitHubRateLimitController();
   rateLimit: RateLimitInfo | null = null;
 
   constructor(options: GitHubClientOptions) {
@@ -59,6 +64,8 @@ export class GitHubClient {
   }
 
   async fetchRaw(path: string): Promise<string> {
+    this.throwIfRateLimited(path);
+
     const normalized = normalizePath(path);
     const url = `https://raw.githubusercontent.com/${this.owner}/${this.repo}/${this.ref}/${normalized}`;
     const headers: Record<string, string> = {};
@@ -67,13 +74,19 @@ export class GitHubClient {
     }
 
     const res = await fetch(url, { headers });
+    const rateLimitBlock = await this.observeRateLimit(res);
+    if (rateLimitBlock) {
+      throw this.createRateLimitError(path, rateLimitBlock.blockedUntilMs);
+    }
     if (!res.ok) {
-      throw this.httpError(res.status, path);
+      throw this.httpError(res, path);
     }
     return res.text();
   }
 
   async fetchRawBuffer(path: string): Promise<Uint8Array> {
+    this.throwIfRateLimited(path);
+
     const normalized = normalizePath(path);
     const url = `https://raw.githubusercontent.com/${this.owner}/${this.repo}/${this.ref}/${normalized}`;
     const headers: Record<string, string> = {};
@@ -82,8 +95,12 @@ export class GitHubClient {
     }
 
     const res = await fetch(url, { headers });
+    const rateLimitBlock = await this.observeRateLimit(res);
+    if (rateLimitBlock) {
+      throw this.createRateLimitError(path, rateLimitBlock.blockedUntilMs);
+    }
     if (!res.ok) {
-      throw this.httpError(res.status, path);
+      throw this.httpError(res, path);
     }
     return new Uint8Array(await res.arrayBuffer());
   }
@@ -143,6 +160,8 @@ export class GitHubClient {
   }
 
   private async request<T>(url: string, pathForError: string): Promise<T> {
+    this.throwIfRateLimited(pathForError);
+
     const headers: Record<string, string> = {
       Accept: "application/vnd.github.v3+json",
     };
@@ -151,35 +170,50 @@ export class GitHubClient {
     }
 
     const res = await fetch(url, { headers });
-    this.updateRateLimit(res);
+    const rateLimitBlock = await this.observeRateLimit(res);
+    if (rateLimitBlock) {
+      throw this.createRateLimitError(pathForError, rateLimitBlock.blockedUntilMs);
+    }
 
     if (!res.ok) {
-      throw this.httpError(res.status, pathForError);
+      throw this.httpError(res, pathForError);
     }
 
     return res.json() as Promise<T>;
   }
 
-  private updateRateLimit(res: Response): void {
-    const limit = res.headers.get("x-ratelimit-limit");
-    const remaining = res.headers.get("x-ratelimit-remaining");
-    const reset = res.headers.get("x-ratelimit-reset");
-
-    if (limit && remaining && reset) {
-      this.rateLimit = {
-        limit: parseInt(limit, 10),
-        remaining: parseInt(remaining, 10),
-        reset: new Date(parseInt(reset, 10) * 1000),
-      };
+  private async observeRateLimit(res: Response) {
+    const info = parseGitHubRateLimitInfo(res);
+    if (info) {
+      this.rateLimit = info;
     }
+
+    return await this.rateLimitController.afterResponse(res);
   }
 
-  private httpError(status: number, path: string): GitHubFsError {
-    if (status === 403 && this.rateLimit && this.rateLimit.remaining === 0) {
-      const resetAt = this.rateLimit.reset.toLocaleTimeString();
-      return new GitHubFsError("EACCES", `GitHub API rate limit exceeded (resets at ${resetAt}): ${path}`, path);
+  private throwIfRateLimited(path: string): void {
+    const rateLimitBlock = this.rateLimitController.beforeRequest();
+    if (!rateLimitBlock) {
+      return;
     }
-    switch (status) {
+
+    throw this.createRateLimitError(path, rateLimitBlock.blockedUntilMs);
+  }
+
+  private createRateLimitError(
+    path: string,
+    blockedUntilMs: number,
+  ): GitHubFsError {
+    const retryAt = new Date(blockedUntilMs).toLocaleTimeString();
+    return new GitHubFsError(
+      "EACCES",
+      `GitHub API rate limit exceeded (retry after ${retryAt}): ${path}`,
+      path,
+    );
+  }
+
+  private httpError(res: Response, path: string): GitHubFsError {
+    switch (res.status) {
       case 404:
         return new GitHubFsError("ENOENT", `No such file or directory: ${path}`, path);
       case 403:
@@ -187,7 +221,7 @@ export class GitHubClient {
       case 401:
         return new GitHubFsError("EACCES", `Authentication required: ${path}`, path);
       default:
-        return new GitHubFsError("EIO", `GitHub API error (${status}): ${path}`, path);
+        return new GitHubFsError("EIO", `GitHub API error (${res.status}): ${path}`, path);
     }
   }
 }
