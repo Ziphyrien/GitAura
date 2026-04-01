@@ -356,7 +356,7 @@ function AboutPanel() {
             <li>
               <span className="font-medium text-foreground">Stack</span> — Built on
               pi-mono, read-only shell via just-bash, and a virtual filesystem from the
-              GitHub API (just-github).
+              GitHub API.
             </li>
             <li>
               <span className="font-medium text-foreground">Private by design</span> —

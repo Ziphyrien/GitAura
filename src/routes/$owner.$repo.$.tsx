@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
-import type { RepoSource } from "@/types/storage"
-import { Chat } from "@/components/chat"
+import type { RepoTarget } from "@/types/storage"
+import { ResolvedRepoChat } from "@/components/resolved-repo-chat"
+import {
+  parseRepoPathname,
+  parsedPathToRepoTarget,
+} from "@/repo/url"
 
 type RepoSplatSearch = {
   q?: string
@@ -18,11 +22,29 @@ export const Route = createFileRoute("/$owner/$repo/$")({
 
 function RepoChatRoute() {
   const params = Route.useParams()
-  const repoSource: RepoSource = {
+  const rawRef = params._splat ?? ""
+  const repoTarget: RepoTarget =
+    rawRef.startsWith("blob/") ||
+    rawRef.startsWith("commit/") ||
+    rawRef.startsWith("tree/")
+      ? (() => {
+          const parsed = parseRepoPathname(
+            `/${params.owner}/${params.repo}/${rawRef}`
+          )
+
+          return parsed
+            ? parsedPathToRepoTarget(parsed)
+            : {
+                owner: params.owner,
+                ref: rawRef,
+                repo: params.repo,
+              }
+        })()
+      : {
     owner: params.owner,
-    ref: params._splat ?? "",
+    ref: rawRef,
     repo: params.repo,
   }
 
-  return <Chat repoSource={repoSource} />
+  return <ResolvedRepoChat repoTarget={repoTarget} />
 }

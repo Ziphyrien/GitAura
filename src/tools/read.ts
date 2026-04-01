@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox"
-import { GitHubFsError } from "@/repo/github-fs"
 import type { RepoRuntime } from "@/repo/repo-types"
+import { warningMessageToError } from "@/tools/repo-warnings"
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -72,10 +72,6 @@ export function createReadTool(
           await onRepoError(error)
         }
 
-        if (error instanceof GitHubFsError) {
-          throw new Error(error.message)
-        }
-
         throw error
       }
 
@@ -116,13 +112,20 @@ export function createReadTool(
         output += `\n\n[More lines remain. Use offset=${start + selectedLines.length + 1} to continue.]`
       }
 
+      const warnings = runtime.getWarnings()
+      if (onRepoError) {
+        for (const warning of warnings) {
+          await onRepoError(warningMessageToError(warning))
+        }
+      }
+
       return {
         content: [{ text: output, type: "text" }],
         details: {
           path: params.path,
           resolvedPath,
           truncation: truncation.truncated ? truncation : undefined,
-          warnings: runtime.getWarnings(),
+          warnings,
         },
       }
     },

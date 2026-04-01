@@ -7,7 +7,7 @@ import type {
   ToolResultMessage,
 } from "@/types/chat"
 import type { MessageRow, SessionData } from "@/types/storage"
-import { GitHubFsError } from "@/repo/github-fs"
+import { GitHubFsError } from "@/lib/github"
 import { createEmptyUsage } from "@/types/models"
 
 const state = {

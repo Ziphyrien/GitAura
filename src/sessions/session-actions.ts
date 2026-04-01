@@ -1,5 +1,5 @@
 import type { ProviderGroupId, ProviderId } from "@/types/models"
-import type { RepoSource, SessionData } from "@/types/storage"
+import type { ResolvedRepoSource, SessionData } from "@/types/storage"
 import {
   deleteSession,
   getSetting,
@@ -154,16 +154,8 @@ export async function createSessionForChat(
 
 export async function createSessionForRepo(params: {
   base?: SessionCreationBase
-  owner: string
-  ref: string
-  repo: string
+  repoSource: ResolvedRepoSource
 }): Promise<SessionData> {
-  const repoSource: RepoSource = {
-    owner: params.owner,
-    ref: params.ref,
-    repo: params.repo,
-  }
-
   if (!params.base) {
     const { model, providerGroup, visibleProviderGroups } =
       await resolveProviderDefaults()
@@ -171,7 +163,7 @@ export async function createSessionForRepo(params: {
       createSession({
         model,
         providerGroup,
-        repoSource,
+        repoSource: params.repoSource,
       }),
       visibleProviderGroups
     )
@@ -182,7 +174,7 @@ export async function createSessionForRepo(params: {
     providerGroup:
       params.base.providerGroup ??
       getDefaultProviderGroup(params.base.provider),
-    repoSource,
+    repoSource: params.repoSource,
     thinkingLevel: params.base.thinkingLevel,
   })
 }

@@ -1,4 +1,5 @@
 import { vi } from "vitest"
+import type { ResolvedRepoSource } from "@/types/storage"
 
 const mockFileContent = {
   "README.md": {
@@ -52,23 +53,29 @@ const mockDirectoryContent = [
   { download_url: null, name: "long.txt", path: "src/long.txt", sha: "long-sha", size: 41, type: "file" },
 ]
 
-const mockRefResponse = {
-  object: { sha: "commit-sha", type: "commit" },
+const mockCommitResponse = {
+  sha: "commit-sha",
+  tree: { sha: "tree-sha" },
 }
 
-const mockCommitResponse = {
-  tree: { sha: "tree-sha" },
+export const TEST_REPO_SOURCE: ResolvedRepoSource = {
+  owner: "test-owner",
+  ref: "main",
+  refOrigin: "explicit",
+  repo: "test-repo",
+  resolvedRef: {
+    apiRef: "heads/main",
+    fullRef: "refs/heads/main",
+    kind: "branch",
+    name: "main",
+  },
 }
 
 export function installMockRepoFetch() {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
 
-    if (url.includes("git/ref/heads/main")) {
-      return createJsonResponse(mockRefResponse)
-    }
-
-    if (url.includes("git/commits/commit-sha")) {
+    if (url.includes("commits/heads/main")) {
       return createJsonResponse(mockCommitResponse)
     }
 

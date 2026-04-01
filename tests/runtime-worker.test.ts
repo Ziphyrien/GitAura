@@ -4,6 +4,7 @@ import type { Message } from "@mariozechner/pi-ai"
 import type { AssistantMessage } from "@/types/chat"
 import type { SessionData } from "@/types/storage"
 import { createEmptyUsage } from "@/types/models"
+import { TEST_REPO_SOURCE } from "./repo-test-utils"
 
 type MockAgentEvent =
   | {
@@ -235,8 +236,8 @@ describe("runtime worker", () => {
         session: {
           ...createSession(),
           repoSource: {
+            ...TEST_REPO_SOURCE,
             owner: "acme",
-            ref: "main",
             repo: "demo",
           },
         },
@@ -285,8 +286,8 @@ describe("runtime worker", () => {
         session: {
           ...createSession(),
           repoSource: {
+            ...TEST_REPO_SOURCE,
             owner: "acme",
-            ref: "main",
             repo: "demo",
           },
         },
@@ -344,8 +345,8 @@ describe("runtime worker", () => {
         session: {
           ...createSession(),
           repoSource: {
+            ...TEST_REPO_SOURCE,
             owner: "acme",
-            ref: "main",
             repo: "demo",
           },
         },
@@ -385,7 +386,7 @@ describe("runtime worker", () => {
     })
 
     const worker = await import("@/agent/runtime-worker")
-    const repoModule = await import("@/repo/github-fs")
+    const repoModule = await import("@/lib/github")
     const pushSnapshot = vi.fn(async () => {})
 
     await worker.startTurn(
@@ -394,8 +395,8 @@ describe("runtime worker", () => {
         session: {
           ...createSession(),
           repoSource: {
+            ...TEST_REPO_SOURCE,
             owner: "acme",
-            ref: "main",
             repo: "demo",
           },
         },
@@ -418,7 +419,15 @@ describe("runtime worker", () => {
     expect(abortMock).toHaveBeenCalledTimes(1)
     expect(pushSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        runtimeErrors: ["Authentication required: /"],
+        runtimeErrors: [
+          expect.objectContaining({
+            code: "EACCES",
+            kind: "permission",
+            message: "Authentication required: /",
+            path: "/",
+            type: "github",
+          }),
+        ],
         snapshot: expect.objectContaining({
           error: "Authentication required: /",
         }),

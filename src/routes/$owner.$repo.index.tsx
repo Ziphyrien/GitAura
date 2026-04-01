@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import type { RepoTarget } from "@/types/storage"
-import { Chat } from "@/components/chat"
+import { ResolvedRepoChat } from "@/components/resolved-repo-chat"
 
 type RepoSearch = {
   q?: string
@@ -18,11 +18,10 @@ export const Route = createFileRoute("/$owner/$repo/")({
 
 function RepoChatRoute() {
   const params = Route.useParams()
-  const repoSource: RepoTarget = {
+  const repoTarget: RepoTarget = {
     owner: params.owner,
-    ref: "main",
     repo: params.repo,
   }
 
-  return <Chat repoSource={repoSource} />
+  return <ResolvedRepoChat repoTarget={repoTarget} />
 }

@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core"
+import type { RuntimeErrorPayload } from "@/agent/runtime-error-payload"
 import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
 import type { MessageRow, SessionData } from "@/types/storage"
 import type { TurnEnvelope } from "@/agent/agent-turn-persistence"
@@ -12,7 +13,7 @@ export type WorkerSnapshot = {
 
 export type WorkerSnapshotEnvelope = {
   rotateStreamingAssistantDraft?: boolean
-  runtimeErrors?: string[]
+  runtimeErrors?: RuntimeErrorPayload[]
   sessionId: string
   snapshot: WorkerSnapshot
   terminalStatus?: "aborted" | "error"

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { GitHubFsError } from "@/repo/github-fs"
+import { GitHubFsError } from "@/lib/github"
 import { createRepoRuntime } from "@/repo/repo-runtime"
 import * as repoRuntimeModule from "@/repo/repo-runtime"
 import type { RepoRuntime } from "@/repo/repo-types"
 import { createBashTool } from "@/tools/bash"
-import { installMockRepoFetch } from "./repo-test-utils"
+import { installMockRepoFetch, TEST_REPO_SOURCE } from "./repo-test-utils"
 
 describe("bash tool", () => {
   beforeEach(() => {
@@ -16,11 +16,7 @@ describe("bash tool", () => {
   })
 
   it("executes commands against the virtual repository shell", async () => {
-    const runtime = createRepoRuntime({
-      owner: "test-owner",
-      ref: "main",
-      repo: "test-repo",
-    })
+    const runtime = createRepoRuntime(TEST_REPO_SOURCE)
     const tool = createBashTool(runtime)
 
     await tool.execute("call-1", { command: "cd src" })
@@ -32,11 +28,7 @@ describe("bash tool", () => {
   })
 
   it("fails on writes to the read-only repository fs", async () => {
-    const runtime = createRepoRuntime({
-      owner: "test-owner",
-      ref: "main",
-      repo: "test-repo",
-    })
+    const runtime = createRepoRuntime(TEST_REPO_SOURCE)
     const tool = createBashTool(runtime)
 
     await expect(
@@ -63,7 +55,9 @@ describe("bash tool", () => {
       source: {
         owner: "test-owner",
         ref: "main",
+        refOrigin: "explicit",
         repo: "test-repo",
+        resolvedRef: TEST_REPO_SOURCE.resolvedRef,
       },
     } satisfies RepoRuntime
     const onRepoError = vi.fn(async () => {})

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
-import type { RepoSource } from "@/types/storage"
+import type { RepoTarget, ResolvedRepoSource } from "@/types/storage"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -76,13 +76,12 @@ export function AppHeader() {
       ? currentMatch.params.sessionId
       : undefined
   const selectedSession = useSelectedSessionSummary(sessionId)
-  const repoSource: RepoSource | undefined =
+  const repoSource: ResolvedRepoSource | RepoTarget | undefined =
     currentMatch.routeId === "/chat/$sessionId"
       ? selectedSession?.repoSource
       : currentMatch.routeId === "/$owner/$repo/"
         ? {
             owner: currentMatch.params.owner,
-            ref: "main",
             repo: currentMatch.params.repo,
           }
         : currentMatch.routeId === "/$owner/$repo/$"

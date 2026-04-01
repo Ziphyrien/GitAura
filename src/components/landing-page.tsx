@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks"
 import { ArrowRightIcon } from "@phosphor-icons/react"
 import { listRepositories } from "@/db/schema"
 import { GithubRepo } from "@/components/github-repo"
-import { buildRepoPathname } from "@/repo/url"
+import { repoSourceToPath } from "@/repo/url"
 import { parseRepoQuery } from "@/repo/parse"
 import {
   InputGroup,
@@ -22,7 +22,8 @@ import {
 import { Icons } from "@/components/icons"
 import { ChatLogo } from "@/components/chat-logo"
 import { cn } from "@/lib/utils"
-import { githubApiFetch, handleGithubError } from "@/repo/github-fetch"
+import { handleGithubError } from "@/repo/github-fetch"
+import { resolveRepoTarget } from "@/repo/ref-resolver"
 import { SUGGESTED_REPOS } from "@/repo/suggested-repos"
 
 function useSuggestedRepos(count: number) {
@@ -47,17 +48,21 @@ export function LandingPage() {
   const resolvedTab = tab ?? (hasRecent ? "recent" : "suggested")
 
   return (
-    <div className="flex h-full w-full flex-col items-center overflow-auto p-6 pt-[12vh]">
-      <div className="w-full max-w-xl flex-1 space-y-8">
-        <div className="space-y-6 text-center">
+    <div className="flex h-full min-h-0 w-full flex-col items-center overflow-auto p-6 pt-[12vh] lg:justify-between lg:overflow-hidden lg:pt-6 lg:pb-5">
+      <div className="w-full max-w-xl flex-1 space-y-8 lg:min-h-0 lg:flex lg:flex-col lg:justify-center lg:space-y-5">
+        <div className="space-y-6 text-center lg:space-y-4">
           <h1 className="sr-only">gitinspect</h1>
-          <ChatLogo size="hero" aria-hidden />
+          <ChatLogo
+            className="[&_.font-geist-pixel-square]:lg:text-7xl [&_.font-geist-pixel-square]:xl:text-8xl"
+            size="hero"
+            aria-hidden
+          />
           <p className="max-w-md mx-auto text-sm text-muted-foreground">
             GitInspect is an AI coding agent that lives on your browser and can answer questions about any GitHub repository.
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 lg:space-y-1.5">
           <LandingRepoForm />
           <p className="text-center text-[11px] text-muted-foreground/60">
             You can also replace &apos;hub&apos; with &apos;inspect&apos; in any GitHub URL.
@@ -65,7 +70,7 @@ export function LandingPage() {
         </div>
 
         <Tabs value={resolvedTab}>
-          <div className="mb-3 flex justify-center">
+          <div className="mb-3 flex justify-center lg:mb-2">
             <TabsList variant="line">
               <TabsTrigger asChild disabled={!hasRecent} value="recent">
                 <Link replace search={{ settings, sidebar, tab: "recent" }} to="/">
@@ -85,16 +90,13 @@ export function LandingPage() {
           <TabsContent value="recent">
             <ul className="space-y-1.5">
               {recentRepos.map((row) => {
-                const to = buildRepoPathname(
-                  row.owner,
-                  row.repo,
-                  row.ref !== "main" ? row.ref : undefined
-                )
+                const to = repoSourceToPath(row)
                 return (
                   <li key={`${row.owner}/${row.repo}@${row.ref}`}>
                     <GithubRepo
                       owner={row.owner}
                       ref={row.ref}
+                      refOrigin={row.refOrigin}
                       repo={row.repo}
                       search={{ settings, sidebar }}
                       to={to}
@@ -108,11 +110,13 @@ export function LandingPage() {
           <TabsContent value="suggested">
             <ul className="space-y-1.5">
               {suggestedRepos.map((row) => {
-                const to = buildRepoPathname(row.owner, row.repo)
+                const to = repoSourceToPath(row)
                 return (
                   <li key={`${row.owner}/${row.repo}`}>
                     <GithubRepo
                       owner={row.owner}
+                      ref={row.ref}
+                      refOrigin={row.refOrigin}
                       repo={row.repo}
                       search={{ settings, sidebar }}
                       to={to}
@@ -125,7 +129,7 @@ export function LandingPage() {
         </Tabs>
       </div>
 
-      <footer className="mt-auto w-full max-w-xl shrink-0 pt-16 pb-8 text-center">
+      <footer className="mt-auto w-full max-w-xl shrink-0 pt-16 pb-8 text-center lg:mt-0 lg:pt-4 lg:pb-0">
         <p className="text-sm text-muted-foreground">
           Made by{" "}
           <a
@@ -163,19 +167,8 @@ function LandingRepoForm() {
 
     setIsValidating(true)
     try {
-      const res = await githubApiFetch(
-        `/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-      )
-      if (!res.ok) {
-        const { toast } = await import("sonner")
-        toast.error(`Repository ${parsed.owner}/${parsed.repo} not found`)
-        return
-      }
-      const path = buildRepoPathname(
-        parsed.owner,
-        parsed.repo,
-        parsed.ref && parsed.ref !== "main" ? parsed.ref : undefined
-      )
+      const resolved = await resolveRepoTarget(parsed)
+      const path = repoSourceToPath(resolved)
       void navigate({
         search: {
           settings,

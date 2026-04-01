@@ -5,6 +5,7 @@ import type {
   DailyCostAggregate,
   MessageRow,
   ProviderKeyRecord,
+  RepoRefOrigin,
   RepositoryRow,
   SessionData,
   SessionLeaseRow,
@@ -16,6 +17,23 @@ import type { ProviderId, Usage } from "@/types/models"
 
 const DB_NAME = "gitinspect-store"
 
+type LegacyRepositoryRow = Omit<RepositoryRow, "refOrigin"> & {
+  refOrigin?: RepoRefOrigin
+}
+
+type LegacySessionRepoSource = NonNullable<SessionData["repoSource"]> & {
+  refOrigin?: RepoRefOrigin
+  resolvedRef?: SessionData["repoSource"] extends infer T
+    ? T extends { resolvedRef: infer TResolvedRef }
+      ? TResolvedRef
+      : never
+    : never
+}
+
+type LegacySessionData = Omit<SessionData, "repoSource"> & {
+  repoSource?: LegacySessionRepoSource
+}
+
 export class AppDb extends Dexie {
   dailyCosts!: EntityTable<DailyCostAggregate, "date">
   messages!: EntityTable<MessageRow, "id">
@@ -26,8 +44,8 @@ export class AppDb extends Dexie {
   sessions!: EntityTable<SessionData, "id">
   settings!: EntityTable<SettingsRow, "key">
 
-  constructor() {
-    super(DB_NAME)
+  constructor(name = DB_NAME) {
+    super(name)
     this.version(1).stores({
       daily_costs: "date",
       messages:
@@ -48,6 +66,39 @@ export class AppDb extends Dexie {
       sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
       settings: "key, updatedAt",
     })
+    this.version(3)
+      .stores({
+        daily_costs: "date",
+        messages:
+          "id, sessionId, [sessionId+timestamp], [sessionId+status], timestamp, status",
+        "provider-keys": "provider, updatedAt",
+        repositories: "[owner+repo+ref], lastOpenedAt",
+        session_leases: "sessionId, ownerTabId, heartbeatAt",
+        session_runtime:
+          "sessionId, status, ownerTabId, lastProgressAt, updatedAt",
+        sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
+        settings: "key, updatedAt",
+      })
+      .upgrade(async (tx) => {
+        const repositories = tx.table(
+          "repositories"
+        ) as Table<LegacyRepositoryRow, [string, string, string]>
+        await repositories.toCollection().modify((row) => {
+          if (row.refOrigin === undefined) {
+            row.refOrigin = "explicit"
+          }
+        })
+
+        const sessions = tx.table("sessions") as Table<LegacySessionData, string>
+        await sessions.toCollection().modify((row) => {
+          if (row.repoSource && row.repoSource.refOrigin === undefined) {
+            row.repoSource = {
+              ...row.repoSource,
+              refOrigin: "explicit",
+            }
+          }
+        })
+      })
     this.dailyCosts = this.table("daily_costs")
     this.messages = this.table("messages")
     this.providerKeys = this.table("provider-keys")
@@ -62,7 +113,7 @@ export class AppDb extends Dexie {
 export const db = new AppDb()
 
 export async function touchRepository(
-  source: Pick<RepositoryRow, "owner" | "repo" | "ref">
+  source: Pick<RepositoryRow, "owner" | "ref" | "refOrigin" | "repo">
 ): Promise<void> {
   const owner = source.owner.trim()
   const repo = source.repo.trim()
@@ -76,6 +127,7 @@ export async function touchRepository(
     lastOpenedAt: getIsoNow(),
     owner,
     ref,
+    refOrigin: source.refOrigin,
     repo,
   })
 }
@@ -183,8 +235,8 @@ export async function deleteSession(id: string): Promise<void> {
     db.sessionLeases,
     db.sessionRuntime,
     async () => {
-    await db.sessions.delete(id)
-    await deleteMessagesBySession(id)
+      await db.sessions.delete(id)
+      await deleteMessagesBySession(id)
       await db.sessionLeases.delete(id)
       await db.sessionRuntime.delete(id)
     }

@@ -1,4 +1,6 @@
+import Dexie from "dexie"
 import { describe, expect, it } from "vitest"
+import { AppDb } from "@/db/schema"
 import { createEmptyUsage } from "@/types/models"
 import {
   getCostsByModelFromAggregates,
@@ -50,5 +52,47 @@ describe("db schema helpers", () => {
       "claude-sonnet-4-6": 2,
       "gpt-5.1": 3,
     })
+  })
+
+  it("migrates repository rows missing refOrigin", async () => {
+    const name = `gitinspect-migration-${Date.now()}`
+    const legacyDb = new Dexie(name)
+
+    legacyDb.version(2).stores({
+      daily_costs: "date",
+      messages:
+        "id, sessionId, [sessionId+timestamp], [sessionId+status], timestamp, status",
+      "provider-keys": "provider, updatedAt",
+      repositories: "[owner+repo+ref], lastOpenedAt",
+      session_leases: "sessionId, ownerTabId, heartbeatAt",
+      session_runtime: "sessionId, status, ownerTabId, lastProgressAt, updatedAt",
+      sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
+      settings: "key, updatedAt",
+    })
+
+    await legacyDb.open()
+    await legacyDb.table("repositories").put({
+      lastOpenedAt: "2026-03-24T12:00:00.000Z",
+      owner: "acme",
+      ref: "main",
+      repo: "demo",
+    })
+    legacyDb.close()
+
+    const migratedDb = new AppDb(name)
+    await migratedDb.open()
+
+    expect(await migratedDb.repositories.toArray()).toEqual([
+      {
+        lastOpenedAt: "2026-03-24T12:00:00.000Z",
+        owner: "acme",
+        ref: "main",
+        refOrigin: "explicit",
+        repo: "demo",
+      },
+    ])
+
+    migratedDb.close()
+    await Dexie.delete(name)
   })
 })

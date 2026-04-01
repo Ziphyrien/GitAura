@@ -1,8 +1,8 @@
 import { ArrowRightIcon } from "@phosphor-icons/react"
 import { GithubRepo } from "@/components/github-repo"
 import { CHAT_SUGGESTIONS } from "@/components/chat-suggestions"
-import { buildRepoPathname } from "@/repo/url"
-import type { RepoSource } from "@/types/storage"
+import { repoSourceToPath } from "@/repo/url"
+import type { ResolvedRepoSource } from "@/types/storage"
 
 function LetsInspectHeading() {
   return (
@@ -26,7 +26,7 @@ function LetsInspectHeading() {
 type ChatEmptyStateProps = {
   onSuggestionClick: (text: string) => void
   onSwitchRepo?: () => void
-  repoSource?: RepoSource
+  repoSource?: ResolvedRepoSource
 }
 
 export function ChatEmptyState({
@@ -56,12 +56,9 @@ export function ChatEmptyState({
           isLink={false}
           owner={repoSource.owner}
           ref={repoSource.ref}
+          refOrigin={repoSource.refOrigin}
           repo={repoSource.repo}
-          to={buildRepoPathname(
-            repoSource.owner,
-            repoSource.repo,
-            repoSource.ref !== "main" ? repoSource.ref : undefined
-          )}
+          to={repoSourceToPath(repoSource)}
         />
 
         <div className="flex w-full flex-col">

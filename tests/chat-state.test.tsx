@@ -115,11 +115,6 @@ vi.mock("@/sessions/session-actions", () => ({
   })),
 }))
 
-vi.mock("@/repo/settings", () => ({
-  normalizeRepoSource: vi.fn(() => undefined),
-  resolveRepoSource: vi.fn(async () => undefined),
-}))
-
 vi.mock("@/db/schema", () => ({
   touchRepository: vi.fn(async () => {}),
 }))
@@ -255,7 +250,14 @@ describe("Chat state", () => {
       repoSource: {
         owner: "acme",
         ref: "main",
+        refOrigin: "explicit",
         repo: "demo",
+        resolvedRef: {
+          apiRef: "heads/main",
+          fullRef: "refs/heads/main",
+          kind: "branch",
+          name: "main",
+        },
       },
     })
     const defaults = {

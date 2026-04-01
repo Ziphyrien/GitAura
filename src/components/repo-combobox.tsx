@@ -2,13 +2,15 @@ import * as React from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useLiveQuery } from "dexie-react-hooks"
 import { toast } from "sonner"
-import type { RepoSource } from "@/types/storage"
+import type { ResolvedRepoSource } from "@/types/storage"
 import { Icons } from "@/components/icons"
 import { listRepositories } from "@/db/schema"
-import { githubApiFetch, handleGithubError } from "@/repo/github-fetch"
+import { handleGithubError } from "@/repo/github-fetch"
 import { parseRepoQuery } from "@/repo/parse"
+import { repoSourceToPath } from "@/repo/url"
+import { resolveRepoTarget } from "@/repo/ref-resolver"
 import { SUGGESTED_REPOS } from "@/repo/suggested-repos"
-import { buildRepoPathname, githubOwnerAvatarUrl } from "@/repo/url"
+import { githubOwnerAvatarUrl } from "@/repo/url"
 import { cn } from "@/lib/utils"
 
 export type RepoComboboxHandle = {
@@ -18,7 +20,7 @@ export type RepoComboboxHandle = {
 type RepoComboboxProps = {
   autoFocus?: boolean
   className?: string
-  repoSource?: RepoSource
+  repoSource?: ResolvedRepoSource
   sessionId?: string
 }
 
@@ -106,8 +108,7 @@ export const RepoCombobox = React.forwardRef<
   }, [query])
 
   const navigateToRepo = React.useCallback(
-    (owner: string, repo: string, refArg?: string) => {
-      const path = buildRepoPathname(owner, repo, refArg)
+    (path: string) => {
       void navigate({
         search: {
           q,
@@ -121,10 +122,10 @@ export const RepoCombobox = React.forwardRef<
   )
 
   const handleSelect = React.useCallback(
-    (owner: string, repo: string, refArg: string) => {
+    (path: string) => {
       setQuery("")
       setMode("display")
-      navigateToRepo(owner, repo, refArg !== "main" ? refArg : undefined)
+      navigateToRepo(path)
     },
     [navigateToRepo]
   )
@@ -132,7 +133,7 @@ export const RepoCombobox = React.forwardRef<
   const handleSubmit = React.useCallback(async () => {
     if (highlightedIndex >= 0 && highlightedIndex < listItems.length) {
       const item = listItems[highlightedIndex]
-      handleSelect(item.owner, item.repo, item.ref)
+      handleSelect(repoSourceToPath(item))
       return
     }
 
@@ -144,24 +145,10 @@ export const RepoCombobox = React.forwardRef<
 
     setIsValidating(true)
     try {
-      const res = await githubApiFetch(
-        `/repos/${encodeURIComponent(parsed.owner)}/${encodeURIComponent(parsed.repo)}`
-      )
-      if (!res.ok) {
-        toast.error(`Repository ${parsed.owner}/${parsed.repo} not found`)
-        return
-      }
-      const payload = (await res.json()) as { default_branch?: string }
-      const resolvedRef =
-        parsed.ref?.trim() || payload.default_branch?.trim()
-
-      if (!resolvedRef) {
-        toast.error(`Could not determine the default branch for ${parsed.owner}/${parsed.repo}`)
-        return
-      }
+      const resolved = await resolveRepoTarget(parsed)
       setQuery("")
       setMode("display")
-      navigateToRepo(parsed.owner, parsed.repo, resolvedRef)
+      navigateToRepo(repoSourceToPath(resolved))
     } catch (err) {
       if (!(await handleGithubError(err, { sessionId }))) {
         toast.error("Failed to validate repository")
@@ -285,13 +272,13 @@ export const RepoCombobox = React.forwardRef<
                 highlightedIndex === index && "bg-accent"
               )}
               key={`${repo.owner}/${repo.repo}@${repo.ref}`}
-              onClick={() => handleSelect(repo.owner, repo.repo, repo.ref)}
+              onClick={() => handleSelect(repoSourceToPath(repo))}
               type="button"
             >
               <OwnerAvatar owner={repo.owner} size="sm" />
               <span className="truncate font-mono text-xs">
                 {repo.owner}/{repo.repo}
-                {repo.ref !== "main" ? (
+                {repo.refOrigin !== "default" ? (
                   <span className="text-muted-foreground">@{repo.ref}</span>
                 ) : null}
               </span>

@@ -1,4 +1,5 @@
 import { defineConfig } from "vite"
+import type { Plugin } from "vite"
 import { fileURLToPath } from "node:url"
 import { comlink } from "vite-plugin-comlink"
 import { devtools } from "@tanstack/devtools-vite"
@@ -18,9 +19,12 @@ function createBrowserNodeZlibAliasPlugin() {
   const replacement = fileURLToPath(
     new URL("./src/shims/node-zlib.ts", import.meta.url)
   )
+  type ApplyToEnvironmentArg = Parameters<
+    NonNullable<Plugin["applyToEnvironment"]>
+  >[0]
 
   return {
-    applyToEnvironment(environment) {
+    applyToEnvironment(environment: ApplyToEnvironmentArg) {
       return environment.config.consumer === "client"
     },
     enforce: "pre" as const,
@@ -34,6 +38,15 @@ function createBrowserNodeZlibAliasPlugin() {
 }
 
 const config = defineConfig({
+  optimizeDeps: {
+    exclude: [
+      "streamdown",
+      "@streamdown/cjk",
+      "@streamdown/code",
+      "@streamdown/math",
+      "@streamdown/mermaid",
+    ],
+  },
   plugins: [
     comlink(),
     createBrowserNodeZlibAliasPlugin(),

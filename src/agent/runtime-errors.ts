@@ -1,4 +1,4 @@
-import { GitHubFsError } from "@/repo/github-fs"
+import { GitHubFsError } from "@/lib/github"
 import type { SystemMessage } from "@/types/chat"
 import {
   BusyRuntimeError,
@@ -67,6 +67,32 @@ function normalizeMessage(error: unknown): string {
   }
 
   return String(error)
+}
+
+/** Shown when the user stops streaming or a tool hits an abort signal. */
+export const USER_ABORT_NOTICE_MESSAGE = "User aborted!"
+
+function isUserAbortPlainText(text: string): boolean {
+  const m = text.toLowerCase().trim()
+  return (
+    m.includes("request was aborted") ||
+    m.includes("read aborted") ||
+    m.includes("command aborted") ||
+    m === "the operation was aborted" ||
+    m.includes("bodystreambuffer was aborted")
+  )
+}
+
+/**
+ * User-initiated cancellation (stop button, AbortSignal), not a provider bug.
+ */
+export function isUserAbortError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") {
+    return true
+  }
+
+  const raw = normalizeMessage(error)
+  return isUserAbortPlainText(raw)
 }
 
 interface HtmlErrorDetail {
@@ -186,13 +212,25 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
     }
   }
 
+  if (isUserAbortError(error)) {
+    return {
+      detailsContext: htmlDetail?.context,
+      detailsHtml: htmlDetail?.html,
+      fingerprint: fingerprintFor(
+        "stream_interrupted",
+        USER_ABORT_NOTICE_MESSAGE
+      ),
+      kind: "stream_interrupted",
+      message: USER_ABORT_NOTICE_MESSAGE,
+      severity: "info",
+      source: "runtime",
+    }
+  }
+
   if (error instanceof GitHubFsError) {
     const path = error.path ?? ""
 
-    if (
-      error.code === "EACCES" &&
-      lower.includes(RATE_LIMIT_SUBSTR)
-    ) {
+    if (error.kind === "rate_limit") {
       return {
         action: "open-github-settings",
         detailsContext: htmlDetail?.context,
@@ -205,10 +243,7 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
       }
     }
 
-    if (
-      error.code === "EACCES" &&
-      (lower.includes("authentication required") || lower.includes("auth"))
-    ) {
+    if (error.kind === "auth") {
       return {
         action: "open-github-settings",
         detailsContext: htmlDetail?.context,
@@ -221,7 +256,7 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
       }
     }
 
-    if (error.code === "ENOENT") {
+    if (error.kind === "not_found" || error.code === "ENOENT") {
       return {
         detailsContext: htmlDetail?.context,
         detailsHtml: htmlDetail?.html,
@@ -233,13 +268,41 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
       }
     }
 
-    if (error.code === "EACCES") {
+    if (error.kind === "permission") {
       return {
         action: "open-github-settings",
         detailsContext: htmlDetail?.context,
         detailsHtml: htmlDetail?.html,
         fingerprint: fingerprintFor("github_permission", message, path),
         kind: "github_permission",
+        message,
+        severity: "error",
+        source: "github",
+      }
+    }
+
+    if (
+      error.kind === "unsupported" ||
+      error.code === "EFBIG" ||
+      error.code === "ENOTSUP"
+    ) {
+      return {
+        detailsContext: htmlDetail?.context,
+        detailsHtml: htmlDetail?.html,
+        fingerprint: fingerprintFor("github_api", message, path),
+        kind: "github_api",
+        message,
+        severity: "warning",
+        source: "github",
+      }
+    }
+
+    if (error.kind === "network") {
+      return {
+        detailsContext: htmlDetail?.context,
+        detailsHtml: htmlDetail?.html,
+        fingerprint: fingerprintFor("repo_network", message, path),
+        kind: "repo_network",
         message,
         severity: "error",
         source: "github",

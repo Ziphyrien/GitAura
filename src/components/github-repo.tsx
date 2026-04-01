@@ -18,12 +18,13 @@ import {
 } from "@/repo/github-fetch"
 import { getGithubPersonalAccessToken } from "@/repo/github-token"
 import { githubOwnerAvatarUrl } from "@/repo/url"
+import type { RepoRefOrigin } from "@/types/storage"
 
 export type GithubRepoProps = {
   owner: string
   repo: string
-  /** When not `main`, shown after the repo name */
   ref?: string
+  refOrigin: RepoRefOrigin
   to: string
   /** Preserved on navigation (e.g. settings dialog + sidebar open state). */
   search?: Record<string, string | undefined>
@@ -150,6 +151,7 @@ export function GithubRepo({
   owner,
   repo,
   ref: refName,
+  refOrigin,
   to,
   search,
   className,
@@ -164,7 +166,7 @@ export function GithubRepo({
   const langColor =
     language != null && language !== "" ? LANGUAGE_DOT[language] : undefined
 
-  const refSuffix = refName && refName !== "main" ? `@${refName}` : ""
+  const refSuffix = refName && refOrigin === "explicit" ? `@${refName}` : ""
 
   const workspaceLabel = `Open ${owner}/${repo}${refSuffix ? ` at ${refName}` : ""} in workspace`
 

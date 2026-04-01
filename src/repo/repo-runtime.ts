@@ -1,14 +1,13 @@
 import { Bash } from "just-bash/browser"
-import { GitHubFs } from "@/repo/github-fs"
+import { GitHubFs } from "@/lib/github"
 import type { RepoExecResult, RepoRuntime } from "@/repo/repo-types"
-import { normalizeRepoSource } from "@/repo/settings"
-import type { RepoSource } from "@/types/storage"
+import type { ResolvedRepoSource } from "@/types/storage"
 
 /** Merge persisted session token (legacy) with global PAT from settings. */
 export function mergeRepoSourceWithRuntimeToken(
-  source: RepoSource,
+  source: ResolvedRepoSource,
   runtimeToken?: string
-): RepoSource {
+): ResolvedRepoSource {
   const rt = runtimeToken?.trim()
   return {
     ...source,
@@ -33,20 +32,14 @@ function normalizeCwd(next: string | undefined): string {
 }
 
 export function createRepoRuntime(
-  source: RepoSource,
+  source: ResolvedRepoSource,
   options?: { runtimeToken?: string }
 ): RepoRuntime {
-  const normalized = normalizeRepoSource(source)
-
-  if (!normalized) {
-    throw new Error("A repository owner and name are required")
-  }
-
-  const withToken = mergeRepoSourceWithRuntimeToken(normalized, options?.runtimeToken)
+  const withToken = mergeRepoSourceWithRuntimeToken(source, options?.runtimeToken)
 
   const fs = new GitHubFs({
     owner: withToken.owner,
-    ref: withToken.ref,
+    ref: withToken.resolvedRef,
     repo: withToken.repo,
     token: withToken.token,
   })
@@ -71,7 +64,7 @@ export function createRepoRuntime(
     setCwd(next) {
       cwd = normalizeCwd(next)
     },
-    source: normalized,
+    source,
   }
 }
 

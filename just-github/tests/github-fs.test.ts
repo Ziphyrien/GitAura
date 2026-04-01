@@ -1,6 +1,8 @@
+//just-github test - DO NOT Delete.
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { GitHubFs } from "../src/github-fs.js";
 import { GitHubFsError } from "../src/types.js";
+import type { GitHubResolvedRef } from "../src/refs.js";
 
 // Mock responses
 const mockFileContent = {
@@ -32,12 +34,16 @@ const mockTreeResponse = {
   truncated: false,
 };
 
-const mockRefResponse = {
-  object: { sha: "commit-sha", type: "commit" },
+const mockCommitResponse = {
+  sha: "commit-sha",
+  tree: { sha: "tree-sha" },
 };
 
-const mockCommitResponse = {
-  tree: { sha: "tree-sha" },
+const MAIN_REF: GitHubResolvedRef = {
+  apiRef: "heads/main",
+  fullRef: "refs/heads/main",
+  kind: "branch",
+  name: "main",
 };
 
 function mockFetch(handlers: Record<string, any>) {
@@ -82,8 +88,7 @@ describe("GitHubFs", () => {
       "contents/src/index.ts": mockFileContent,
       "contents/src?ref=": mockDirContent,
       "contents/nonexistent": null,
-      "git/ref/heads/main": mockRefResponse,
-      "git/commits/commit-sha": mockCommitResponse,
+      "commits/heads/main": mockCommitResponse,
       "git/trees/tree-sha?recursive=1": mockTreeResponse,
     });
     vi.stubGlobal("fetch", fetchSpy);
@@ -91,7 +96,7 @@ describe("GitHubFs", () => {
     fs = new GitHubFs({
       owner: "test-owner",
       repo: "test-repo",
-      ref: "main",
+      ref: MAIN_REF,
     });
   });
 
@@ -114,7 +119,7 @@ describe("GitHubFs", () => {
     it("throws EISDIR for directories", async () => {
       fetchSpy = mockFetch({ "contents/src": mockDirContent });
       vi.stubGlobal("fetch", fetchSpy);
-      fs = new GitHubFs({ owner: "o", repo: "r", ref: "main" });
+      fs = new GitHubFs({ owner: "o", repo: "r", ref: MAIN_REF });
 
       await expect(fs.readFile("src")).rejects.toMatchObject({ code: "EISDIR" });
     });
@@ -255,7 +260,7 @@ describe("GitHubFs", () => {
           }),
         );
       vi.stubGlobal("fetch", fetchSpy);
-      fs = new GitHubFs({ owner: "o", repo: "r", ref: "main" });
+      fs = new GitHubFs({ owner: "o", repo: "r", ref: MAIN_REF });
 
       await expect(fs.readFile("src/index.ts")).rejects.toMatchObject({
         code: "EACCES",
@@ -275,13 +280,71 @@ describe("GitHubFs", () => {
       expect(content).toBe("export const hello = 'world';");
       expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
+
+    it("falls back to anonymous reads when a token cannot access a public repo", async () => {
+      fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              message: "Resource not accessible by personal access token",
+            }),
+            {
+              status: 403,
+              headers: {
+                "Content-Type": "application/json",
+                "x-ratelimit-limit": "5000",
+                "x-ratelimit-remaining": "4999",
+                "x-ratelimit-reset": "1900000000",
+              },
+            },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify(mockFileContent), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "x-ratelimit-limit": "60",
+              "x-ratelimit-remaining": "59",
+              "x-ratelimit-reset": "1900000000",
+            },
+          }),
+        );
+      vi.stubGlobal("fetch", fetchSpy);
+      fs = new GitHubFs({
+        owner: "o",
+        repo: "r",
+        ref: MAIN_REF,
+        token: "github_pat_demo",
+      });
+
+      const content = await fs.readFile("src/index.ts");
+
+      expect(content).toBe("export const hello = 'world';");
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer github_pat_demo",
+          }),
+        }),
+      );
+      expect(fetchSpy.mock.calls[1]?.[1]).toEqual(
+        expect.objectContaining({
+          headers: expect.not.objectContaining({
+            Authorization: expect.any(String),
+          }),
+        }),
+      );
+    });
   });
 
   describe("no API calls on construction", () => {
     it("does not fetch anything when instantiated", () => {
       const spy = vi.fn();
       vi.stubGlobal("fetch", spy);
-      new GitHubFs({ owner: "o", repo: "r" });
+      new GitHubFs({ owner: "o", repo: "r", ref: MAIN_REF });
       expect(spy).not.toHaveBeenCalled();
     });
   });

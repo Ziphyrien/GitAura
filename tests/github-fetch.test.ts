@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 const toastErrorMock = vi.fn()
 const appendSessionNoticeMock = vi.fn(async () => {})
+const getGithubPersonalAccessTokenMock = vi.fn<
+  () => Promise<string | undefined>
+>(async () => undefined)
 
 vi.mock("sonner", () => ({
   toast: {
@@ -10,7 +13,7 @@ vi.mock("sonner", () => ({
 }))
 
 vi.mock("@/repo/github-token", () => ({
-  getGithubPersonalAccessToken: vi.fn(async () => undefined),
+  getGithubPersonalAccessToken: getGithubPersonalAccessTokenMock,
 }))
 
 vi.mock("@/sessions/session-notices", () => ({
@@ -25,6 +28,8 @@ describe("github-fetch", () => {
     vi.resetModules()
     toastErrorMock.mockReset()
     appendSessionNoticeMock.mockReset()
+    getGithubPersonalAccessTokenMock.mockReset()
+    getGithubPersonalAccessTokenMock.mockResolvedValue(undefined)
   })
 
   it("blocks repeated requests until the primary rate limit reset", async () => {
@@ -162,6 +167,62 @@ describe("github-fetch", () => {
       expect.objectContaining({
         action: expect.objectContaining({
           label: "Add token",
+        }),
+      })
+    )
+  })
+
+  it("falls back to anonymous GitHub API access when a token lacks repo access", async () => {
+    getGithubPersonalAccessTokenMock.mockResolvedValue("github_pat_demo")
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "Resource not accessible by personal access token",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "x-ratelimit-limit": "5000",
+              "x-ratelimit-remaining": "4999",
+              "x-ratelimit-reset": "1900000000",
+            },
+            status: 403,
+          }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ default_branch: "main" }), {
+          headers: {
+            "Content-Type": "application/json",
+            "x-ratelimit-limit": "60",
+            "x-ratelimit-remaining": "59",
+            "x-ratelimit-reset": "1900000000",
+          },
+          status: 200,
+        })
+      )
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { githubApiFetch } = await import("@/repo/github-fetch")
+    const response = await githubApiFetch("/repos/acme/demo")
+
+    expect(response.ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer github_pat_demo",
+        }),
+      })
+    )
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
         }),
       })
     )

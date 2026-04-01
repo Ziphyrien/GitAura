@@ -1,4 +1,4 @@
-import type { RepoTarget } from "@/types/storage"
+import type { RepoTarget, ResolvedRepoSource } from "@/types/storage"
 
 /** Top-level app paths that are not owner/repo routes */
 const RESERVED_ROOT_SEGMENTS = new Set([
@@ -73,6 +73,7 @@ function stripDotGit(repo: string): string {
 export interface ParsedRepoPath {
   owner: string
   ref?: string
+  refPathTail?: string
   repo: string
 }
 
@@ -82,9 +83,9 @@ export interface ParsedRepoPath {
  *
  * - `/:owner/:repo` — repo root, ref left to defaults
  * - `/:owner/:repo/:ref` — single-segment ref when not a reserved subpath
- * - `/:owner/:repo/tree/:ref/...` — ref is first segment after `tree` when
- *   there is at most one segment after `tree` (otherwise ambiguous → no ref)
- * - `/:owner/:repo/blob/:ref/...` — ref is always the first segment after `blob`
+ * - `/:owner/:repo/tree/:ref/...` — ref is resolved from the full tail after `tree`
+ * - `/:owner/:repo/blob/:ref/...` — ref is resolved from the full tail after `blob`
+ * - `/:owner/:repo/commit/:sha` — ref is the commit SHA
  */
 export function parseRepoPathname(pathname: string): ParsedRepoPath | undefined {
   const raw = pathname.trim()
@@ -129,17 +130,27 @@ export function parseRepoPathname(pathname: string): ParsedRepoPath | undefined 
       return isValidSegment(ref) ? { owner, ref, repo } : { owner, repo }
     }
 
-    // More than one segment after tree: branch may contain "/" — omit ref
-    return { owner, repo }
+    return { owner, refPathTail: afterTree.join("/"), repo }
   }
 
   if (third === "blob") {
-    const ref = segments[3]
-    if (ref && isValidSegment(ref)) {
-      return { owner, ref, repo }
+    const afterBlob = segments.slice(3)
+
+    if (afterBlob.length === 0) {
+      return { owner, repo }
     }
 
-    return { owner, repo }
+    if (afterBlob.length === 1) {
+      const ref = afterBlob[0]!
+      return isValidSegment(ref) ? { owner, ref, repo } : { owner, repo }
+    }
+
+    return { owner, refPathTail: afterBlob.join("/"), repo }
+  }
+
+  if (third === "commit") {
+    const sha = trimSingleSegment(segments[3])
+    return sha ? { owner, ref: sha, repo } : { owner, repo }
   }
 
   if (RESERVED_REPO_SUBPATHS.has(third)) {
@@ -158,18 +169,34 @@ export function parseRepoPathname(pathname: string): ParsedRepoPath | undefined 
 /**
  * Build a canonical pathname for the repo (and optional ref) for URL sync.
  */
-export function buildRepoPathname(
+function buildRepoPathname(
   owner: string,
   repo: string,
   ref?: string
 ): string {
   const o = owner.trim()
   const r = repo.trim()
+  const refPath = ref
+    ?.trim()
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")
   const path = ref?.trim()
-    ? `/${encodeURIComponent(o)}/${encodeURIComponent(r)}/${encodeURIComponent(ref!.trim())}`
+    ? `/${encodeURIComponent(o)}/${encodeURIComponent(r)}/${refPath}`
     : `/${encodeURIComponent(o)}/${encodeURIComponent(r)}`
 
   return path
+}
+
+export function repoSourceToPath(
+  source: Pick<ResolvedRepoSource, "owner" | "repo" | "ref" | "refOrigin">
+): string {
+  return buildRepoPathname(
+    source.owner,
+    source.repo,
+    source.refOrigin === "default" ? undefined : source.ref
+  )
 }
 
 /**
@@ -183,12 +210,18 @@ export function githubOwnerAvatarUrl(owner: string): string {
 /**
  * Convert a parsed path into a repo target (no token, ref optional).
  */
-export function parsedPathToRepoSource(
+export function parsedPathToRepoTarget(
   parsed: ParsedRepoPath
 ): RepoTarget {
   return {
     owner: parsed.owner,
     ref: parsed.ref,
+    refPathTail: parsed.refPathTail,
     repo: parsed.repo,
   }
+}
+
+function trimSingleSegment(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
 }

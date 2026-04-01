@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest"
-import { GitHubFsError } from "@/repo/github-fs"
+import { GitHubFsError } from "@/lib/github"
 import {
   BusyRuntimeError,
   MissingSessionRuntimeError,
   StreamInterruptedRuntimeError,
 } from "@/agent/runtime-command-errors"
-import { buildSystemMessage, classifyRuntimeError } from "@/agent/runtime-errors"
+import {
+  buildSystemMessage,
+  classifyRuntimeError,
+  USER_ABORT_NOTICE_MESSAGE,
+} from "@/agent/runtime-errors"
 
 describe("classifyRuntimeError", () => {
   it("detects busy runtime errors", () => {
@@ -63,6 +67,24 @@ describe("classifyRuntimeError", () => {
     expect(classified.kind).toBe("provider_api")
     expect(classified.severity).toBe("error")
     expect(classified.source).toBe("provider")
+  })
+
+  it("treats manual stop / abort signals as a single user notice, not provider_api", () => {
+    const abortedFetch = classifyRuntimeError(
+      new Error(
+        "Request was aborted. [fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo → https://api.fireworks.ai/inference/v1]"
+      )
+    )
+    expect(abortedFetch.kind).toBe("stream_interrupted")
+    expect(abortedFetch.message).toBe(USER_ABORT_NOTICE_MESSAGE)
+    expect(abortedFetch.severity).toBe("info")
+
+    expect(classifyRuntimeError(new Error("Read aborted")).message).toBe(
+      USER_ABORT_NOTICE_MESSAGE
+    )
+    expect(classifyRuntimeError(new DOMException("Aborted", "AbortError")).kind).toBe(
+      "stream_interrupted"
+    )
   })
 
   it("extracts HTML payloads into structured system message details", () => {

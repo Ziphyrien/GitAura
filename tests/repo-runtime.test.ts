@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRepoRuntime, execInRepoShell } from "@/repo/repo-runtime"
-import { installMockRepoFetch } from "./repo-test-utils"
+import { installMockRepoFetch, TEST_REPO_SOURCE } from "./repo-test-utils"
 
 describe("repo runtime", () => {
   beforeEach(() => {
@@ -12,11 +12,7 @@ describe("repo runtime", () => {
   })
 
   it("preserves cwd across shell calls", async () => {
-    const runtime = createRepoRuntime({
-      owner: "test-owner",
-      ref: "main",
-      repo: "test-repo",
-    })
+    const runtime = createRepoRuntime(TEST_REPO_SOURCE)
 
     await execInRepoShell(runtime, "cd src")
 

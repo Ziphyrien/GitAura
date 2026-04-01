@@ -215,7 +215,10 @@ export class RuntimeClient {
       throw new MissingSessionRuntimeError(sessionId)
     }
 
-    return reloaded
+    return {
+      ...reloaded,
+      session: reloaded.session,
+    }
   }
 
   async startTurn(sessionId: string, content: string): Promise<void> {

@@ -10,6 +10,10 @@ import type {
 } from "@/types/models"
 import { SYSTEM_PROMPT } from "@/agent/system-prompt"
 import { createProxyAwareStreamFn } from "@/agent/provider-proxy"
+import {
+  isUserAbortError,
+  USER_ABORT_NOTICE_MESSAGE,
+} from "@/agent/runtime-errors"
 import { resolveProviderAuthForProvider } from "@/auth/resolve-api-key"
 import { createId } from "@/lib/ids"
 import { getModel } from "@/models/catalog"
@@ -165,13 +169,21 @@ function createStreamErrorMessage(
   error: unknown,
   aborted: boolean
 ): AssistantMessage {
+  if (aborted) {
+    return {
+      ...createAssistantDraft(model, id, timestamp),
+      errorMessage: USER_ABORT_NOTICE_MESSAGE,
+      stopReason: "aborted",
+    }
+  }
+
   const raw = extractErrorDetail(error)
   const errorMessage = attachProviderDiagnostic(model, raw)
 
   return {
     ...createAssistantDraft(model, id, timestamp),
     errorMessage,
-    stopReason: aborted ? "aborted" : "error",
+    stopReason: "error",
   }
 }
 
@@ -248,7 +260,8 @@ function wrapAssistantMessageEventStream(
   model: ModelDefinition,
   upstream: ProxyAwareStream,
   assistantId: string,
-  timestamp: number
+  timestamp: number,
+  abortSignal?: AbortSignal
 ) {
   const stream = PiAi.createAssistantMessageEventStream()
   const partials = new WeakMap<object, AssistantMessage>()
@@ -355,16 +368,18 @@ function wrapAssistantMessageEventStream(
         `[provider-stream] Stream threw for ${model.provider}/${model.id} (${model.baseUrl}):`,
         error
       )
+      const aborted =
+        abortSignal?.aborted === true || isUserAbortError(error)
       const failure = createStreamErrorMessage(
         model,
         assistantId,
         timestamp,
         error,
-        false
+        aborted
       )
       stream.push({
         error: failure,
-        reason: "error",
+        reason: aborted ? "aborted" : "error",
         type: "error",
       })
       stream.end(failure)
@@ -385,7 +400,13 @@ async function createAppStream(
     ...options,
     maxTokens: options?.maxTokens ?? model.maxTokens,
   })
-  return wrapAssistantMessageEventStream(model, upstream, assistantId, timestamp)
+  return wrapAssistantMessageEventStream(
+    model,
+    upstream,
+    assistantId,
+    timestamp,
+    options?.signal
+  )
 }
 
 export async function streamChat(
@@ -471,7 +492,7 @@ export const streamChatWithPiAgent: StreamFn = async (
       createId(),
       Date.now(),
       error,
-      options?.signal?.aborted || false
+      options?.signal?.aborted === true || isUserAbortError(error)
     )
 
     queueMicrotask(() => {

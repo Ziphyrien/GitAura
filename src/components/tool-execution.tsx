@@ -7,6 +7,10 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool"
+import {
+  isUserAbortError,
+  USER_ABORT_NOTICE_MESSAGE,
+} from "@/agent/runtime-errors"
 import type { ToolCall, ToolResultMessage } from "@/types/chat"
 
 interface BashDetails {
@@ -48,8 +52,16 @@ function getToolResultText(message: ToolResultMessage): string {
     .join("\n")
 }
 
-function renderToolResultBody(message: ToolResultMessage) {
+function getDisplayToolResultText(message: ToolResultMessage): string {
   const text = getToolResultText(message)
+  if (message.isError && isUserAbortError(new Error(text))) {
+    return USER_ABORT_NOTICE_MESSAGE
+  }
+  return text
+}
+
+function renderToolResultBody(message: ToolResultMessage) {
+  const text = getDisplayToolResultText(message)
   const hasReadDetails = isReadDetails(message.details)
   const hasBashDetails = isBashDetails(message.details)
 
@@ -90,9 +102,16 @@ function getToolState(toolResult?: ToolResultMessage) {
     return "input-available" as const
   }
 
-  return toolResult.isError
-    ? ("output-error" as const)
-    : ("output-available" as const)
+  if (!toolResult.isError) {
+    return "output-available" as const
+  }
+
+  const text = getToolResultText(toolResult)
+  if (isUserAbortError(new Error(text))) {
+    return "output-available" as const
+  }
+
+  return "output-error" as const
 }
 
 export function ToolExecution(props: {

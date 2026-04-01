@@ -1,18 +1,25 @@
 import { Bash } from "just-bash";
 import { createInterface } from "node:readline/promises";
 import { GitHubFs } from "./src/github-fs.js";
+import { type GitHubResolvedRef } from "./src/refs.js";
 
 const repo = process.argv[2] || "vercel-labs/just-bash";
 const [owner, repoName] = repo.split("/");
 const ref = process.argv[3] || "main";
 const token = process.env.GITHUB_TOKEN;
+const resolvedRef: GitHubResolvedRef = {
+  apiRef: `heads/${ref}`,
+  fullRef: `refs/heads/${ref}`,
+  kind: "branch",
+  name: ref,
+};
 
 if (!owner || !repoName) {
   console.error("Usage: npx tsx playground.ts owner/repo [ref]");
   process.exit(1);
 }
 
-const ghFs = new GitHubFs({ owner, repo: repoName, ref, token });
+const ghFs = new GitHubFs({ owner, repo: repoName, ref: resolvedRef, token });
 const bash = new Bash({ fs: ghFs, cwd: "/" });
 
 console.log(`\n  just-github — browsing ${owner}/${repoName}@${ref}`);

@@ -4,6 +4,7 @@ import type {
   AgentTool,
 } from "@mariozechner/pi-agent-core"
 import { BusyRuntimeError } from "@/agent/runtime-command-errors"
+import { serializeRuntimeError } from "@/agent/runtime-error-payload"
 import {
   shouldStopStreamingForRuntimeError,
   withTerminalError,
@@ -23,10 +24,9 @@ import type {
 import { resolveApiKeyForProvider } from "@/auth/resolve-api-key"
 import { getCanonicalProvider, getModel } from "@/models/catalog"
 import { createRepoRuntime } from "@/repo/repo-runtime"
-import { normalizeRepoSource } from "@/repo/settings"
 import { createRepoTools } from "@/tools"
 import type { ProviderId } from "@/types/models"
-import type { RepoSource, SessionData } from "@/types/storage"
+import type { ResolvedRepoSource, SessionData } from "@/types/storage"
 
 const TURN_IDLE_TIMEOUT_MS = 15 * 60_000
 const TURN_IDLE_POLL_MS = 30_000
@@ -54,7 +54,8 @@ class WorkerAgentRunner {
   private latestTerminalStatus: "aborted" | "error" | undefined
   private terminalErrorMessage?: string
   private rotateStreamingAssistantDraft = false
-  private pendingRuntimeErrors: string[] = []
+  private pendingRuntimeErrors: Array<ReturnType<typeof serializeRuntimeError>> =
+    []
   private lastEnvelope?: WorkerSnapshotEnvelope
 
   constructor(
@@ -348,17 +349,15 @@ class WorkerAgentRunner {
     this.flushTimer = undefined
   }
 
-  private createRuntime(repoSource?: RepoSource, token?: string) {
-    const normalized = normalizeRepoSource(repoSource)
-
-    if (!normalized) {
+  private createRuntime(repoSource?: ResolvedRepoSource, token?: string) {
+    if (!repoSource) {
       return undefined
     }
 
     const resolved =
       token !== undefined ? token : this.githubRuntimeTokenSnapshot
 
-    return createRepoRuntime(normalized, { runtimeToken: resolved })
+    return createRepoRuntime(repoSource, { runtimeToken: resolved })
   }
 
   private getAgentTools(runtime = this.repoRuntime): AgentTool[] {
@@ -370,7 +369,7 @@ class WorkerAgentRunner {
       onRepoError: (error) => {
         const nextError =
           error instanceof Error ? error : new Error(String(error))
-        this.pendingRuntimeErrors.push(nextError.message)
+        this.pendingRuntimeErrors.push(serializeRuntimeError(nextError))
 
         if (
           shouldStopStreamingForRuntimeError(nextError) &&

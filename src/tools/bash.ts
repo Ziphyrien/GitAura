@@ -1,7 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox"
-import { GitHubFsError } from "@/repo/github-fs"
+import { GitHubFsError } from "@/lib/github"
 import { execInRepoShell } from "@/repo/repo-runtime"
 import type { RepoRuntime } from "@/repo/repo-types"
+import { warningMessageToError } from "@/tools/repo-warnings"
 import { truncateTail, type TruncationResult } from "@/tools/truncate"
 import type { AppToolDefinition } from "@/tools/types"
 
@@ -24,12 +25,7 @@ export interface BashToolDetails {
 
 function takeActionableGithubError(runtime: RepoRuntime): GitHubFsError | undefined {
   const error = runtime.fs.consumeLastError()
-
-  if (!error) {
-    return undefined
-  }
-
-  return error.code === "EACCES" || error.code === "EIO" ? error : undefined
+  return error ?? undefined
 }
 
 export function createBashTool(
@@ -82,6 +78,13 @@ export function createBashTool(
         throw err
       }
 
+      const warnings = runtime.getWarnings()
+      if (onRepoError) {
+        for (const warning of warnings) {
+          await onRepoError(warningMessageToError(warning))
+        }
+      }
+
       return {
         content: [{ text: output, type: "text" }],
         details: {
@@ -89,7 +92,7 @@ export function createBashTool(
           cwd: result.cwd,
           exitCode: result.exitCode,
           truncation: truncation.truncated ? truncation : undefined,
-          warnings: runtime.getWarnings(),
+          warnings,
         },
       }
     },

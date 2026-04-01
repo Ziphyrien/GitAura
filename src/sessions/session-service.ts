@@ -1,26 +1,180 @@
+import { getMostRecentSession, getSession, getSessionMessages, putSession } from "@/db/schema"
 import { getIsoNow } from "@/lib/dates"
 import { createId } from "@/lib/ids"
 import { getCanonicalProvider, getDefaultProviderGroup } from "@/models/catalog"
-import { normalizeRepoSource } from "@/repo/settings"
+import {
+  createBranchRepoRef,
+  createCommitRepoRef,
+  createTagRepoRef,
+  displayResolvedRepoRef,
+} from "@/repo/refs"
+import { resolveRepoTarget } from "@/repo/ref-resolver"
 import {
   buildPreview,
   generateTitle,
   hasPersistableExchange,
 } from "@/sessions/session-metadata"
-import {
-  getMostRecentSession,
-  getSession,
-  getSessionMessages,
-  putSession,
-} from "@/db/schema"
+import type { ChatMessage } from "@/types/chat"
 import {
   createEmptyUsage,
   type ProviderGroupId,
   type ThinkingLevel,
   type Usage,
 } from "@/types/models"
-import type { ChatMessage } from "@/types/chat"
-import type { MessageRow, RepoSource, SessionData } from "@/types/storage"
+import type {
+  MessageRow,
+  RepoRefOrigin,
+  ResolvedRepoRef,
+  ResolvedRepoSource,
+  SessionData,
+} from "@/types/storage"
+
+type LegacyRepoSource = {
+  owner?: string
+  ref?: string
+  refOrigin?: RepoRefOrigin
+  repo?: string
+  resolvedRef?: ResolvedRepoRef
+  token?: string
+}
+
+type LegacySessionData = Omit<SessionData, "repoSource"> & {
+  repoSource?: LegacyRepoSource
+}
+
+function trimToUndefined(value: string | undefined): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function normalizeResolvedRepoRef(
+  ref: ResolvedRepoRef | undefined
+): ResolvedRepoRef | undefined {
+  if (!ref) {
+    return undefined
+  }
+
+  if (ref.kind === "commit") {
+    const sha = trimToUndefined(ref.sha)
+    return sha ? createCommitRepoRef(sha) : undefined
+  }
+
+  const name = trimToUndefined(ref.name)
+
+  if (!name) {
+    return undefined
+  }
+
+  return ref.kind === "branch"
+    ? createBranchRepoRef(name)
+    : createTagRepoRef(name)
+}
+
+function areResolvedRepoRefsEqual(
+  left: ResolvedRepoRef | undefined,
+  right: ResolvedRepoRef | undefined
+): boolean {
+  if (!left || !right) {
+    return left === right
+  }
+
+  if (left.kind !== right.kind) {
+    return false
+  }
+
+  if (left.kind === "commit" && right.kind === "commit") {
+    return left.sha === right.sha
+  }
+
+  if (left.kind === "commit" || right.kind === "commit") {
+    return false
+  }
+
+  return (
+    left.name === right.name &&
+    left.apiRef === right.apiRef &&
+    left.fullRef === right.fullRef
+  )
+}
+
+function areResolvedRepoSourcesEqual(
+  left: ResolvedRepoSource | undefined,
+  right: ResolvedRepoSource | undefined
+): boolean {
+  if (!left || !right) {
+    return left === right
+  }
+
+  return (
+    left.owner === right.owner &&
+    left.repo === right.repo &&
+    left.ref === right.ref &&
+    left.refOrigin === right.refOrigin &&
+    left.token === right.token &&
+    areResolvedRepoRefsEqual(left.resolvedRef, right.resolvedRef)
+  )
+}
+
+async function repairPersistedRepoSource(
+  source: LegacyRepoSource | undefined
+): Promise<ResolvedRepoSource | undefined> {
+  if (!source) {
+    return undefined
+  }
+
+  const owner = trimToUndefined(source.owner)
+  const repo = trimToUndefined(source.repo)
+  const ref = trimToUndefined(source.ref)
+  const token = trimToUndefined(source.token)
+  const resolvedRef = normalizeResolvedRepoRef(source.resolvedRef)
+
+  if (owner && repo && ref && resolvedRef) {
+    return {
+      owner,
+      ref: displayResolvedRepoRef(resolvedRef),
+      refOrigin: source.refOrigin ?? "explicit",
+      repo,
+      resolvedRef,
+      token,
+    }
+  }
+
+  if (!owner || !repo || !ref) {
+    return undefined
+  }
+
+  return await resolveRepoTarget({
+    owner,
+    ref,
+    repo,
+    token,
+  })
+}
+
+async function normalizeLoadedSession(
+  session: LegacySessionData
+): Promise<SessionData> {
+  const normalizedSession = normalizeSessionProviderGroup(session as SessionData)
+  const repoSource = await repairPersistedRepoSource(session.repoSource)
+  const nextSession: SessionData = {
+    ...normalizedSession,
+    repoSource,
+  }
+
+  const providerChanged =
+    nextSession.provider !== session.provider ||
+    nextSession.providerGroup !== session.providerGroup
+  const repoChanged = !areResolvedRepoSourcesEqual(
+    session.repoSource as ResolvedRepoSource | undefined,
+    nextSession.repoSource
+  )
+
+  if (providerChanged || repoChanged) {
+    await putSession(nextSession)
+  }
+
+  return nextSession
+}
 
 function mergeUsage(left: Usage, right: Usage): Usage {
   return {
@@ -48,7 +202,7 @@ function toChatMessage(message: ChatMessage | MessageRow): ChatMessage {
 export function createSession(params: {
   model: string
   providerGroup: ProviderGroupId
-  repoSource?: RepoSource
+  repoSource?: ResolvedRepoSource
   thinkingLevel?: ThinkingLevel
 }): SessionData {
   const now = getIsoNow()
@@ -65,7 +219,7 @@ export function createSession(params: {
     preview: "",
     provider,
     providerGroup: params.providerGroup,
-    repoSource: normalizeRepoSource(params.repoSource),
+    repoSource: params.repoSource,
     thinkingLevel: params.thinkingLevel ?? "medium",
     title: "New chat",
     updatedAt: now,
@@ -85,12 +239,12 @@ export async function persistSessionSnapshot(
 
 export async function loadSession(id: string): Promise<SessionData | undefined> {
   const session = await getSession(id)
-  return session ? normalizeSessionProviderGroup(session) : undefined
+  return session ? await normalizeLoadedSession(session as LegacySessionData) : undefined
 }
 
 export async function loadMostRecentSession(): Promise<SessionData | undefined> {
   const session = await getMostRecentSession()
-  return session ? normalizeSessionProviderGroup(session) : undefined
+  return session ? await normalizeLoadedSession(session as LegacySessionData) : undefined
 }
 
 export async function loadSessionWithMessages(
@@ -135,7 +289,7 @@ export function buildPersistedSession(
     isStreaming: normalizedSession.isStreaming,
     messageCount: chatMessages.length,
     preview: buildPreview(chatMessages),
-    repoSource: normalizeRepoSource(normalizedSession.repoSource),
+    repoSource: normalizedSession.repoSource,
     title: generateTitle(chatMessages),
     updatedAt: normalizedSession.updatedAt,
     usage,

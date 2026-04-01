@@ -83,6 +83,14 @@ export function getRuntimeCommandErrorMessage(
   const lower = normalized.message.toLowerCase()
 
   if (
+    lower.includes("user aborted") ||
+    lower.includes("request was aborted") ||
+    lower.includes("read aborted")
+  ) {
+    return "User aborted!"
+  }
+
+  if (
     lower.includes("vercel security checkpoint") ||
     lower.includes("we're verifying your browser") ||
     lower.includes("we are verifying your browser")

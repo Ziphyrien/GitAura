@@ -1,4 +1,5 @@
 import { BusyRuntimeError } from "@/agent/runtime-command-errors"
+import { deserializeRuntimeError } from "@/agent/runtime-error-payload"
 import { AgentTurnPersistence } from "@/agent/agent-turn-persistence"
 import {
   createRuntimeWorkerEvents,
@@ -61,7 +62,7 @@ export class WorkerBackedAgentHost implements SessionRunner {
 
             for (const runtimeError of envelope.runtimeErrors ?? []) {
               await this.persistence.appendSystemNoticeFromError(
-                new Error(runtimeError)
+                deserializeRuntimeError(runtimeError)
               )
             }
 

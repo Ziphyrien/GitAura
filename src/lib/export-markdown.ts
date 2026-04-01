@@ -1,5 +1,5 @@
 import type { ChatMessage } from "@/types/chat"
-import type { RepoSource } from "@/types/storage"
+import type { ResolvedRepoSource } from "@/types/storage"
 
 function formatMessageContent(message: ChatMessage): string {
   if (message.role === "user") {
@@ -44,13 +44,13 @@ function formatMessageContent(message: ChatMessage): string {
 
 export function conversationToMarkdown(
   messages: ChatMessage[],
-  repoSource?: RepoSource
+  repoSource?: ResolvedRepoSource
 ): string {
   const lines: string[] = []
 
   if (repoSource) {
     lines.push(`# ${repoSource.owner}/${repoSource.repo}`)
-    if (repoSource.ref !== "main") {
+    if (repoSource.refOrigin !== "default") {
       lines.push(`**Branch:** ${repoSource.ref}`)
     }
   } else {

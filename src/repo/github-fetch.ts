@@ -2,7 +2,12 @@ import { toast } from "sonner"
 import {
   GitHubRateLimitController,
   type GitHubRateLimitKind,
-} from "../../just-github/src/github-rate-limit"
+} from "@/lib/github/github-rate-limit"
+import {
+  readGitHubErrorMessage,
+  shouldRetryUnauthenticated,
+  stripAuthorization,
+} from "@/lib/github/github-http"
 import { classifyRuntimeError } from "@/agent/runtime-errors"
 import { getGithubPersonalAccessToken } from "@/repo/github-token"
 import { appendSessionNotice } from "@/sessions/session-notices"
@@ -120,14 +125,32 @@ async function networkFetch(
     throw toRateLimitError(activeBlock.blockedUntilMs, activeBlock.kind, 429)
   }
 
+  const headers = buildGithubHeaders(token)
   const res = await fetch(url, {
-    headers: buildGithubHeaders(token),
+    headers,
     signal,
   })
 
   const rateLimitBlock = await rateLimitController.afterResponse(res)
   if (rateLimitBlock) {
     throw toRateLimitError(rateLimitBlock.blockedUntilMs, rateLimitBlock.kind, res.status)
+  }
+
+  if (!res.ok && token) {
+    const detail = await readGitHubErrorMessage(res)
+    if (shouldRetryUnauthenticated(res, detail)) {
+      const fallback = await fetch(url, {
+        headers: stripAuthorization(headers),
+        signal,
+      })
+      const fallbackRateLimitBlock = await rateLimitController.afterResponse(
+        fallback
+      )
+
+      if (!fallbackRateLimitBlock && fallback.ok) {
+        return fallback
+      }
+    }
   }
 
   return res
@@ -237,6 +260,7 @@ function showGithubActionToast(input: {
 function showClassifiedGithubToast(
   kind: SystemMessage["kind"],
   signature: string,
+  severity?: SystemMessage["severity"],
   error?: unknown
 ): void {
   if (kind === "github_rate_limit") {
@@ -274,6 +298,10 @@ function showClassifiedGithubToast(
   }
 
   if (kind === "github_api") {
+    if (severity === "warning") {
+      return
+    }
+
     showGithubActionToast({
       actionLabel: "GitHub settings",
       message: "GitHub request failed. Open Settings to review your GitHub token.",
@@ -289,7 +317,7 @@ export function showGithubSystemNoticeToast(
     return false
   }
 
-  showClassifiedGithubToast(notice.kind, notice.fingerprint)
+  showClassifiedGithubToast(notice.kind, notice.fingerprint, notice.severity)
   return true
 }
 
@@ -308,6 +336,11 @@ export async function handleGithubError(
     await appendSessionNotice(options.sessionId, normalized)
   }
 
-  showClassifiedGithubToast(classified.kind, classified.fingerprint, normalized)
+  showClassifiedGithubToast(
+    classified.kind,
+    classified.fingerprint,
+    classified.severity,
+    normalized
+  )
   return true
 }

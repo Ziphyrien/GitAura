@@ -2,7 +2,7 @@ import * as React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { createEmptyUsage } from "@/types/models"
-import type { SessionData } from "@/types/storage"
+import type { ResolvedRepoSource, SessionData } from "@/types/storage"
 
 const useLiveQueryMock = vi.fn()
 const navigateMock = vi.fn(async () => {})
@@ -51,19 +51,6 @@ vi.mock("@/sessions/session-actions", () => ({
   resolveProviderDefaults: vi.fn(async () => ({
     model: "gpt-5.1-codex-mini",
     providerGroup: "openai-codex",
-  })),
-}))
-
-vi.mock("@/repo/settings", () => ({
-  normalizeRepoSource: vi.fn(() => ({
-    owner: "acme",
-    ref: "main",
-    repo: "demo",
-  })),
-  resolveRepoSource: vi.fn(async () => ({
-    owner: "acme",
-    ref: "main",
-    repo: "demo",
   })),
 }))
 
@@ -121,15 +108,26 @@ function buildSession(): SessionData {
     preview: "",
     provider: "openai-codex",
     providerGroup: "openai-codex",
-    repoSource: {
-      owner: "acme",
-      ref: "main",
-      repo: "demo",
-    },
+    repoSource: buildRepoSource(),
     thinkingLevel: "medium",
     title: "New chat",
     updatedAt: "2026-03-24T12:00:00.000Z",
     usage: createEmptyUsage(),
+  }
+}
+
+function buildRepoSource(): ResolvedRepoSource {
+  return {
+    owner: "acme",
+    ref: "main",
+    refOrigin: "explicit",
+    repo: "demo",
+    resolvedRef: {
+      apiRef: "heads/main",
+      fullRef: "refs/heads/main",
+      kind: "branch",
+      name: "main",
+    },
   }
 }
 
@@ -196,10 +194,7 @@ describe("Chat first send", () => {
 
     render(
       <Chat
-        repoSource={{
-          owner: "acme",
-          repo: "demo",
-        }}
+        repoSource={buildRepoSource()}
       />
     )
 
@@ -245,10 +240,7 @@ describe("Chat first send", () => {
 
     render(
       <Chat
-        repoSource={{
-          owner: "acme",
-          repo: "demo",
-        }}
+        repoSource={buildRepoSource()}
       />
     )
 

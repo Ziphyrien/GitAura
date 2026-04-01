@@ -69,6 +69,21 @@ function buildSession(
   return session
 }
 
+function buildRepoSource() {
+  return {
+    owner: "acme",
+    ref: "dev",
+    refOrigin: "explicit" as const,
+    repo: "demo",
+    resolvedRef: {
+      apiRef: "heads/dev" as const,
+      fullRef: "refs/heads/dev" as const,
+      kind: "branch" as const,
+      name: "dev",
+    },
+  }
+}
+
 describe("session-actions", () => {
   beforeEach(() => {
     createSession.mockReset()
@@ -106,11 +121,7 @@ describe("session-actions", () => {
 
   it("creates repo sessions with the current repo context", async () => {
     const created = buildSession("session-repo", {
-      repoSource: {
-        owner: "acme",
-        ref: "dev",
-        repo: "demo",
-      },
+      repoSource: buildRepoSource(),
     })
     createSession.mockReturnValue(created)
     getSetting.mockResolvedValue(undefined)
@@ -118,19 +129,13 @@ describe("session-actions", () => {
 
     const { createSessionForRepo } = await import("@/sessions/session-actions")
     const session = await createSessionForRepo({
-      owner: "acme",
-      ref: "dev",
-      repo: "demo",
+      repoSource: buildRepoSource(),
     })
 
     expect(createSession).toHaveBeenCalledWith({
       model: "gpt-5.1-codex-mini",
       providerGroup: "openai-codex",
-      repoSource: {
-        owner: "acme",
-        ref: "dev",
-        repo: "demo",
-      },
+      repoSource: buildRepoSource(),
     })
     expect(persistSessionSnapshot).not.toHaveBeenCalled()
     expect(session.repoSource?.ref).toBe("dev")

@@ -1,6 +1,7 @@
-import { parseRepoPathname, type ParsedRepoPath } from "@/repo/url"
+import type { RepoTarget } from "@/types/storage"
+import { parsedPathToRepoTarget, parseRepoPathname } from "@/repo/url"
 
-export function parseRepoQuery(raw: string): ParsedRepoPath | undefined {
+export function parseRepoQuery(raw: string): RepoTarget | undefined {
   const trimmed = raw.trim()
   if (!trimmed) {
     return undefined
@@ -12,7 +13,8 @@ export function parseRepoQuery(raw: string): ParsedRepoPath | undefined {
     !trimmed.includes(" ") &&
     !trimmed.startsWith("http")
   ) {
-    return parseRepoPathname(`/${slash[0]}/${slash[1]}`)
+    const parsed = parseRepoPathname(`/${slash[0]}/${slash[1]}`)
+    return parsed ? parsedPathToRepoTarget(parsed) : undefined
   }
 
   try {
@@ -24,7 +26,8 @@ export function parseRepoQuery(raw: string): ParsedRepoPath | undefined {
       return undefined
     }
 
-    return parseRepoPathname(url.pathname)
+    const parsed = parseRepoPathname(url.pathname)
+    return parsed ? parsedPathToRepoTarget(parsed) : undefined
   } catch {
     return undefined
   }

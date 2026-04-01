@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createRepoRuntime } from "@/repo/repo-runtime"
 import { createReadTool } from "@/tools/read"
-import { installMockRepoFetch } from "./repo-test-utils"
+import { installMockRepoFetch, TEST_REPO_SOURCE } from "./repo-test-utils"
 
 describe("read tool", () => {
   beforeEach(() => {
@@ -13,11 +13,7 @@ describe("read tool", () => {
   })
 
   it("reads repository files and pages long content", async () => {
-    const runtime = createRepoRuntime({
-      owner: "test-owner",
-      ref: "main",
-      repo: "test-repo",
-    })
+    const runtime = createRepoRuntime(TEST_REPO_SOURCE)
     const tool = createReadTool(runtime)
 
     const result = await tool.execute("call-1", {
@@ -36,11 +32,7 @@ describe("read tool", () => {
   })
 
   it("surfaces missing file errors", async () => {
-    const runtime = createRepoRuntime({
-      owner: "test-owner",
-      ref: "main",
-      repo: "test-repo",
-    })
+    const runtime = createRepoRuntime(TEST_REPO_SOURCE)
     const tool = createReadTool(runtime)
 
     await expect(

@@ -15,6 +15,7 @@ import { Route as ChatIndexRouteImport } from './routes/chat.index'
 import { Route as ChatSessionIdRouteImport } from './routes/chat.$sessionId'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as OwnerRepoIndexRouteImport } from './routes/$owner.$repo.index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OwnerRepoSplatRouteImport } from './routes/$owner.$repo.$'
 
 const ChatRoute = ChatRouteImport.update({
@@ -47,6 +48,11 @@ const OwnerRepoIndexRoute = OwnerRepoIndexRouteImport.update({
   path: '/$owner/$repo/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OwnerRepoSplatRoute = OwnerRepoSplatRouteImport.update({
   id: '/$owner/$repo/$',
   path: '/$owner/$repo/$',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/chat/$sessionId': typeof ChatSessionIdRoute
   '/chat/': typeof ChatIndexRoute
   '/$owner/$repo/$': typeof OwnerRepoSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/$owner/$repo/': typeof OwnerRepoIndexRoute
 }
 export interface FileRoutesByTo {
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/chat/$sessionId': typeof ChatSessionIdRoute
   '/chat': typeof ChatIndexRoute
   '/$owner/$repo/$': typeof OwnerRepoSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/$owner/$repo': typeof OwnerRepoIndexRoute
 }
 export interface FileRoutesById {
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/chat/$sessionId': typeof ChatSessionIdRoute
   '/chat/': typeof ChatIndexRoute
   '/$owner/$repo/$': typeof OwnerRepoSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/$owner/$repo/': typeof OwnerRepoIndexRoute
 }
 export interface FileRouteTypes {
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/chat/$sessionId'
     | '/chat/'
     | '/$owner/$repo/$'
+    | '/api/auth/$'
     | '/$owner/$repo/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/chat/$sessionId'
     | '/chat'
     | '/$owner/$repo/$'
+    | '/api/auth/$'
     | '/$owner/$repo'
   id:
     | '__root__'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/chat/$sessionId'
     | '/chat/'
     | '/$owner/$repo/$'
+    | '/api/auth/$'
     | '/$owner/$repo/'
   fileRoutesById: FileRoutesById
 }
@@ -114,6 +126,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   AuthCallbackRoute: typeof AuthCallbackRoute
   OwnerRepoSplatRoute: typeof OwnerRepoSplatRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   OwnerRepoIndexRoute: typeof OwnerRepoIndexRoute
 }
 
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerRepoIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$owner/$repo/$': {
       id: '/$owner/$repo/$'
       path: '/$owner/$repo/$'
@@ -188,6 +208,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   AuthCallbackRoute: AuthCallbackRoute,
   OwnerRepoSplatRoute: OwnerRepoSplatRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
   OwnerRepoIndexRoute: OwnerRepoIndexRoute,
 }
 export const routeTree = rootRouteImport

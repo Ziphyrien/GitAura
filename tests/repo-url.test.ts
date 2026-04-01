@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { githubOwnerAvatarUrl, parseRepoPathname } from "@/repo/url"
+import {
+  githubOwnerAvatarUrl,
+  parseRepoPathname,
+  parsedPathToRepoTarget,
+  repoSourceToPath,
+} from "@/repo/url"
 
 describe("parseRepoPathname", () => {
   it("parses owner/repo", () => {
@@ -48,11 +53,12 @@ describe("parseRepoPathname", () => {
     expect(parseRepoPathname("/chat")).toBeUndefined()
   })
 
-  it("omits ref when tree has deep paths (ambiguous branch)", () => {
+  it("keeps the full tree tail when branch names may include slashes", () => {
     expect(
       parseRepoPathname("/vercel/next.js/tree/feature/foo/bar")
     ).toEqual({
       owner: "vercel",
+      refPathTail: "feature/foo/bar",
       repo: "next.js",
     })
   })
@@ -65,5 +71,67 @@ describe("githubOwnerAvatarUrl", () => {
 
   it("encodes special characters in owner", () => {
     expect(githubOwnerAvatarUrl("foo/bar")).toBe("https://github.com/foo%2Fbar.png")
+  })
+})
+
+describe("parsedPathToRepoTarget", () => {
+  it("converts parsed path shapes into raw repo targets", () => {
+    expect(
+      parsedPathToRepoTarget({
+        owner: "acme",
+        refPathTail: "feature/foo/src/lib",
+        repo: "demo",
+      })
+    ).toEqual({
+      owner: "acme",
+      refPathTail: "feature/foo/src/lib",
+      repo: "demo",
+    })
+  })
+})
+
+describe("repoSourceToPath", () => {
+  it("omits the default branch from canonical paths", () => {
+    expect(
+      repoSourceToPath({
+        owner: "acme",
+        ref: "main",
+        refOrigin: "default",
+        repo: "demo",
+      })
+    ).toBe("/acme/demo")
+  })
+
+  it("includes explicit branch refs in canonical paths", () => {
+    expect(
+      repoSourceToPath({
+        owner: "acme",
+        ref: "feature/foo",
+        refOrigin: "explicit",
+        repo: "demo",
+      })
+    ).toBe("/acme/demo/feature/foo")
+  })
+
+  it("includes explicit tag refs in canonical paths", () => {
+    expect(
+      repoSourceToPath({
+        owner: "acme",
+        ref: "v1.2.3",
+        refOrigin: "explicit",
+        repo: "demo",
+      })
+    ).toBe("/acme/demo/v1.2.3")
+  })
+
+  it("includes commit refs when they are explicitly selected", () => {
+    expect(
+      repoSourceToPath({
+        owner: "acme",
+        ref: "0123456789abcdef0123456789abcdef01234567",
+        refOrigin: "explicit",
+        repo: "demo",
+      })
+    ).toBe("/acme/demo/0123456789abcdef0123456789abcdef01234567")
   })
 })

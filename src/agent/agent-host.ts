@@ -9,7 +9,7 @@ import type {
   ProviderId,
   ThinkingLevel,
 } from "@/types/models"
-import type { MessageRow, RepoSource, SessionData } from "@/types/storage"
+import type { MessageRow, ResolvedRepoSource, SessionData } from "@/types/storage"
 import { BusyRuntimeError } from "@/agent/runtime-command-errors"
 import {
   AgentTurnPersistence,
@@ -26,7 +26,6 @@ import { buildInitialAgentState } from "@/agent/session-adapter"
 import { resolveApiKeyForProvider } from "@/auth/resolve-api-key"
 import { getCanonicalProvider, getModel } from "@/models/catalog"
 import { createRepoRuntime } from "@/repo/repo-runtime"
-import { normalizeRepoSource } from "@/repo/settings"
 import { createRepoTools } from "@/tools"
 
 const TURN_IDLE_TIMEOUT_MS = 15 * 60_000
@@ -337,17 +336,15 @@ export class AgentHost {
     return this.disposed
   }
 
-  private createRuntime(repoSource?: RepoSource, token?: string) {
-    const normalized = normalizeRepoSource(repoSource)
-
-    if (!normalized) {
+  private createRuntime(repoSource?: ResolvedRepoSource, token?: string) {
+    if (!repoSource) {
       return undefined
     }
 
     const resolved =
       token !== undefined ? token : this.githubRuntimeTokenSnapshot
 
-    return createRepoRuntime(normalized, { runtimeToken: resolved })
+    return createRepoRuntime(repoSource, { runtimeToken: resolved })
   }
 
   private getAgentTools(runtime = this.repoRuntime): AgentTool[] {

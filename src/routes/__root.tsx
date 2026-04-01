@@ -12,9 +12,8 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
 import { TanStackDevtools } from "@tanstack/react-devtools"
 import appCss from "../styles.css?url"
-import {
-  AppSettingsDialog,
-} from "@/components/settings-dialog"
+import { AppSettingsDialog } from "@/components/settings-dialog"
+import { Analytics } from "@/components/analytics"
 import { AppHeader } from "@/components/app-header"
 import { AppSidebar } from "@/components/app-sidebar"
 import { RootGuard } from "@/components/root-guard"
@@ -23,7 +22,6 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
-
 
 type RootSearchInput = {
   settings?: string
@@ -52,12 +50,11 @@ export const Route = createRootRoute({
       },
       {
         name: "description",
-        content:
-          "Client-side Sitegeist Web v0 with local sessions, provider auth, streaming chat, and cost tracking.",
+        content: "Chat with any github repo",
       },
       {
         name: "apple-mobile-web-app-title",
-        content: "Git Inspect",
+        content: "gitinspect",
       },
     ],
     links: [
@@ -103,7 +100,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           <TooltipProvider>
             <RootGuard>{children}</RootGuard>
             <Toaster position="bottom-right" />
@@ -111,7 +113,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         </ThemeProvider>
         <TanStackDevtools
           config={{
-            position: "bottom-right",
+            position: "middle-right",
           }}
           plugins={[
             {
@@ -121,6 +123,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           ]}
         />
         <Scripts />
+        <Analytics />
       </body>
     </html>
   )

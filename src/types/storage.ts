@@ -7,17 +7,42 @@ import type {
   Usage,
 } from "@/types/models"
 
-export interface RepoSource {
-  owner: string
-  repo: string
-  ref: string
-  token?: string
-}
+export type RepoRefOrigin = "default" | "explicit"
 
+export type ResolvedRepoRef =
+  | {
+      apiRef: `heads/${string}`
+      fullRef: `refs/heads/${string}`
+      kind: "branch"
+      name: string
+    }
+  | {
+      apiRef: `tags/${string}`
+      fullRef: `refs/tags/${string}`
+      kind: "tag"
+      name: string
+    }
+  | {
+      kind: "commit"
+      sha: string
+    }
+
+// Raw repository input from URLs, route params, or text input.
 export interface RepoTarget {
   owner: string
   repo: string
   ref?: string
+  refPathTail?: string
+  token?: string
+}
+
+// Canonical repository state stored in Dexie and passed to runtime/UI.
+export interface ResolvedRepoSource {
+  owner: string
+  repo: string
+  ref: string
+  refOrigin: RepoRefOrigin
+  resolvedRef: ResolvedRepoRef
   token?: string
 }
 
@@ -25,6 +50,7 @@ export interface RepositoryRow {
   lastOpenedAt: string
   owner: string
   ref: string
+  refOrigin: RepoRefOrigin
   repo: string
 }
 
@@ -39,7 +65,7 @@ export interface SessionData {
   preview: string
   provider: ProviderId
   providerGroup?: ProviderGroupId
-  repoSource?: RepoSource
+  repoSource?: ResolvedRepoSource
   thinkingLevel: ThinkingLevel
   title: string
   updatedAt: string

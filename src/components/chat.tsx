@@ -13,7 +13,7 @@ import { RepoCombobox } from "./repo-combobox"
 import type { RepoComboboxHandle } from "./repo-combobox"
 import type { ProviderGroupId, ThinkingLevel } from "@/types/models"
 import type { AssistantMessage, ChatMessage } from "@/types/chat"
-import type { RepoSource, RepoTarget, SessionData } from "@/types/storage"
+import type { ResolvedRepoSource, SessionData } from "@/types/storage"
 import {
   Conversation,
   ConversationContent,
@@ -29,11 +29,7 @@ import { getRuntimeCommandErrorMessage } from "@/agent/runtime-command-errors"
 import { useRuntimeSession } from "@/hooks/use-runtime-session"
 import { useSessionOwnership } from "@/hooks/use-session-ownership"
 import { getCanonicalProvider, getDefaultProviderGroup } from "@/models/catalog"
-import { normalizeRepoSource, resolveRepoSource } from "@/repo/settings"
-import {
-  handleGithubError,
-  showGithubSystemNoticeToast,
-} from "@/repo/github-fetch"
+import { showGithubSystemNoticeToast } from "@/repo/github-fetch"
 import {
   createSessionForChat,
   createSessionForRepo,
@@ -65,7 +61,7 @@ type LoadedSessionState =
 type ChatPanelMode = "empty" | "messages" | "starting" | "streaming_pending"
 
 export interface ChatProps {
-  repoSource?: RepoTarget
+  repoSource?: ResolvedRepoSource
   sessionId?: string
 }
 
@@ -196,10 +192,6 @@ export function Chat(props: ChatProps) {
     undefined
   )
   const [isStartingSession, setIsStartingSession] = React.useState(false)
-  const [resolvedRepoSource, setResolvedRepoSource] = React.useState<
-    RepoSource | undefined
-  >(() => normalizeRepoSource(props.repoSource))
-  const [repoResolutionFailed, setRepoResolutionFailed] = React.useState(false)
   const runtime = useRuntimeSession(props.sessionId)
   const ownership = useSessionOwnership(
     loadedSessionState?.kind === "active"
@@ -235,55 +227,11 @@ export function Chat(props: ChatProps) {
     observerRef.current.observe(node)
   }, [])
 
-  React.useEffect(() => {
-    let cancelled = false
-
-    if (!props.repoSource) {
-      setResolvedRepoSource(undefined)
-      setRepoResolutionFailed(false)
-      return
-    }
-
-    const normalized = normalizeRepoSource(props.repoSource)
-    if (normalized) {
-      setResolvedRepoSource(normalized)
-      setRepoResolutionFailed(false)
-      return
-    }
-
-    setResolvedRepoSource(undefined)
-    setRepoResolutionFailed(false)
-
-    void resolveRepoSource(props.repoSource)
-      .then((nextRepoSource) => {
-        if (!cancelled) {
-          setResolvedRepoSource(nextRepoSource)
-          setRepoResolutionFailed(false)
-        }
-      })
-      .catch((error) => {
-        void handleGithubError(error, { sessionId: props.sessionId })
-        if (!cancelled) {
-          setResolvedRepoSource(undefined)
-          setRepoResolutionFailed(true)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    props.repoSource?.owner,
-    props.repoSource?.ref,
-    props.repoSource?.repo,
-    props.repoSource?.token,
-  ])
-
   const activeSession =
     loadedSessionState?.kind === "active"
       ? loadedSessionState.session
       : undefined
-  const displayRepoSource = activeSession?.repoSource ?? resolvedRepoSource
+  const displayRepoSource = activeSession?.repoSource ?? props.repoSource
 
   React.useEffect(() => {
     if (!displayRepoSource) {
@@ -539,12 +487,10 @@ export function Chat(props: ChatProps) {
           providerGroup: draft.providerGroup,
           thinkingLevel: draft.thinkingLevel,
         }
-        const session = resolvedRepoSource
+        const session = props.repoSource
           ? await createSessionForRepo({
               base,
-              owner: resolvedRepoSource.owner,
-              ref: resolvedRepoSource.ref,
-              repo: resolvedRepoSource.repo,
+              repoSource: props.repoSource,
             })
           : await createSessionForChat(base)
         await runtimeClient.startInitialTurn(session, content)
@@ -576,8 +522,8 @@ export function Chat(props: ChatProps) {
       draft,
       isStartingSession,
       navigate,
+      props.repoSource,
       reportRuntimeFailure,
-      resolvedRepoSource,
       settings,
       sidebar,
     ]
@@ -637,10 +583,6 @@ export function Chat(props: ChatProps) {
 
   if (loadedSessionState.kind === "missing") {
     return <LoadingState label="Loading session..." />
-  }
-
-  if (props.repoSource && !resolvedRepoSource && !repoResolutionFailed) {
-    return <LoadingState label="Loading repository..." />
   }
 
   if (!activeSession && !draft) {
