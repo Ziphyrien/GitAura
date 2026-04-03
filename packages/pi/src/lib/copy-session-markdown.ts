@@ -1,7 +1,11 @@
 import type { ResolvedRepoSource } from "@gitinspect/db/storage-types";
-import type { ChatMessage } from "@gitinspect/pi/types/chat";
-import { getAssistantText, getUserText } from "@gitinspect/pi/lib/chat-adapter";
+import {
+  deriveAssistantView,
+  getAssistantText,
+  getUserText,
+} from "@gitinspect/pi/lib/chat-adapter";
 import { repoSourceToGitHubUrl } from "@gitinspect/pi/repo/url";
+import type { ChatMessage, ToolCall, ToolResultMessage } from "@gitinspect/pi/types/chat";
 
 type MarkdownExportOptions = {
   repoSource?: ResolvedRepoSource;
@@ -31,21 +35,108 @@ function buildContextHeader(options: MarkdownExportOptions): string[] {
   return lines;
 }
 
+function getToolStatusLabel(toolResult?: ToolResultMessage): string {
+  if (!toolResult) {
+    return "Running";
+  }
+
+  return toolResult.isError ? "Error" : "Completed";
+}
+
+function formatToolArguments(toolCall: ToolCall, toolResult?: ToolResultMessage): string[] {
+  const args = toolCall.arguments;
+
+  if (toolCall.name === "read") {
+    const lines: string[] = [];
+
+    if (typeof args.path === "string") {
+      lines.push(`   path: ${args.path}`);
+    }
+
+    if (typeof args.offset === "number") {
+      lines.push(`   offset: ${String(args.offset)}`);
+    }
+
+    if (typeof args.limit === "number") {
+      lines.push(`   limit: ${String(args.limit)}`);
+    }
+
+    const details = toolResult?.details;
+    if (
+      details &&
+      typeof details === "object" &&
+      "resolvedPath" in details &&
+      typeof details.resolvedPath === "string"
+    ) {
+      lines.push(`   resolved: ${details.resolvedPath}`);
+    }
+
+    return lines;
+  }
+
+  if (toolCall.name === "bash") {
+    const lines: string[] = [];
+
+    if (typeof args.command === "string") {
+      lines.push(`   command: ${args.command}`);
+    }
+
+    const details = toolResult?.details;
+    if (
+      details &&
+      typeof details === "object" &&
+      "cwd" in details &&
+      typeof details.cwd === "string"
+    ) {
+      lines.push(`   cwd: ${details.cwd}`);
+    }
+
+    return lines;
+  }
+
+  return [`   args: ${JSON.stringify(args)}`];
+}
+
+function formatToolExecutions(
+  toolExecutions: ReturnType<typeof deriveAssistantView>["toolExecutions"],
+): string[] {
+  if (toolExecutions.length === 0) {
+    return [];
+  }
+
+  return toolExecutions.flatMap(({ toolCall, toolResult }, index) => [
+    `${index + 1}. ${toolCall.name} — ${getToolStatusLabel(toolResult)}`,
+    ...formatToolArguments(toolCall, toolResult),
+  ]);
+}
+
 export function messagesToMarkdown(
   messages: readonly ChatMessage[],
   options: MarkdownExportOptions = {},
 ): string {
   const parts: string[] = [buildContextHeader(options).join("\n")];
 
-  for (const message of messages) {
+  for (const [index, message] of messages.entries()) {
     switch (message.role) {
       case "user":
         parts.push(`## User\n\n${getUserText(message)}`);
         break;
       case "assistant": {
         const text = getAssistantText(message);
+        const view = deriveAssistantView(message, messages.slice(index + 1));
+        const toolLines = formatToolExecutions(view.toolExecutions);
+        const section: string[] = ["## Assistant"];
+
         if (text.trim()) {
-          parts.push(`## Assistant\n\n${text}`);
+          section.push("", text);
+        }
+
+        if (toolLines.length > 0) {
+          section.push("", "### Tools", "", ...toolLines);
+        }
+
+        if (section.length > 1) {
+          parts.push(section.join("\n"));
         }
         break;
       }
