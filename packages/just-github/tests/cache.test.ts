@@ -72,7 +72,9 @@ describe("TreeCache", () => {
 
     // Force expiration with a synchronous wait approach
     const start = Date.now();
-    while (Date.now() - start < 5) { /* spin */ }
+    while (Date.now() - start < 5) {
+      /* spin */
+    }
 
     expect(shortCache.loaded).toBe(false);
     expect(shortCache.get("file.txt")).toBeUndefined();

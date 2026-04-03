@@ -1,9 +1,7 @@
 import type { GitHubRateLimitKind } from "./github-rate-limit.js";
 import { GitHubFsError, type GitHubErrorKind } from "./types.js";
 
-export async function readGitHubErrorMessage(
-  res: Response,
-): Promise<string | undefined> {
+export async function readGitHubErrorMessage(res: Response): Promise<string | undefined> {
   try {
     const data = (await res.clone().json()) as { message?: unknown };
     if (typeof data.message === "string" && data.message.trim().length > 0) {
@@ -19,10 +17,7 @@ export async function readGitHubErrorMessage(
   }
 }
 
-export function shouldRetryUnauthenticated(
-  res: Response,
-  detail: string | undefined,
-): boolean {
+export function shouldRetryUnauthenticated(res: Response, detail: string | undefined): boolean {
   if (res.status === 401) {
     return true;
   }
@@ -43,9 +38,7 @@ export function shouldRetryUnauthenticated(
   );
 }
 
-export function stripAuthorization(
-  headers: Record<string, string>,
-): Record<string, string> {
+export function stripAuthorization(headers: Record<string, string>): Record<string, string> {
   const nextHeaders = { ...headers };
   delete nextHeaders.Authorization;
   return nextHeaders;
@@ -130,8 +123,7 @@ function githubErrorFromStatus(status: number): {
         code: "EINVAL",
         isRetryable: false,
         kind: "validation",
-        message: (path, actualStatus) =>
-          `GitHub API validation error (${actualStatus}): ${path}`,
+        message: (path, actualStatus) => `GitHub API validation error (${actualStatus}): ${path}`,
       };
     default:
       return {
@@ -143,10 +135,7 @@ function githubErrorFromStatus(status: number): {
   }
 }
 
-function isRateLimitResponse(
-  res: Response,
-  detail: string | undefined,
-): boolean {
+function isRateLimitResponse(res: Response, detail: string | undefined): boolean {
   if (res.status === 429) {
     return true;
   }
@@ -158,10 +147,7 @@ function isRateLimitResponse(
   return detail?.toLowerCase().includes("rate limit") === true;
 }
 
-function buildRateLimitMessage(
-  path: string,
-  retryAt: number | undefined,
-): string {
+function buildRateLimitMessage(path: string, retryAt: number | undefined): string {
   if (!retryAt) {
     return `GitHub API rate limit exceeded: ${path}`;
   }

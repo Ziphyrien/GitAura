@@ -23,7 +23,9 @@ const ghFs = new GitHubFs({ owner, repo: repoName, ref: resolvedRef, token });
 const bash = new Bash({ fs: ghFs, cwd: "/" });
 
 console.log(`\n  just-github — browsing ${owner}/${repoName}@${ref}`);
-console.log(`  ${token ? "authenticated" : "unauthenticated (set GITHUB_TOKEN for private repos)"}\n`);
+console.log(
+  `  ${token ? "authenticated" : "unauthenticated (set GITHUB_TOKEN for private repos)"}\n`,
+);
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 let cwd = "/";

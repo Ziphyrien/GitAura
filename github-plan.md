@@ -10,7 +10,7 @@
 
 **Primary root cause**
 
-- `just-github/src/github-client.ts` assumes the commit payload shape is `commit.tree.sha` at the top level.
+- `packages/just-github/src/github-client.ts` assumes the commit payload shape is `commit.tree.sha` at the top level.
 - The real GitHub REST payload is `{ sha, commit: { tree: { sha }}}`.
 - So `GitHubFs.fetchTree()` crashes whenever it tries to read `commit.tree.sha`.
 
@@ -37,7 +37,7 @@
 
 ### 1) Fix tree loading in `just-github`
 
-- Update `just-github/src/github-client.ts` so the commit payload matches the real GitHub shape:
+- Update `packages/just-github/src/github-client.ts` so the commit payload matches the real GitHub shape:
   - use `commit.commit.tree.sha`
   - not `commit.tree.sha`
 - This fixes the immediate crash for any route that successfully resolves to a branch or commit.
@@ -78,7 +78,7 @@ Why this is the correct fix:
 
 Update mocks so they match the real GitHub API instead of the current simplified shapes/status codes.
 
-- `just-github/tests/github-fs.test.ts`
+- `packages/just-github/tests/github-fs.test.ts`
 - `tests/lib/github-fs.test.ts`
   - commit payload should look like `{ sha, commit: { tree: { sha }}}`
 - `tests/ref-resolver.test.ts`
@@ -114,11 +114,11 @@ Update mocks so they match the real GitHub API instead of the current simplified
 
 ### Phase 1 — Fix `just-github` tree loading
 
-- [x] Update the commit response type in `just-github/src/github-client.ts` to match the real GitHub payload shape.
+- [x] Update the commit response type in `packages/just-github/src/github-client.ts` to match the real GitHub payload shape.
 - [x] Change `fetchTree()` to read the tree SHA from the nested commit payload instead of the nonexistent top-level field.
 - [x] Confirm branch-backed and commit-backed `GitHubFs.tree()` calls no longer throw the `reading 'sha'` error.
 - [x] Verify `readFile()`, `stat()`, and `tree()` still behave correctly after the payload-shape fix.
-- [x] Update `just-github/tests/github-fs.test.ts` to use realistic commit payload mocks.
+- [x] Update `packages/just-github/tests/github-fs.test.ts` to use realistic commit payload mocks.
 - [x] Update `tests/lib/github-fs.test.ts` to use realistic commit payload mocks.
 
 ### Phase 2 — Ref resolution for branches, tags, commits, and slash refs

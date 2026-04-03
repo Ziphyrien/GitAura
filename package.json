@@ -4,8 +4,7 @@
   "workspaces": {
     "packages": [
       "apps/*",
-      "packages/*",
-      "just-github"
+      "packages/*"
     ],
     "catalog": {
       "dotenv": "^17.2.2",

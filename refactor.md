@@ -661,13 +661,13 @@ This is now explicitly in scope because the deployed TanStack app will still use
 The old app has two related sources of GitHub runtime code:
 
 - `src/lib/github/*`
-- `just-github/*`
+- `packages/just-github/*`
 
-Current refactor repo already has `just-github/` present.
+Current refactor repo already has `packages/just-github/` present.
 
 - [x] Keep `just-github` as the canonical GitHub implementation for now
       Notes:
-  - do not rename or relocate it as part of this refactor plan
+  - do not rename it as part of this refactor plan
   - old `src/lib/github/*` should not remain the long-term source of truth
 
 - [x] Copy old in-app GitHub runtime helpers into `packages/pi`

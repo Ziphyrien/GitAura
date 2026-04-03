@@ -35,10 +35,7 @@ export class GitHubRateLimitController {
     };
   }
 
-  async afterResponse(
-    res: Response,
-    now = Date.now(),
-  ): Promise<GitHubRateLimitBlock | undefined> {
+  async afterResponse(res: Response, now = Date.now()): Promise<GitHubRateLimitBlock | undefined> {
     const info = parseGitHubRateLimitInfo(res);
     const retryAfterSeconds = parsePositiveInt(res.headers.get("retry-after"));
     const retryAfterMs =
@@ -74,8 +71,7 @@ export class GitHubRateLimitController {
           : "unknown";
 
     const blockedUntilMs =
-      retryAfterMs ??
-      (info?.remaining === 0 ? info.reset.getTime() : undefined);
+      retryAfterMs ?? (info?.remaining === 0 ? info.reset.getTime() : undefined);
 
     return this.recordRateLimitBlock(kind, blockedUntilMs, now);
   }
@@ -94,10 +90,7 @@ export class GitHubRateLimitController {
     this.blockedUntilMs = Math.max(this.blockedUntilMs, nextBlockedUntilMs);
 
     if (kind === "secondary" || kind === "unknown") {
-      this.secondaryBackoffMs = Math.min(
-        this.secondaryBackoffMs * 2,
-        SECONDARY_RATE_LIMIT_MAX_MS,
-      );
+      this.secondaryBackoffMs = Math.min(this.secondaryBackoffMs * 2, SECONDARY_RATE_LIMIT_MAX_MS);
     } else {
       this.secondaryBackoffMs = SECONDARY_RATE_LIMIT_FLOOR_MS;
     }
@@ -109,9 +102,7 @@ export class GitHubRateLimitController {
   }
 }
 
-export function parseGitHubRateLimitInfo(
-  res: Response,
-): ParsedGitHubRateLimitInfo | null {
+export function parseGitHubRateLimitInfo(res: Response): ParsedGitHubRateLimitInfo | null {
   const limit = parsePositiveInt(res.headers.get("x-ratelimit-limit"));
   const remaining = parsePositiveInt(res.headers.get("x-ratelimit-remaining"));
   const resetAtSeconds = parsePositiveInt(res.headers.get("x-ratelimit-reset"));

@@ -147,9 +147,7 @@ export class GitHubFs implements IFileSystem {
     }));
   }
 
-  async stat(
-    path: string,
-  ): Promise<{
+  async stat(path: string): Promise<{
     isFile: boolean;
     isDirectory: boolean;
     isSymbolicLink: boolean;
@@ -161,9 +159,7 @@ export class GitHubFs implements IFileSystem {
     return toFsStat(info.type, info.size, info.mode);
   }
 
-  async lstat(
-    path: string,
-  ): Promise<{
+  async lstat(path: string): Promise<{
     isFile: boolean;
     isDirectory: boolean;
     isSymbolicLink: boolean;
