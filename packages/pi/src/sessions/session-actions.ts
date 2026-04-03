@@ -140,6 +140,7 @@ export async function createSessionForChat(base?: SessionCreationBase): Promise<
 export async function createSessionForRepo(params: {
   base?: SessionCreationBase;
   repoSource: ResolvedRepoSource;
+  sourceUrl?: string;
 }): Promise<SessionData> {
   if (!params.base) {
     const { model, providerGroup, visibleProviderGroups } = await resolveProviderDefaults();
@@ -148,6 +149,7 @@ export async function createSessionForRepo(params: {
         model,
         providerGroup,
         repoSource: params.repoSource,
+        sourceUrl: params.sourceUrl,
       }),
       visibleProviderGroups,
     );
@@ -157,6 +159,7 @@ export async function createSessionForRepo(params: {
     model: params.base.model,
     providerGroup: params.base.providerGroup ?? getDefaultProviderGroup(params.base.provider),
     repoSource: params.repoSource,
+    sourceUrl: params.sourceUrl,
     thinkingLevel: params.base.thinkingLevel,
   });
 }

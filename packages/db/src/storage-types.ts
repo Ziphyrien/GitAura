@@ -56,6 +56,7 @@ export interface SessionData {
   provider: ProviderId;
   providerGroup?: ProviderGroupId;
   repoSource?: ResolvedRepoSource;
+  sourceUrl?: string;
   thinkingLevel: ThinkingLevel;
   title: string;
   updatedAt: string;

@@ -63,6 +63,7 @@ type ChatPanelMode = "empty" | "messages" | "starting" | "streaming_pending";
 export interface ChatProps {
   repoSource?: ResolvedRepoSource;
   sessionId?: string;
+  sourceUrl?: string;
 }
 
 function isSystemNotice(message: ChatMessage): message is Extract<ChatMessage, { role: "system" }> {
@@ -629,7 +630,10 @@ export function Chat(props: ChatProps) {
               <button
                 className="flex items-center gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 onClick={() => {
-                  copySessionToClipboard(messages).then(
+                  copySessionToClipboard(messages, {
+                    repoSource: displayRepoSource,
+                    sourceUrl: activeSession?.sourceUrl ?? props.sourceUrl,
+                  }).then(
                     () => toast.success("Copied session as Markdown"),
                     () => toast.error("Failed to copy to clipboard"),
                   );

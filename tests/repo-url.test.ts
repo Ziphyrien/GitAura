@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { parseRepoInput, parseRepoRoutePath } from "@/repo/path-parser";
-import { githubOwnerAvatarUrl, repoSourceToPath } from "@/repo/url";
+import {
+  githubOwnerAvatarUrl,
+  githubRepoPathUrl,
+  githubRepoUrl,
+  repoSourceToGitHubUrl,
+  repoSourceToPath,
+} from "@/repo/url";
 
 describe("parseRepoRoutePath", () => {
   it("parses repo root", () => {
@@ -132,6 +138,72 @@ describe("githubOwnerAvatarUrl", () => {
 
   it("encodes special characters in owner", () => {
     expect(githubOwnerAvatarUrl("foo/bar")).toBe("https://github.com/foo%2Fbar.png");
+  });
+});
+
+describe("githubRepoUrl", () => {
+  it("builds repo root URLs", () => {
+    expect(githubRepoUrl("acme", "demo")).toBe("https://github.com/acme/demo");
+  });
+
+  it("encodes path segments for repo page URLs", () => {
+    expect(githubRepoPathUrl("acme", "demo", "blob/feature/foo/README.md")).toBe(
+      "https://github.com/acme/demo/blob/feature/foo/README.md",
+    );
+    expect(githubRepoPathUrl("acme org", "demo repo", "tree/feature branch/src lib")).toBe(
+      "https://github.com/acme%20org/demo%20repo/tree/feature%20branch/src%20lib",
+    );
+  });
+});
+
+describe("repoSourceToGitHubUrl", () => {
+  it("falls back to the repo root for default refs", () => {
+    expect(
+      repoSourceToGitHubUrl({
+        owner: "acme",
+        ref: "main",
+        refOrigin: "default",
+        repo: "demo",
+        resolvedRef: {
+          apiRef: "heads/main",
+          fullRef: "refs/heads/main",
+          kind: "branch",
+          name: "main",
+        },
+      }),
+    ).toBe("https://github.com/acme/demo");
+  });
+
+  it("uses tree URLs for explicit branch refs", () => {
+    expect(
+      repoSourceToGitHubUrl({
+        owner: "acme",
+        ref: "feature/foo",
+        refOrigin: "explicit",
+        repo: "demo",
+        resolvedRef: {
+          apiRef: "heads/feature/foo",
+          fullRef: "refs/heads/feature/foo",
+          kind: "branch",
+          name: "feature/foo",
+        },
+      }),
+    ).toBe("https://github.com/acme/demo/tree/feature/foo");
+  });
+
+  it("uses commit URLs for commit refs", () => {
+    expect(
+      repoSourceToGitHubUrl({
+        owner: "acme",
+        ref: "0123456789abcdef0123456789abcdef01234567",
+        refOrigin: "explicit",
+        repo: "demo",
+        resolvedRef: {
+          kind: "commit",
+          sha: "0123456789abcdef0123456789abcdef01234567",
+        },
+      }),
+    ).toBe("https://github.com/acme/demo/commit/0123456789abcdef0123456789abcdef01234567");
   });
 });
 

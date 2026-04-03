@@ -55,6 +55,7 @@ function buildSession(id: string, overrides: Partial<SessionData> = {}): Session
     provider: "openai-codex" as SessionData["provider"],
     providerGroup: "openai-codex" as SessionData["providerGroup"],
     repoSource: undefined,
+    sourceUrl: undefined,
     thinkingLevel: "medium" as SessionData["thinkingLevel"],
     title: "New chat",
     updatedAt: "2026-03-23T12:00:00.000Z",
@@ -126,12 +127,14 @@ describe("session-actions", () => {
     const { createSessionForRepo } = await import("@/sessions/session-actions");
     const session = await createSessionForRepo({
       repoSource: buildRepoSource(),
+      sourceUrl: "https://github.com/acme/demo/tree/dev",
     });
 
     expect(createSession).toHaveBeenCalledWith({
       model: "gpt-5.1-codex-mini",
       providerGroup: "openai-codex",
       repoSource: buildRepoSource(),
+      sourceUrl: "https://github.com/acme/demo/tree/dev",
     });
     expect(persistSessionSnapshot).not.toHaveBeenCalled();
     expect(session.repoSource?.ref).toBe("dev");

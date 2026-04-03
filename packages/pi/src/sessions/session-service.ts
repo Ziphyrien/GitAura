@@ -47,6 +47,7 @@ export function createSession(params: {
   model: string;
   providerGroup: ProviderGroupId;
   repoSource?: ResolvedRepoSource;
+  sourceUrl?: string;
   thinkingLevel?: ThinkingLevel;
 }): SessionData {
   const now = getIsoNow();
@@ -64,6 +65,7 @@ export function createSession(params: {
     provider,
     providerGroup: params.providerGroup,
     repoSource: params.repoSource,
+    sourceUrl: params.sourceUrl,
     thinkingLevel: params.thinkingLevel ?? "medium",
     title: "New chat",
     updatedAt: now,
@@ -130,6 +132,7 @@ export function buildPersistedSession(
     messageCount: chatMessages.length,
     preview: buildPreview(chatMessages),
     repoSource: normalizedSession.repoSource,
+    sourceUrl: normalizedSession.sourceUrl,
     title: generateTitle(chatMessages),
     updatedAt: normalizedSession.updatedAt,
     usage,

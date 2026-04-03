@@ -3,6 +3,7 @@ import { resolveRepoIntent } from "@gitinspect/pi/repo/ref-resolver";
 import { Chat } from "@gitinspect/ui/components/chat";
 import { parseRepoRoutePath } from "@gitinspect/pi/repo/path-parser";
 import { toResolvedRepoSource } from "@gitinspect/pi/repo/path-intent";
+import { githubRepoPathUrl } from "@gitinspect/pi/repo/url";
 
 type RepoSplatSearch = {
   q?: string;
@@ -21,9 +22,16 @@ export const Route = createFileRoute("/$owner/$repo/$")({
 });
 
 function RepoChatRoute() {
+  const params = Route.useParams();
   const repoSource = Route.useLoaderData();
+  const decodedSplat = decodePathFragment(params._splat ?? "");
 
-  return <Chat repoSource={repoSource} />;
+  return (
+    <Chat
+      repoSource={repoSource}
+      sourceUrl={githubRepoPathUrl(params.owner, params.repo, decodedSplat)}
+    />
+  );
 }
 
 function decodePathFragment(value: string): string {

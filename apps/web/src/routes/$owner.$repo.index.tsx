@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { resolveRepoIntent } from "@gitinspect/pi/repo/ref-resolver";
 import { Chat } from "@gitinspect/ui/components/chat";
 import { toResolvedRepoSource } from "@gitinspect/pi/repo/path-intent";
+import { githubRepoUrl } from "@gitinspect/pi/repo/url";
 
 type RepoSearch = {
   q?: string;
@@ -23,7 +24,8 @@ export const Route = createFileRoute("/$owner/$repo/")({
 });
 
 function RepoChatRoute() {
+  const params = Route.useParams();
   const repoSource = Route.useLoaderData();
 
-  return <Chat repoSource={repoSource} />;
+  return <Chat repoSource={repoSource} sourceUrl={githubRepoUrl(params.owner, params.repo)} />;
 }
