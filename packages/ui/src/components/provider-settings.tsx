@@ -5,8 +5,7 @@ import type { ProviderGroupId, ProviderId } from "@gitinspect/pi/types/models";
 import {
   disconnectProvider,
   getOAuthProviderName,
-  importOAuthCredentials,
-  oauthLogin,
+  importOAuthCredentialsForProvider,
   setProviderApiKey,
   type OAuthProviderId,
 } from "@gitinspect/pi/auth/auth-service";
@@ -20,12 +19,10 @@ import {
   DEFAULT_PROXY_URL,
   PROXY_ENABLED_KEY,
   PROXY_URL_KEY,
-  getProxyConfig,
   proxyConfigFromSettingsRows,
 } from "@gitinspect/pi/proxy/settings";
 import { Button } from "@gitinspect/ui/components/button";
 import { Input } from "@gitinspect/ui/components/input";
-import { Textarea } from "@gitinspect/ui/components/textarea";
 import {
   Item,
   ItemActions,
@@ -33,9 +30,7 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@gitinspect/ui/components/item";
-
-/** Set to true when subscription OAuth login should be offered again. */
-const OAUTH_SUBSCRIPTION_LOGIN_ENABLED = false;
+import { Textarea } from "@gitinspect/ui/components/textarea";
 
 const SUBSCRIPTION_OAUTH_PROVIDERS: OAuthProviderId[] = [
   "anthropic",
@@ -43,6 +38,13 @@ const SUBSCRIPTION_OAUTH_PROVIDERS: OAuthProviderId[] = [
   "github-copilot",
   "google-gemini-cli",
 ];
+
+const CLI_PROVIDER_ALIASES: Record<OAuthProviderId, string> = {
+  anthropic: "anthropic",
+  "github-copilot": "copilot",
+  "google-gemini-cli": "gemini",
+  "openai-codex": "codex",
+};
 
 function sortSubscriptionOAuthByName(providers: OAuthProviderId[]): OAuthProviderId[] {
   return [...providers].sort((a, b) =>
@@ -70,6 +72,23 @@ function hasStoredPlainApiKey(
   return Boolean(trimmed && !trimmed.startsWith("{"));
 }
 
+function getCliLoginCommand(provider: OAuthProviderId): string {
+  return `npx @gitinspect/cli login -p ${CLI_PROVIDER_ALIASES[provider]}`;
+}
+
+async function copyText(value: string): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
   const providerKeys = useLiveQuery(() => db.providerKeys.toArray(), []) ?? [];
   const proxySettingRows = useLiveQuery(() =>
@@ -88,19 +107,16 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
   }, [proxySettingRows]);
 
   const [draftValues, setDraftValues] = React.useState<Partial<Record<ProviderId, string>>>({});
-  const [deviceFlowInfo, setDeviceFlowInfo] = React.useState<
-    Partial<
-      Record<
-        OAuthProviderId,
-        {
-          userCode: string;
-          verificationUri: string;
-        }
-      >
-    >
-  >({});
-  const [importValue, setImportValue] = React.useState("");
-  const [isImporting, setIsImporting] = React.useState(false);
+  const [expandedProvider, setExpandedProvider] = React.useState<OAuthProviderId | undefined>();
+  const [importValues, setImportValues] = React.useState<Partial<Record<OAuthProviderId, string>>>(
+    {},
+  );
+  const [importErrors, setImportErrors] = React.useState<Partial<Record<OAuthProviderId, string>>>(
+    {},
+  );
+  const [isImporting, setIsImporting] = React.useState<Partial<Record<OAuthProviderId, boolean>>>(
+    {},
+  );
 
   React.useEffect(() => {
     setDraftValues(
@@ -112,9 +128,6 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
       ) as Partial<Record<ProviderId, string>>,
     );
   }, [providerKeys]);
-
-  const redirectUri =
-    typeof window === "undefined" ? "/auth/callback" : `${window.location.origin}/auth/callback`;
 
   const apiKeyProviders = React.useMemo(() => getSortedApiKeyProvidersForSettings(), []);
 
@@ -129,14 +142,8 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
         <div className="space-y-1.5">
           <h3 className="text-sm font-medium">Subscription Login</h3>
           <p className="text-xs text-muted-foreground">
-            {OAUTH_SUBSCRIPTION_LOGIN_ENABLED ? (
-              <>
-                Log in with your existing subscription. No API key needed. Tokens are stored locally
-                and refreshed automatically.
-              </>
-            ) : (
-              <>Subscription OAuth login is coming soon. You can still use API keys below.</>
-            )}
+            Connect your existing subscription in your terminal, then paste the returned code back
+            here to finish setup in this browser.
           </p>
         </div>
 
@@ -163,15 +170,24 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
           {subscriptionOAuthProviders.map((provider) => {
             const record = providerKeys.find((item) => item.provider === provider);
             const connected = isOAuthConnected(record?.value);
+            const expanded = expandedProvider === provider;
+            const importValue = importValues[provider] ?? "";
+            const importError = importErrors[provider];
+            const importing = isImporting[provider] ?? false;
+            const command = getCliLoginCommand(provider);
 
             return (
               <div className="space-y-2" key={provider}>
-                <Item variant="outline">
+                <Item className="items-start" variant="outline">
                   <ItemContent>
                     <ItemTitle className="text-sm font-medium text-foreground">
                       {getOAuthProviderName(provider)}
                     </ItemTitle>
-                    <ItemDescription>{connected ? "Connected" : "Not connected"}</ItemDescription>
+                    <ItemDescription>
+                      {connected
+                        ? "Connected"
+                        : "Run a terminal login command, then paste the returned code here."}
+                    </ItemDescription>
                   </ItemContent>
                   <ItemActions className="ml-auto shrink-0">
                     {connected ? (
@@ -187,115 +203,138 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
                         size="sm"
                         variant="outline"
                       >
-                        Logout
-                      </Button>
-                    ) : OAUTH_SUBSCRIPTION_LOGIN_ENABLED ? (
-                      <Button
-                        onClick={async () => {
-                          try {
-                            const proxy = await getProxyConfig();
-                            const credentials = await oauthLogin(
-                              provider,
-                              redirectUri,
-                              (info) =>
-                                setDeviceFlowInfo((current) => ({
-                                  ...current,
-                                  [provider]: info,
-                                })),
-                              provider === "anthropic" && proxy.enabled
-                                ? { proxyUrl: proxy.url }
-                                : undefined,
-                            );
-
-                            await setProviderApiKey(provider, JSON.stringify(credentials));
-                            setDeviceFlowInfo((current) => {
-                              const next = { ...current };
-                              delete next[provider];
-                              return next;
-                            });
-                            toast.success(`${getOAuthProviderName(provider)} connected`);
-                          } catch {
-                            toast.error("Sign-in did not complete");
-                          }
-                        }}
-                        size="sm"
-                        variant="secondary"
-                      >
-                        Login
+                        Disconnect
                       </Button>
                     ) : (
-                      <Button disabled size="sm" type="button" variant="secondary">
-                        Coming soon
+                      <Button
+                        onClick={() => {
+                          setExpandedProvider(expanded ? undefined : provider);
+                          setImportErrors((current) => ({
+                            ...current,
+                            [provider]: undefined,
+                          }));
+                        }}
+                        size="sm"
+                        variant={expanded ? "outline" : "secondary"}
+                      >
+                        {expanded ? "Hide" : "Connect with CLI"}
                       </Button>
                     )}
                   </ItemActions>
                 </Item>
 
-                {deviceFlowInfo[provider] ? (
-                  <div className="text-xs text-muted-foreground">
-                    Enter code{" "}
-                    <span className="font-medium text-foreground">
-                      {deviceFlowInfo[provider]?.userCode}
-                    </span>{" "}
-                    at{" "}
-                    <a
-                      className="underline underline-offset-4"
-                      href={deviceFlowInfo[provider]?.verificationUri}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      {deviceFlowInfo[provider]?.verificationUri}
-                    </a>
-                  </div>
+                {!connected && expanded ? (
+                  <Item className="items-start" variant="muted">
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="text-sm font-medium text-foreground">
+                        Connect with login code
+                      </ItemTitle>
+                      <ItemDescription>
+                        1. Run the command below in your terminal. 2. Complete sign-in in your
+                        browser. 3. Paste the returned code here.
+                      </ItemDescription>
+                      <div className="mt-3 space-y-3">
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
+                            Run this command
+                          </div>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <code className="min-w-0 flex-1 overflow-x-auto border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+                              {command}
+                            </code>
+                            <Button
+                              className="shrink-0"
+                              onClick={async () => {
+                                if (await copyText(command)) {
+                                  toast.success("Command copied");
+                                  return;
+                                }
+                                toast.error("Could not copy command");
+                              }}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Copy command
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
+                            Paste the returned code
+                          </div>
+                          <Textarea
+                            autoComplete="off"
+                            className="min-h-24"
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setImportValues((current) => ({
+                                ...current,
+                                [provider]: value,
+                              }));
+                              if (importErrors[provider]) {
+                                setImportErrors((current) => ({
+                                  ...current,
+                                  [provider]: undefined,
+                                }));
+                              }
+                            }}
+                            placeholder={`Paste the code from ${command}`}
+                            value={importValue}
+                          />
+                          {importError ? (
+                            <div className="text-xs text-destructive">{importError}</div>
+                          ) : null}
+                          <div className="flex justify-end">
+                            <Button
+                              disabled={importing || importValue.trim().length === 0}
+                              onClick={async () => {
+                                setIsImporting((current) => ({
+                                  ...current,
+                                  [provider]: true,
+                                }));
+                                setImportErrors((current) => ({
+                                  ...current,
+                                  [provider]: undefined,
+                                }));
+
+                                try {
+                                  await importOAuthCredentialsForProvider(provider, importValue);
+                                  setImportValues((current) => ({
+                                    ...current,
+                                    [provider]: "",
+                                  }));
+                                  setExpandedProvider(undefined);
+                                  toast.success(`Connected to ${getOAuthProviderName(provider)}`);
+                                } catch (error) {
+                                  setImportErrors((current) => ({
+                                    ...current,
+                                    [provider]:
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Could not import login code",
+                                  }));
+                                } finally {
+                                  setIsImporting((current) => ({
+                                    ...current,
+                                    [provider]: false,
+                                  }));
+                                }
+                              }}
+                              size="sm"
+                              variant="secondary"
+                            >
+                              {importing ? "Connecting..." : "Connect"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </ItemContent>
+                  </Item>
                 ) : null}
               </div>
             );
           })}
-
-          <Item className="items-start" variant="outline">
-            <ItemContent className="min-w-0">
-              <ItemTitle className="text-sm font-medium text-foreground">
-                Import login code
-              </ItemTitle>
-              <ItemDescription>
-                Run <span className="font-medium text-foreground">gitinspect login</span> in your
-                terminal, then paste the base64 or JSON payload here to connect your subscription.
-              </ItemDescription>
-              <div className="mt-2 w-full space-y-2">
-                <Textarea
-                  autoComplete="off"
-                  className="min-h-24"
-                  onChange={(event) => setImportValue(event.target.value)}
-                  placeholder="Paste the login code from gitinspect login"
-                  value={importValue}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    disabled={isImporting || importValue.trim().length === 0}
-                    onClick={async () => {
-                      setIsImporting(true);
-
-                      try {
-                        const credentials = await importOAuthCredentials(importValue);
-                        setImportValue("");
-                        toast.success(`${getOAuthProviderName(credentials.providerId)} connected`);
-                      } catch (error) {
-                        toast.error(
-                          error instanceof Error ? error.message : "Could not import login code",
-                        );
-                      } finally {
-                        setIsImporting(false);
-                      }
-                    }}
-                    size="sm"
-                    variant="secondary"
-                  >
-                    Import login code
-                  </Button>
-                </div>
-              </div>
-            </ItemContent>
-          </Item>
         </div>
       </section>
 

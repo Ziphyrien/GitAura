@@ -63,6 +63,22 @@ export async function importOAuthCredentials(value: string): Promise<OAuthCreden
   return credentials;
 }
 
+export async function importOAuthCredentialsForProvider(
+  provider: OAuthProviderId,
+  value: string,
+): Promise<OAuthCredentials> {
+  const credentials = parseImportedOAuthCredentials(value);
+
+  if (credentials.providerId !== provider) {
+    throw new Error(
+      `This code is for ${getOAuthProviderName(credentials.providerId)}. Paste it into the ${getOAuthProviderName(provider)} row instead.`,
+    );
+  }
+
+  await upsertProviderOAuth(provider, credentials);
+  return credentials;
+}
+
 export async function setProviderApiKey(provider: ProviderId, value: string): Promise<void> {
   await setProviderKey(provider, value);
 }
