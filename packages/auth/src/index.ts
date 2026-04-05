@@ -13,6 +13,10 @@ export function createAuth() {
     trustedOrigins: [env.CORS_ORIGIN],
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    session: {
+      expiresIn: 60 * 60 * 24 * 30,
+      updateAge: 60 * 60 * 24,
+    },
     plugins: [tanstackStartCookies()],
   });
 }
