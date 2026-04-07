@@ -1,63 +1,38 @@
+import { auth } from "@gitinspect/auth";
 import { env } from "@gitinspect/env/server";
 import { createFileRoute } from "@tanstack/react-router";
 import { autumnHandler } from "autumn-js/fetch";
 
-import {
-  assertAllowedAutumnMutationRequest,
-  resolveAutumnCustomerData,
-  trackAutumnMessageUsage,
-} from "@/lib/autumn.server";
-
-const autumnApiKey = env.AUTUMN_API_KEY;
-
 const handleAutumnRequest = autumnHandler({
   identify: async (request) => {
-    const identity = await resolveAutumnCustomerData(request);
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
 
-    if (!identity) {
-      return null;
-    }
-
-    return identity;
+    return {
+      customerData: {
+        email: session?.user.email ?? undefined,
+        name: session?.user.name ?? undefined,
+      },
+      customerId: session?.user.ghId,
+    };
   },
   pathPrefix: "/api/autumn",
-  secretKey: autumnApiKey,
+  secretKey: env.AUTUMN_SECRET_KEY,
 });
 
 export const Route = createFileRoute("/api/autumn/$")({
   server: {
     handlers: {
       ANY: async ({ request }) => {
-        if (!autumnApiKey) {
+        if (!env.AUTUMN_SECRET_KEY) {
           return Response.json(
             {
               error:
-                "Autumn is not configured yet. Add AUTUMN_API_KEY and run `npx atmn init` to generate autumn.config.ts.",
+                "Autumn is not configured yet. Add AUTUMN_SECRET_KEY and sync your autumn.config.ts.",
             },
             { status: 503 },
           );
-        }
-
-        const url = new URL(request.url);
-
-        if (url.pathname === "/api/autumn/track-message") {
-          if (request.method !== "POST") {
-            return Response.json({ error: "Method not allowed" }, { status: 405 });
-          }
-
-          const denied = assertAllowedAutumnMutationRequest(request);
-
-          if (denied) {
-            return denied;
-          }
-
-          try {
-            await trackAutumnMessageUsage(request);
-            return Response.json({ ok: true }, { status: 200 });
-          } catch (error) {
-            console.error("Autumn message tracking failed", error);
-            return Response.json({ error: "Could not track message usage" }, { status: 502 });
-          }
         }
 
         return await handleAutumnRequest(request);

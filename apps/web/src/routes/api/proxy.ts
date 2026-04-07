@@ -1,12 +1,39 @@
+import { auth } from "@gitinspect/auth";
 import { env } from "@gitinspect/env/server";
 import { createFileRoute } from "@tanstack/react-router";
+import { Autumn } from "autumn-js";
 
 const ALLOWED_HOSTS = new Set(["api.fireworks.ai"]);
+const AUTUMN_MESSAGES_FEATURE_ID = "messages";
+const autumn = env.AUTUMN_SECRET_KEY
+  ? new Autumn({
+      secretKey: env.AUTUMN_SECRET_KEY,
+    })
+  : null;
 
 export const Route = createFileRoute("/api/proxy")({
   server: {
     handlers: {
       ANY: async ({ request }) => {
+        if (request.method === "OPTIONS") {
+          return new Response("", {
+            headers: {
+              "access-control-allow-headers":
+                "content-type, authorization, x-gitinspect-bill-first",
+              "access-control-allow-methods": "GET, POST, OPTIONS",
+              "access-control-allow-origin": "*",
+            },
+          });
+        }
+
+        const session = await auth.api.getSession({
+          headers: request.headers,
+        });
+
+        if (!session?.user.ghId) {
+          return Response.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const url = new URL(request.url);
         const targetUrl = url.searchParams.get("url");
 
@@ -30,14 +57,31 @@ export const Route = createFileRoute("/api/proxy")({
           return Response.json({ error: "Server proxy is not configured" }, { status: 503 });
         }
 
-        if (request.method === "OPTIONS") {
-          return new Response("", {
-            headers: {
-              "access-control-allow-headers": "content-type, authorization",
-              "access-control-allow-methods": "GET, POST, OPTIONS",
-              "access-control-allow-origin": "*",
-            },
-          });
+        const shouldTrackUsage =
+          request.method !== "GET" &&
+          request.method !== "HEAD" &&
+          request.headers.get("x-gitinspect-bill-first") === "1";
+
+        if (shouldTrackUsage) {
+          if (!autumn) {
+            return Response.json({ error: "Billing is not configured" }, { status: 503 });
+          }
+
+          try {
+            const { allowed } = await autumn.check({
+              customerId: session.user.ghId,
+              featureId: AUTUMN_MESSAGES_FEATURE_ID,
+              requiredBalance: 1,
+            });
+
+            if (!allowed) {
+              return Response.json({ error: "You're out of messages" }, { status: 402 });
+            }
+          } catch (error) {
+            console.error("[gitinspect:billing] proxy_check_message_failed", error);
+
+            return Response.json({ error: "Could not verify message allowance" }, { status: 502 });
+          }
         }
 
         const forwardHeaders = new Headers({
@@ -50,7 +94,7 @@ export const Route = createFileRoute("/api/proxy")({
         }
 
         for (const [key, value] of request.headers.entries()) {
-          if (key.startsWith("x-")) {
+          if (key.startsWith("x-") && key !== "x-gitinspect-bill-first") {
             forwardHeaders.set(key, value);
           }
         }
@@ -65,6 +109,18 @@ export const Route = createFileRoute("/api/proxy")({
           headers: forwardHeaders,
           method: request.method,
         });
+
+        if (shouldTrackUsage && response.ok && autumn) {
+          try {
+            await autumn.track({
+              customerId: session.user.ghId,
+              featureId: AUTUMN_MESSAGES_FEATURE_ID,
+              value: 1,
+            });
+          } catch (error) {
+            console.error("[gitinspect:billing] proxy_track_message_failed", error);
+          }
+        }
 
         if (!response.body) {
           return new Response("", {
