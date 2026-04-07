@@ -9,42 +9,36 @@ export type RepoPathIntent =
       type: "repo-root";
       owner: string;
       repo: string;
-      token?: string;
     }
   | {
       type: "shorthand-ref";
       owner: string;
       repo: string;
       rawRef: string;
-      token?: string;
     }
   | {
       type: "commit-page";
       owner: string;
       repo: string;
       sha: string;
-      token?: string;
     }
   | {
       type: "tree-page";
       owner: string;
       repo: string;
       tail: string;
-      token?: string;
     }
   | {
       type: "blob-page";
       owner: string;
       repo: string;
       tail: string;
-      token?: string;
     }
   | {
       type: "unsupported-repo-page";
       owner: string;
       repo: string;
       page: string;
-      token?: string;
     }
   | {
       type: "invalid";
@@ -60,7 +54,6 @@ export type ResolvedRepoLocation = {
   fallbackReason?: "unsupported-page";
   view: "repo" | "tree" | "blob";
   subpath?: string;
-  token?: string;
 };
 
 export function toResolvedRepoSource(location: ResolvedRepoLocation): ResolvedRepoSource {
@@ -70,6 +63,5 @@ export function toResolvedRepoSource(location: ResolvedRepoLocation): ResolvedRe
     refOrigin: location.refOrigin,
     repo: location.repo,
     resolvedRef: location.resolvedRef,
-    token: location.token,
   };
 }

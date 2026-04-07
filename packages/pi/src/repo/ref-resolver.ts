@@ -60,7 +60,7 @@ async function throwGitHubResponseError(response: Response, path: string): Promi
 }
 
 async function requestGitHubJson<T>(path: string, pathForError: string): Promise<T> {
-  const response = await githubApiFetch(path);
+  const response = await githubApiFetch(path, { access: "repo" });
   if (!response.ok) {
     await throwGitHubResponseError(response, pathForError);
   }
@@ -72,7 +72,7 @@ async function requestGitHubJsonOrUndefined<T>(
   pathForError: string,
   allowedMissingStatuses: readonly number[] = [404],
 ): Promise<T | undefined> {
-  const response = await githubApiFetch(path);
+  const response = await githubApiFetch(path, { access: "repo" });
   if (allowedMissingStatuses.includes(response.status)) {
     return undefined;
   }
@@ -115,6 +115,7 @@ async function lookupGitRef(
   return await requestGitHubJsonOrUndefined<GitHubGitRefLookup>(
     `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/ref/${namespace}/${encodeURIComponent(name)}`,
     name,
+    [404],
   );
 }
 
@@ -250,7 +251,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         ref: displayResolvedRepoRef(resolvedRef),
         refOrigin: "default",
         resolvedRef,
-        token: intent.token,
         view: "repo",
       };
     }
@@ -263,7 +263,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         ref: displayResolvedRepoRef(resolvedRef),
         refOrigin: "explicit",
         resolvedRef,
-        token: intent.token,
         view: "repo",
       };
     }
@@ -276,7 +275,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         ref: displayResolvedRepoRef(resolvedRef),
         refOrigin: "explicit",
         resolvedRef,
-        token: intent.token,
         view: "repo",
       };
     }
@@ -290,7 +288,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         refOrigin: "explicit",
         resolvedRef: result.resolvedRef,
         subpath: result.subpath,
-        token: intent.token,
         view: "tree",
       };
     }
@@ -304,7 +301,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         refOrigin: "explicit",
         resolvedRef: result.resolvedRef,
         subpath: result.subpath,
-        token: intent.token,
         view: "blob",
       };
     }
@@ -319,7 +315,6 @@ export async function resolveRepoIntent(intent: RepoPathIntent): Promise<Resolve
         refOrigin: "default",
         resolvedRef,
         fallbackReason: "unsupported-page",
-        token: intent.token,
         view: "repo",
       };
     }

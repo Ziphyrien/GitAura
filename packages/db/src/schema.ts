@@ -15,9 +15,11 @@ import type {
   ResolvedRepoRef,
   ResolvedRepoSource,
   RepositoryRow,
+  RuntimePhase,
   SessionData,
   SessionLeaseRow,
   SessionRuntimeRow,
+  SessionRuntimeStatus,
   SettingsRow,
 } from "@gitinspect/db/storage-types";
 import type { JsonValue } from "@gitinspect/pi/types/common";
@@ -41,6 +43,14 @@ type LegacySessionRepoSource = {
 
 type LegacySessionData = Omit<SessionData, "repoSource"> & {
   repoSource?: LegacySessionRepoSource;
+};
+
+type LegacyMessageRow = Omit<MessageRow, "order"> & {
+  order?: number;
+};
+
+type LegacySessionRuntimeRow = Omit<SessionRuntimeRow, "phase"> & {
+  phase?: RuntimePhase;
 };
 
 function trimToUndefined(value: string | undefined): string | undefined {
@@ -95,6 +105,90 @@ function resolveDeterministicLegacyRef(ref: string): ResolvedRepoRef | undefined
   return undefined;
 }
 
+function deriveRuntimePhase(status: SessionRuntimeStatus | undefined): RuntimePhase {
+  switch (status) {
+    case "streaming":
+      return "running";
+    case "interrupted":
+    case "aborted":
+    case "error":
+      return "interrupted";
+    default:
+      return "idle";
+  }
+}
+
+function sortMessagesForOrder(messages: LegacyMessageRow[]): LegacyMessageRow[] {
+  return [...messages].sort((left, right) => {
+    const leftOrder = typeof left.order === "number" ? left.order : Number.MAX_SAFE_INTEGER;
+    const rightOrder = typeof right.order === "number" ? right.order : Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    if (left.timestamp !== right.timestamp) {
+      return left.timestamp - right.timestamp;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
+
+async function backfillMessageOrder(table: Table<LegacyMessageRow, string>): Promise<void> {
+  const messages = await table.toArray();
+  const bySession = new Map<string, LegacyMessageRow[]>();
+
+  for (const message of messages) {
+    const sessionMessages = bySession.get(message.sessionId);
+
+    if (sessionMessages) {
+      sessionMessages.push(message);
+      continue;
+    }
+
+    bySession.set(message.sessionId, [message]);
+  }
+
+  const updates: LegacyMessageRow[] = [];
+
+  for (const sessionMessages of bySession.values()) {
+    sortMessagesForOrder(sessionMessages).forEach((message, index) => {
+      if (message.order === index) {
+        return;
+      }
+
+      updates.push({
+        ...message,
+        order: index,
+      });
+    });
+  }
+
+  if (updates.length > 0) {
+    await table.bulkPut(updates);
+  }
+}
+
+async function backfillRuntimePhase(table: Table<LegacySessionRuntimeRow, string>): Promise<void> {
+  const runtimes = await table.toArray();
+  const updates = runtimes.flatMap((runtime) => {
+    const phase = runtime.phase ?? deriveRuntimePhase(runtime.status);
+    return runtime.phase === phase
+      ? []
+      : [
+          {
+            ...runtime,
+            phase,
+          },
+        ];
+  });
+
+  if (updates.length > 0) {
+    await table.bulkPut(updates);
+  }
+}
+
 function migrateLegacyRepoSource(
   source: LegacySessionRepoSource | undefined,
 ): ResolvedRepoSource | undefined {
@@ -123,7 +217,6 @@ function migrateLegacyRepoSource(
     refOrigin: source.refOrigin ?? "explicit",
     repo,
     resolvedRef,
-    token: trimToUndefined(source.token),
   };
 }
 
@@ -205,6 +298,25 @@ export class AppDb extends Dexie {
         await sessions.toCollection().modify((row) => {
           row.repoSource = migrateLegacyRepoSource(row.repoSource);
         });
+      });
+    this.version(5)
+      .stores({
+        daily_costs: "date",
+        messages:
+          "id, sessionId, [sessionId+order], [sessionId+timestamp], [sessionId+status], order, timestamp, status",
+        "provider-keys": "provider, updatedAt",
+        repositories: "[owner+repo+ref], lastOpenedAt",
+        session_leases: "sessionId, ownerTabId, heartbeatAt",
+        session_runtime: "sessionId, phase, status, ownerTabId, lastProgressAt, updatedAt",
+        sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
+        settings: "key, updatedAt",
+      })
+      .upgrade(async (tx) => {
+        const messages = tx.table("messages") as Table<LegacyMessageRow, string>;
+        const runtime = tx.table("session_runtime") as Table<LegacySessionRuntimeRow, string>;
+
+        await backfillMessageOrder(messages);
+        await backfillRuntimePhase(runtime);
       });
     this.dailyCosts = this.table("daily_costs");
     this.messages = this.table("messages");
@@ -298,9 +410,9 @@ export async function getSession(id: string): Promise<SessionData | undefined> {
 
 export async function getSessionMessages(sessionId: string): Promise<MessageRow[]> {
   return await db.messages
-    .where("[sessionId+timestamp]")
+    .where("[sessionId+order]")
     .between([sessionId, Dexie.minKey], [sessionId, Dexie.maxKey])
-    .sortBy("timestamp");
+    .sortBy("order");
 }
 
 export async function listSessions(): Promise<SessionData[]> {
@@ -365,6 +477,10 @@ export async function getSessionRuntime(sessionId: string): Promise<SessionRunti
 
 export async function putSessionRuntime(row: SessionRuntimeRow): Promise<void> {
   await db.sessionRuntime.put(row);
+}
+
+export async function runConversationTransaction<T>(callback: () => Promise<T>): Promise<T> {
+  return await db.transaction("rw", db.sessions, db.messages, db.sessionRuntime, callback);
 }
 
 export async function deleteSessionRuntime(sessionId: string): Promise<void> {

@@ -42,12 +42,6 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => state.search,
 }));
 
-vi.mock("@/agent/runtime-client", () => ({
-  runtimeClient: {
-    refreshGithubToken: vi.fn(() => Promise.resolve()),
-  },
-}));
-
 vi.mock("@/hooks/use-selected-session-summary", () => ({
   useSelectedSessionSummary: () => undefined,
 }));

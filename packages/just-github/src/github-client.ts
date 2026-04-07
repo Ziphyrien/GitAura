@@ -5,7 +5,10 @@ import {
   type GitHubTreeResponse,
 } from "./types.js";
 import { displayResolvedRef, type GitHubResolvedRef } from "./refs.js";
-import { GitHubRateLimitController, parseGitHubRateLimitInfo } from "./github-rate-limit.js";
+import {
+  getGitHubRateLimitResponseDetails,
+  parseGitHubRateLimitInfo,
+} from "./github-rate-limit.js";
 import {
   readGitHubErrorMessage,
   shouldRetryUnauthenticated,
@@ -18,6 +21,7 @@ export interface GitHubClientOptions {
   repo: string;
   ref: GitHubResolvedRef;
   token?: string;
+  getToken?: () => Promise<string | undefined>;
   baseUrl: string;
 }
 
@@ -57,8 +61,8 @@ export class GitHubClient {
   private readonly repo: string;
   private readonly ref: GitHubResolvedRef;
   private readonly token?: string;
+  private readonly getToken?: () => Promise<string | undefined>;
   private readonly baseUrl: string;
-  private readonly rateLimitController = new GitHubRateLimitController();
   private resolvedCommitPromise?: Promise<GitHubCommitResponse>;
   rateLimit: RateLimitInfo | null = null;
 
@@ -67,6 +71,7 @@ export class GitHubClient {
     this.repo = options.repo;
     this.ref = options.ref;
     this.token = options.token;
+    this.getToken = options.getToken;
     this.baseUrl = options.baseUrl;
   }
 
@@ -122,37 +127,40 @@ export class GitHubClient {
   }
 
   private async request<T>(url: string, pathForError: string): Promise<T> {
-    const res = await this.fetchWithOptionalAnonymousFallback(
+    const token = await this.resolveToken();
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github.v3+json",
+    };
+
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await this.fetchWithOptionalAnonymousFallback(
       url,
-      {
-        Accept: "application/vnd.github.v3+json",
-        ...this.buildHeaders(),
-      },
+      headers,
       pathForError,
+      token,
     );
 
-    if (!res.ok) {
-      throw await this.httpError(res, pathForError);
+    if (!response.ok) {
+      throw await this.httpError(response, pathForError);
     }
 
-    return res.json() as Promise<T>;
+    return response.json() as Promise<T>;
   }
 
-  private buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-    return headers;
+  private async resolveToken(): Promise<string | undefined> {
+    const token = await this.getToken?.();
+    return token ?? this.token;
   }
 
   private async fetchWithOptionalAnonymousFallback(
     url: string,
     headers: Record<string, string>,
     pathForError: string,
+    token: string | undefined,
   ): Promise<Response> {
-    this.throwIfRateLimited(pathForError);
-
     let response: Response;
 
     try {
@@ -168,12 +176,17 @@ export class GitHubClient {
       });
     }
 
-    const rateLimitBlock = await this.observeRateLimit(response);
-    if (rateLimitBlock) {
-      throw this.createRateLimitError(pathForError, rateLimitBlock.blockedUntilMs);
+    this.observeRateLimit(response);
+    const rateLimitDetails = await getGitHubRateLimitResponseDetails(response);
+    if (rateLimitDetails) {
+      throw this.createRateLimitError(
+        pathForError,
+        rateLimitDetails.retryAtMs,
+        rateLimitDetails.kind,
+      );
     }
 
-    if (response.ok || !this.token) {
+    if (response.ok || !token) {
       return response;
     }
 
@@ -185,42 +198,40 @@ export class GitHubClient {
     const fallbackResponse = await fetch(url, {
       headers: stripAuthorization(headers),
     });
-    const fallbackRateLimitBlock = await this.observeRateLimit(fallbackResponse);
 
-    if (fallbackRateLimitBlock) {
-      return response;
+    this.observeRateLimit(fallbackResponse);
+    const fallbackRateLimitDetails = await getGitHubRateLimitResponseDetails(fallbackResponse);
+    if (fallbackRateLimitDetails) {
+      throw this.createRateLimitError(
+        pathForError,
+        fallbackRateLimitDetails.retryAtMs,
+        fallbackRateLimitDetails.kind,
+      );
     }
 
     return fallbackResponse.ok ? fallbackResponse : response;
   }
 
-  private async observeRateLimit(res: Response) {
+  private observeRateLimit(res: Response): void {
     const info = parseGitHubRateLimitInfo(res);
     if (info) {
       this.rateLimit = info;
     }
-
-    return await this.rateLimitController.afterResponse(res);
   }
 
-  private throwIfRateLimited(path: string): void {
-    const rateLimitBlock = this.rateLimitController.beforeRequest();
-    if (!rateLimitBlock) {
-      return;
-    }
-
-    throw this.createRateLimitError(path, rateLimitBlock.blockedUntilMs);
-  }
-
-  private createRateLimitError(path: string, blockedUntilMs: number): GitHubFsError {
+  private createRateLimitError(
+    path: string,
+    retryAt: number | undefined,
+    rateLimitKind: "primary" | "secondary" | "unknown",
+  ): GitHubFsError {
     return new GitHubFsError({
       code: "EACCES",
       isRetryable: true,
       kind: "rate_limit",
-      message: `GitHub API rate limit exceeded (retry after ${new Date(blockedUntilMs).toLocaleTimeString()}): ${path}`,
+      message: `GitHub API rate limit exceeded${retryAt ? ` (retry after ${new Date(retryAt).toLocaleTimeString()})` : ""}: ${path}`,
       path,
-      rateLimitKind: "unknown",
-      retryAt: blockedUntilMs,
+      rateLimitKind,
+      retryAt,
       status: 429,
     });
   }

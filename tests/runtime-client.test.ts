@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionRunner } from "@/agent/session-runner";
-import type { MessageRow, SessionData, SessionLeaseRow } from "@/types/storage";
+import type { SessionData, SessionLeaseRow } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
 
 const claimSessionLease = vi.fn(
@@ -19,25 +19,17 @@ const loadSessionLeaseState = vi.fn(async () => ({ kind: "none" as const }));
 const releaseOwnedSessionLeases = vi.fn(async () => {});
 const releaseSessionLease = vi.fn(async () => {});
 const renewSessionLease = vi.fn(async () => undefined);
-const getSessionRuntime = vi.fn(async () => undefined);
-const putSession = vi.fn(async () => {});
 const loadSession = vi.fn(
   async (_sessionId: string): Promise<SessionData | undefined> => createSession(),
 );
-const loadSessionWithMessages = vi.fn(
-  async (
-    _sessionId: string,
-  ): Promise<
-    | {
-        messages: MessageRow[];
-        session: SessionData;
-      }
-    | undefined
-  > => ({
-    messages: [],
-    session: createSession(),
-  }),
-);
+const loadSessionViewModel = vi.fn(async () => ({
+  displayMessages: [],
+  hasPartialAssistantText: false,
+  isStreaming: false,
+  runtime: undefined,
+  session: createSession(),
+  transcriptMessages: [],
+}));
 const reconcileInterruptedSession = vi.fn(async () => {});
 
 type RunnerHarness = {
@@ -81,7 +73,6 @@ function createRunnerHarness(): RunnerHarness {
     abort: vi.fn(async () => {}),
     dispose: vi.fn(async () => {}),
     isBusy: vi.fn(() => false),
-    refreshGithubToken: vi.fn(async () => {}),
     setModelSelection: vi.fn(async () => {}),
     setThinkingLevel: vi.fn(async () => {}),
     startTurn,
@@ -96,12 +87,12 @@ function createRunnerHarness(): RunnerHarness {
   };
 }
 
-const WorkerBackedAgentHost = vi.fn(
-  (_session: SessionData, _messages: MessageRow[]): SessionRunner => {
-    currentHarness = createRunnerHarness();
-    return currentHarness.runner;
-  },
-);
+const WorkerBackedAgentHost = vi.fn(function WorkerBackedAgentHostMock(
+  _session: SessionData,
+): SessionRunner {
+  currentHarness = createRunnerHarness();
+  return currentHarness.runner;
+});
 
 vi.mock("@/agent/runtime-flags", () => ({
   ENABLE_RUNTIME_WORKER: true,
@@ -109,10 +100,6 @@ vi.mock("@/agent/runtime-flags", () => ({
 
 vi.mock("@/agent/worker-backed-agent-host", () => ({
   WorkerBackedAgentHost,
-}));
-
-vi.mock("@/agent/agent-host", () => ({
-  AgentHost: vi.fn(),
 }));
 
 vi.mock("@/db/session-leases", () => ({
@@ -124,18 +111,16 @@ vi.mock("@/db/session-leases", () => ({
   renewSessionLease,
 }));
 
-vi.mock("@/db/schema", () => ({
-  getSessionRuntime,
-  putSession,
-}));
-
 vi.mock("@/repo/github-token", () => ({
   getGithubPersonalAccessToken: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/sessions/session-service", () => ({
   loadSession,
-  loadSessionWithMessages,
+}));
+
+vi.mock("@/sessions/session-view-model", () => ({
+  loadSessionViewModel,
 }));
 
 vi.mock("@/sessions/session-notices", () => ({
@@ -168,10 +153,8 @@ describe("RuntimeClient", () => {
     releaseOwnedSessionLeases.mockClear();
     releaseSessionLease.mockClear();
     renewSessionLease.mockClear();
-    getSessionRuntime.mockClear();
-    putSession.mockClear();
     loadSession.mockClear();
-    loadSessionWithMessages.mockClear();
+    loadSessionViewModel.mockClear();
     reconcileInterruptedSession.mockClear();
     WorkerBackedAgentHost.mockClear();
     currentHarness = undefined;

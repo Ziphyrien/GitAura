@@ -28,6 +28,7 @@ export class GitHubFs implements IFileSystem {
       repo: options.repo,
       ref: options.ref,
       token: options.token,
+      getToken: options.getToken,
       baseUrl: options.baseUrl ?? "https://api.github.com",
     });
 

@@ -1,31 +1,17 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
-import type { RuntimeErrorPayload } from "@gitinspect/pi/agent/runtime-error-payload";
+import type { TurnEnvelope } from "@gitinspect/pi/agent/turn-event-store";
 import type { ProviderGroupId, ThinkingLevel } from "@gitinspect/pi/types/models";
-import type { MessageRow, SessionData } from "@gitinspect/db/storage-types";
-import type { TurnEnvelope } from "@gitinspect/pi/agent/agent-turn-persistence";
+import type { SessionData } from "@gitinspect/db/storage-types";
 
-export type WorkerSnapshot = {
-  error: string | undefined;
-  isStreaming: boolean;
-  messages: AgentMessage[];
-  streamMessage: AgentMessage | null;
-};
+export type TurnCompletionStatus = "aborted" | "completed" | "error" | "interrupted";
 
-export type WorkerSnapshotEnvelope = {
-  rotateStreamingAssistantDraft?: boolean;
-  runtimeErrors?: RuntimeErrorPayload[];
+export type TurnCompletionResult = {
+  lastError?: string;
   sessionId: string;
-  snapshot: WorkerSnapshot;
-  terminalStatus?: "aborted" | "error";
+  status: TurnCompletionStatus;
 };
-
-export interface RuntimeWorkerEvents {
-  pushSnapshot(envelope: WorkerSnapshotEnvelope): Promise<void>;
-}
 
 export type StartTurnInput = {
-  githubRuntimeToken?: string;
-  messages: MessageRow[];
+  ownerTabId: string;
   session: SessionData;
   turn: TurnEnvelope;
 };
@@ -41,7 +27,11 @@ export type SetThinkingLevelInput = {
   thinkingLevel: ThinkingLevel;
 };
 
-export type RefreshGithubTokenInput = {
+export type AppendSessionNoticeInput = {
+  error: string;
   sessionId: string;
-  token?: string;
+};
+
+export type ReconcileInterruptedSessionInput = {
+  sessionId: string;
 };

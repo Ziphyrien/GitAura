@@ -2,7 +2,6 @@ import * as React from "react";
 import { Link, useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router";
 import type { SettingsSection } from "@gitinspect/ui/lib/search-state";
 
-import { runtimeClient } from "@gitinspect/pi/agent/runtime-client";
 import { Icons } from "@gitinspect/ui/components/icons";
 import { CostsPanel } from "@gitinspect/ui/components/costs-panel";
 import { DataSettings } from "@gitinspect/ui/components/data-settings";
@@ -233,9 +232,6 @@ export function AppSettingsDialog(props: {
                 {section === "github" ? (
                   <GithubTokenSettings
                     onTokenSaved={async () => {
-                      if (sessionId) {
-                        await runtimeClient.refreshGithubToken(sessionId);
-                      }
                       await router.invalidate();
                     }}
                   />

@@ -325,61 +325,24 @@ describe("GitHubFs", () => {
       expect(rateLimit?.remaining).toBe(4999);
     });
 
-    it("blocks repeated reads until the primary rate limit reset", async () => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date("2026-03-29T10:00:00.000Z"));
-
+    it("does not keep cross-request blocked state after a rate limit response", async () => {
       const resetAtSeconds = Math.floor((Date.now() + 2 * 60_000) / 1000);
-      let shouldRateLimit = true;
       fetchSpy = vi.fn(async (url: string | URL | Request) => {
         const urlStr = requestToString(url);
 
         if (urlStr.includes("git/ref/heads/main")) {
-          if (shouldRateLimit) {
-            shouldRateLimit = false;
-            return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
-              headers: {
-                "Content-Type": "application/json",
-                "x-ratelimit-limit": "60",
-                "x-ratelimit-remaining": "0",
-                "x-ratelimit-reset": String(resetAtSeconds),
-              },
-              status: 403,
-            });
-          }
-
-          return new Response(JSON.stringify({ object: { sha: "commit-sha", type: "commit" } }), {
+          return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
             headers: {
               "Content-Type": "application/json",
               "x-ratelimit-limit": "60",
-              "x-ratelimit-remaining": "59",
-              "x-ratelimit-reset": String(resetAtSeconds + 3600),
+              "x-ratelimit-remaining": "0",
+              "x-ratelimit-reset": String(resetAtSeconds),
             },
-            status: 200,
+            status: 403,
           });
         }
 
-        if (urlStr.includes("commits/commit-sha")) {
-          return new Response(JSON.stringify(mockCommitResponse), {
-            headers: {
-              "Content-Type": "application/json",
-              "x-ratelimit-limit": "60",
-              "x-ratelimit-remaining": "59",
-              "x-ratelimit-reset": String(resetAtSeconds + 3600),
-            },
-            status: 200,
-          });
-        }
-
-        return new Response(JSON.stringify(mockFileContent), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "59",
-            "x-ratelimit-reset": String(resetAtSeconds + 3600),
-          },
-          status: 200,
-        });
+        return new Response("Not Found", { status: 404 });
       });
       vi.stubGlobal("fetch", fetchSpy);
       fs = new GitHubFs({ owner: "o", ref: MAIN_REF, repo: "r" });
@@ -388,16 +351,12 @@ describe("GitHubFs", () => {
         code: "EACCES",
         kind: "rate_limit",
       });
-
       await expect(fs.readFile("README.md")).rejects.toMatchObject({
         code: "EACCES",
         kind: "rate_limit",
       });
 
-      vi.advanceTimersByTime(2 * 60_000);
-
-      await expect(fs.readFile("src/index.ts")).resolves.toBe("export const hello = 'world';");
-      expect(fetchSpy).toHaveBeenCalledTimes(4);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
   });
 });

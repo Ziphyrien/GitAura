@@ -1,18 +1,12 @@
 import { Bash } from "just-bash/browser";
 import { GitHubFs } from "@gitinspect/just-github/github-fs";
-import type { RepoExecResult, RepoRuntime } from "@gitinspect/pi/repo/repo-types";
 import type { ResolvedRepoSource } from "@gitinspect/db/storage-types";
+import { resolveRegisteredGitHubAccess } from "@gitinspect/pi/repo/github-access";
+import type { RepoExecResult, RepoRuntime } from "@gitinspect/pi/repo/repo-types";
 
-/** Merge persisted session token (legacy) with global PAT from settings. */
-export function mergeRepoSourceWithRuntimeToken(
-  source: ResolvedRepoSource,
-  runtimeToken?: string,
-): ResolvedRepoSource {
-  const rt = runtimeToken?.trim();
-  return {
-    ...source,
-    token: source.token ?? (rt ? rt : undefined),
-  };
+async function resolveRuntimeRepoToken(): Promise<string | undefined> {
+  const access = await resolveRegisteredGitHubAccess({ requireRepoScope: true });
+  return access.ok ? access.token : undefined;
 }
 
 function shellEscape(value: string): string {
@@ -31,17 +25,12 @@ function normalizeCwd(next: string | undefined): string {
   return `/${next}`;
 }
 
-export function createRepoRuntime(
-  source: ResolvedRepoSource,
-  options?: { runtimeToken?: string },
-): RepoRuntime {
-  const withToken = mergeRepoSourceWithRuntimeToken(source, options?.runtimeToken);
-
+export function createRepoRuntime(source: ResolvedRepoSource): RepoRuntime {
   const fs = new GitHubFs({
-    owner: withToken.owner,
-    ref: withToken.resolvedRef,
-    repo: withToken.repo,
-    token: withToken.token,
+    owner: source.owner,
+    ref: source.resolvedRef,
+    repo: source.repo,
+    getToken: async () => await resolveRuntimeRepoToken(),
   });
   const bash = new Bash({
     cwd: "/",
@@ -70,13 +59,12 @@ export function createRepoRuntime(
 
 export function createOptionalRepoRuntime(
   source: ResolvedRepoSource | undefined,
-  options?: { runtimeToken?: string },
 ): RepoRuntime | undefined {
   if (!source) {
     return undefined;
   }
 
-  return createRepoRuntime(source, options);
+  return createRepoRuntime(source);
 }
 
 export async function execInRepoShell(

@@ -6,6 +6,7 @@ export interface GitHubFsOptions {
   repo: string;
   ref: GitHubResolvedRef;
   token?: string;
+  getToken?: () => Promise<string | undefined>;
   baseUrl?: string;
   cache?: CacheOptions;
 }

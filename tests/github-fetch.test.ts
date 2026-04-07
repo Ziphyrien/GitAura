@@ -1,10 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const state = vi.hoisted(() => ({
+  env: {
+    VITE_GITHUB_PROXY_ENABLED: false,
+  },
+}));
 
 const toastErrorMock = vi.fn();
 const appendSessionNoticeMock = vi.fn(async () => {});
-const getGithubPersonalAccessTokenMock = vi.fn<() => Promise<string | undefined>>(
-  async () => undefined,
-);
+const resolveRegisteredGitHubRequestAuthMock = vi.fn();
 
 vi.mock("sonner", () => ({
   toast: {
@@ -12,131 +16,301 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/repo/github-token", () => ({
-  getGithubPersonalAccessToken: getGithubPersonalAccessTokenMock,
+vi.mock("@gitinspect/env/web", () => ({
+  env: state.env,
+}));
+
+vi.mock("@/repo/github-access", () => ({
+  getGitHubNoticeCta: () => ({
+    intent: "sign-in" as const,
+    label: "Sign in with GitHub",
+  }),
+  resolveRegisteredGitHubRequestAuth: (access?: "public" | "repo") =>
+    resolveRegisteredGitHubRequestAuthMock(access),
+}));
+
+vi.mock("@/repo/github-auth-ui", () => ({
+  getGitHubAuthUiBridge: () => undefined,
 }));
 
 vi.mock("@/sessions/session-notices", () => ({
   appendSessionNotice: appendSessionNoticeMock,
 }));
 
+function createJsonResponse(
+  value: object,
+  status = 200,
+  headers?: Record<string, string>,
+): Response {
+  return new Response(JSON.stringify(value), {
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    status,
+  });
+}
+
+function createRateLimitResponse(): Response {
+  return createJsonResponse({ message: "API rate limit exceeded" }, 403, {
+    "x-ratelimit-limit": "60",
+    "x-ratelimit-remaining": "0",
+    "x-ratelimit-reset": String(Math.floor((Date.now() + 60_000) / 1000)),
+  });
+}
+
 describe("github-fetch", () => {
+  beforeEach(() => {
+    state.env.VITE_GITHUB_PROXY_ENABLED = false;
+    toastErrorMock.mockReset();
+    appendSessionNoticeMock.mockReset();
+    resolveRegisteredGitHubRequestAuthMock.mockReset();
+    resolveRegisteredGitHubRequestAuthMock.mockResolvedValue({ mode: "anon" as const });
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    vi.useRealTimers();
     vi.resetModules();
-    toastErrorMock.mockReset();
-    appendSessionNoticeMock.mockReset();
-    getGithubPersonalAccessTokenMock.mockReset();
-    getGithubPersonalAccessTokenMock.mockResolvedValue(undefined);
   });
 
-  it("blocks repeated requests until the primary rate limit reset", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-29T10:00:00.000Z"));
-
-    const resetAtSeconds = Math.floor((Date.now() + 2 * 60_000) / 1000);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "0",
-            "x-ratelimit-reset": String(resetAtSeconds),
-          },
-          status: 403,
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ default_branch: "main" }), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "59",
-            "x-ratelimit-reset": String(resetAtSeconds + 3600),
-          },
-          status: 200,
-        }),
-      );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { GitHubRateLimitError, githubApiFetch } = await import("@/repo/github-fetch");
-
-    await expect(githubApiFetch("/repos/acme/demo")).rejects.toBeInstanceOf(GitHubRateLimitError);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    await expect(githubApiFetch("/repos/acme/demo")).rejects.toBeInstanceOf(GitHubRateLimitError);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    vi.setSystemTime(new Date((resetAtSeconds + 1) * 1000));
-
-    const response = await githubApiFetch("/repos/acme/demo");
-    expect(response.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns cached responses while a rate-limit block is active", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-29T10:00:00.000Z"));
-
-    const resetAtSeconds = Math.floor((Date.now() + 2 * 60_000) / 1000);
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ default_branch: "main" }), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "59",
-            "x-ratelimit-reset": String(resetAtSeconds + 3600),
-          },
-          status: 200,
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "0",
-            "x-ratelimit-reset": String(resetAtSeconds),
-          },
-          status: 403,
-        }),
-      );
-
-    const cacheStore = new Map<string, Response>();
-    const cache = {
-      match: vi.fn(async (url: string) => cacheStore.get(url)),
-      put: vi.fn(async (url: string, response: Response) => {
-        cacheStore.set(url, response);
-      }),
-    };
-
-    vi.stubGlobal("caches", {
-      open: vi.fn(async () => cache),
-    });
+  it("treats an omitted transport the same as auto", async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
     vi.stubGlobal("fetch", fetchMock);
 
     const { githubApiFetch } = await import("@/repo/github-fetch");
 
-    const freshResponse = await githubApiFetch("/repos/acme/demo");
-    expect(freshResponse.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await githubApiFetch("/repos/acme/demo", { access: "public" });
+    await githubApiFetch("/repos/acme/demo", { access: "public", transport: "auto" });
 
-    vi.setSystemTime(new Date(Date.now() + 11 * 60_000));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+  });
 
-    const cachedOnLimit = await githubApiFetch("/repos/acme/demo");
-    expect(cachedOnLimit.ok).toBe(true);
+  it("uses direct authenticated requests for public auto access when auth is available", async () => {
+    resolveRegisteredGitHubRequestAuthMock.mockResolvedValue({
+      mode: "oauth" as const,
+      scopes: ["repo"],
+      token: "oauth-token",
+    });
+    state.env.VITE_GITHUB_PROXY_ENABLED = true;
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    await githubApiFetch("/repos/acme/demo", { access: "public" });
+
+    expect(resolveRegisteredGitHubRequestAuthMock).toHaveBeenCalledWith("public");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer oauth-token",
+        }),
+      }),
+    );
+  });
+
+  it("uses the proxy for public auto access when auth is unavailable and the proxy is enabled", async () => {
+    state.env.VITE_GITHUB_PROXY_ENABLED = true;
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    await githubApiFetch("/repos/acme/demo", { access: "public" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/github/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("falls back to direct anonymous requests for public auto access when the proxy is disabled", async () => {
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    await githubApiFetch("/repos/acme/demo", { access: "public" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("uses direct authenticated requests for repo auto access when auth is available", async () => {
+    resolveRegisteredGitHubRequestAuthMock.mockResolvedValue({
+      mode: "pat" as const,
+      token: "pat-token",
+    });
+    state.env.VITE_GITHUB_PROXY_ENABLED = true;
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    await githubApiFetch("/repos/acme/demo", { access: "repo" });
+
+    expect(resolveRegisteredGitHubRequestAuthMock).toHaveBeenCalledWith("repo");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer pat-token",
+        }),
+      }),
+    );
+  });
+
+  it("falls back to direct anonymous requests for repo auto access when auth is unavailable", async () => {
+    state.env.VITE_GITHUB_PROXY_ENABLED = true;
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    await githubApiFetch("/repos/acme/demo", { access: "repo" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/demo",
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("throws for repo proxy access", async () => {
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+
+    await expect(
+      githubApiFetch("/repos/acme/demo", { access: "repo", transport: "proxy" }),
+    ).rejects.toThrow("Proxy transport only supports public GitHub requests in v1.");
+  });
+
+  it("does not keep cross-request blocked-until state", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(createRateLimitResponse())
+      .mockResolvedValueOnce(createRateLimitResponse())
+      .mockResolvedValueOnce(createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { GitHubRateLimitError, githubApiFetch } = await import("@/repo/github-fetch");
+
+    await expect(githubApiFetch("/repos/acme/demo", { access: "repo" })).rejects.toBeInstanceOf(
+      GitHubRateLimitError,
+    );
+    await expect(githubApiFetch("/repos/acme/demo", { access: "repo" })).rejects.toBeInstanceOf(
+      GitHubRateLimitError,
+    );
+
+    const response = await githubApiFetch("/repos/acme/demo", { access: "repo" });
+
+    expect(response.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("supports oauth, pat, and anonymous direct auth resolution", async () => {
+    resolveRegisteredGitHubRequestAuthMock
+      .mockResolvedValueOnce({ mode: "oauth" as const, scopes: ["repo"], token: "oauth-token" })
+      .mockResolvedValueOnce({ mode: "pat" as const, token: "pat-token" })
+      .mockResolvedValueOnce({ mode: "anon" as const });
+    const fetchMock = vi.fn(async () => createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+
+    await githubApiFetch("/repos/acme/demo", { access: "public", transport: "direct" });
+    await githubApiFetch("/repos/acme/demo", { access: "repo", transport: "direct" });
+    await githubApiFetch("/repos/acme/demo", { access: "repo", transport: "direct" });
+
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer oauth-token",
+        }),
+      }),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer pat-token",
+        }),
+      }),
+    );
+    expect(fetchMock.mock.calls[2]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("keeps request-local anonymous fallback for direct auth failures", async () => {
+    resolveRegisteredGitHubRequestAuthMock.mockResolvedValue({
+      mode: "pat" as const,
+      token: "github_pat_demo",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createJsonResponse(
+          {
+            message: "Resource not accessible by personal access token",
+          },
+          403,
+        ),
+      )
+      .mockResolvedValueOnce(createJsonResponse({ default_branch: "main" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { githubApiFetch } = await import("@/repo/github-fetch");
+    const response = await githubApiFetch("/repos/acme/demo", {
+      access: "repo",
+      transport: "direct",
+    });
+
+    expect(response.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    const cachedDuringBlock = await githubApiFetch("/repos/acme/demo");
-    expect(cachedDuringBlock.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer github_pat_demo",
+        }),
+      }),
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.not.objectContaining({
+          Authorization: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it("shows an actionable toast and appends a session notice for GitHub rate limits", async () => {
@@ -161,62 +335,6 @@ describe("github-fetch", () => {
       expect.objectContaining({
         action: expect.objectContaining({
           label: "Sign in with GitHub",
-        }),
-      }),
-    );
-  });
-
-  it("falls back to anonymous GitHub API access when a token lacks repo access", async () => {
-    getGithubPersonalAccessTokenMock.mockResolvedValue("github_pat_demo");
-
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            message: "Resource not accessible by personal access token",
-          }),
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "x-ratelimit-limit": "5000",
-              "x-ratelimit-remaining": "4999",
-              "x-ratelimit-reset": "1900000000",
-            },
-            status: 403,
-          },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ default_branch: "main" }), {
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "59",
-            "x-ratelimit-reset": "1900000000",
-          },
-          status: 200,
-        }),
-      );
-
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { githubApiFetch } = await import("@/repo/github-fetch");
-    const response = await githubApiFetch("/repos/acme/demo");
-
-    expect(response.ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer github_pat_demo",
-        }),
-      }),
-    );
-    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
-      expect.objectContaining({
-        headers: expect.not.objectContaining({
-          Authorization: expect.any(String),
         }),
       }),
     );

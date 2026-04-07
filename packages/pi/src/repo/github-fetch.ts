@@ -1,6 +1,7 @@
 import { toast } from "sonner";
+import { env as webEnv } from "@gitinspect/env/web";
 import {
-  GitHubRateLimitController,
+  parseGitHubRateLimitInfo,
   type GitHubRateLimitKind,
 } from "@gitinspect/just-github/github-rate-limit";
 import {
@@ -11,8 +12,10 @@ import {
 import { classifyRuntimeError } from "@gitinspect/pi/agent/runtime-errors";
 import {
   getGitHubNoticeCta,
-  resolveRegisteredGitHubAccess,
+  resolveRegisteredGitHubRequestAuth,
   type GitHubAuthState,
+  type GitHubRequestAccess,
+  type GitHubResolvedRequestAuth,
 } from "@gitinspect/pi/repo/github-access";
 import { getGitHubAuthUiBridge } from "@gitinspect/pi/repo/github-auth-ui";
 import { appendSessionNotice } from "@gitinspect/pi/sessions/session-notices";
@@ -23,8 +26,16 @@ const FRESH_MS = 2 * 60 * 1000;
 const STALE_MS = 10 * 60 * 1000;
 const TIMESTAMP_HEADER = "x-cached-at";
 const TOAST_DEDUPE_MS = 5 * 1000;
+const GITHUB_API_BASE_URL = "https://api.github.com";
+const GITHUB_PROXY_BASE_PATH = "/api/github";
+const PROXY_REPO_UNSUPPORTED_ERROR = "Proxy transport only supports public GitHub requests in v1.";
 
-const rateLimitController = new GitHubRateLimitController();
+export type GitHubTransport = "auto" | "direct" | "proxy";
+
+type GitHubExecutionPlan =
+  | { transport: "proxy" }
+  | { auth: GitHubResolvedRequestAuth; transport: "direct" };
+
 let lastToastSignature = "";
 let lastToastAt = 0;
 
@@ -55,10 +66,20 @@ function buildGithubHeaders(token: string | undefined): Record<string, string> {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
+
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+
   return headers;
+}
+
+function getRequestAuthToken(auth: GitHubResolvedRequestAuth): string | undefined {
+  if (auth.mode === "anon") {
+    return undefined;
+  }
+
+  return auth.token;
 }
 
 function formatRetryTime(value: number | undefined): string | undefined {
@@ -102,72 +123,200 @@ function shouldSuppressToast(signature: string): boolean {
   return false;
 }
 
-function toRateLimitError(
-  blockedUntilMs: number,
-  kind: GitHubRateLimitKind,
-  status: number,
-): GitHubRateLimitError {
+function classifyRateLimitKind(
+  response: Response,
+  detail: string | undefined,
+): GitHubRateLimitKind {
+  const info = parseGitHubRateLimitInfo(response);
+  const retryAfter = response.headers.get("retry-after");
+  const lower = detail?.toLowerCase();
+
+  if (info?.remaining === 0) {
+    return "primary";
+  }
+
+  if (retryAfter || lower?.includes("secondary rate limit")) {
+    return "secondary";
+  }
+
+  return "unknown";
+}
+
+function parseRetryAfterMs(response: Response): number | undefined {
+  const retryAfter = response.headers.get("retry-after");
+
+  if (!retryAfter) {
+    return undefined;
+  }
+
+  const retryAfterSeconds = Number.parseInt(retryAfter, 10);
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds < 0) {
+    return undefined;
+  }
+
+  return Date.now() + retryAfterSeconds * 1000;
+}
+
+async function toRateLimitError(response: Response): Promise<GitHubRateLimitError> {
+  const detail = await readGitHubErrorMessage(response);
+  const info = parseGitHubRateLimitInfo(response);
+  const blockedUntilMs = parseRetryAfterMs(response) ?? info?.reset.getTime();
+
   return new GitHubRateLimitError({
     blockedUntilMs,
-    kind,
-    status,
+    kind: classifyRateLimitKind(response, detail),
+    status: response.status,
   });
 }
 
-async function networkFetch(
-  url: string,
-  token: string | undefined,
-  signal?: AbortSignal,
-): Promise<Response> {
-  const activeBlock = rateLimitController.beforeRequest();
-  if (activeBlock) {
-    throw toRateLimitError(activeBlock.blockedUntilMs, activeBlock.kind, 429);
+async function throwIfRateLimited(response: Response): Promise<void> {
+  const detail = await readGitHubErrorMessage(response);
+  const info = parseGitHubRateLimitInfo(response);
+  const isRateLimited =
+    response.status === 429 ||
+    (response.status === 403 &&
+      (response.headers.has("retry-after") ||
+        info?.remaining === 0 ||
+        detail?.toLowerCase().includes("rate limit") === true));
+
+  if (isRateLimited) {
+    throw await toRateLimitError(response);
+  }
+}
+
+function shouldUseGitHubCache(access: GitHubRequestAccess): boolean {
+  return access === "public" && typeof caches !== "undefined";
+}
+
+function buildCacheKey(path: string): string {
+  return `${GITHUB_API_BASE_URL}${path}`;
+}
+
+function buildProxyRequestUrl(path: string): string {
+  return `${GITHUB_PROXY_BASE_PATH}${path}`;
+}
+
+function getProxyEnabled(): boolean {
+  return webEnv.VITE_GITHUB_PROXY_ENABLED;
+}
+
+async function resolveGitHubExecutionPlan(input: {
+  access: GitHubRequestAccess;
+  proxyEnabled: boolean;
+  transport?: GitHubTransport;
+}): Promise<GitHubExecutionPlan> {
+  const access = input.access;
+  const transport = input.transport ?? "auto";
+
+  if (transport === "proxy") {
+    if (access === "repo") {
+      throw new Error(PROXY_REPO_UNSUPPORTED_ERROR);
+    }
+
+    return { transport: "proxy" };
   }
 
+  const auth = await resolveRegisteredGitHubRequestAuth(access);
+
+  if (transport === "direct") {
+    return { auth, transport: "direct" };
+  }
+
+  if (auth.mode !== "anon") {
+    return { auth, transport: "direct" };
+  }
+
+  if (access === "public" && input.proxyEnabled) {
+    return { transport: "proxy" };
+  }
+
+  return { auth, transport: "direct" };
+}
+
+async function executeDirectGitHubRequest(
+  path: string,
+  auth: GitHubResolvedRequestAuth,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const url = `${GITHUB_API_BASE_URL}${path}`;
+  const token = getRequestAuthToken(auth);
   const headers = buildGithubHeaders(token);
-  const res = await fetch(url, {
+  const response = await fetch(url, {
     headers,
     signal,
   });
 
-  const rateLimitBlock = await rateLimitController.afterResponse(res);
-  if (rateLimitBlock) {
-    throw toRateLimitError(rateLimitBlock.blockedUntilMs, rateLimitBlock.kind, res.status);
-  }
+  if (!response.ok && token) {
+    const detail = await readGitHubErrorMessage(response);
 
-  if (!res.ok && token) {
-    const detail = await readGitHubErrorMessage(res);
-    if (shouldRetryUnauthenticated(res, detail)) {
+    if (shouldRetryUnauthenticated(response, detail)) {
       const fallback = await fetch(url, {
         headers: stripAuthorization(headers),
         signal,
       });
-      const fallbackRateLimitBlock = await rateLimitController.afterResponse(fallback);
 
-      if (!fallbackRateLimitBlock && fallback.ok) {
+      await throwIfRateLimited(fallback);
+
+      if (fallback.ok) {
         return fallback;
       }
     }
   }
 
-  return res;
+  await throwIfRateLimited(response);
+  return response;
 }
 
-async function putCache(cache: Cache, url: string, res: Response) {
-  const body = await res.clone().arrayBuffer();
+async function executeProxyGitHubRequest(path: string, signal?: AbortSignal): Promise<Response> {
+  const response = await fetch(buildProxyRequestUrl(path), {
+    headers: buildGithubHeaders(undefined),
+    signal,
+  });
+
+  await throwIfRateLimited(response);
+  return response;
+}
+
+async function executeGitHubRequest(
+  path: string,
+  plan: GitHubExecutionPlan,
+  signal?: AbortSignal,
+): Promise<Response> {
+  if (plan.transport === "proxy") {
+    return await executeProxyGitHubRequest(path, signal);
+  }
+
+  return await executeDirectGitHubRequest(path, plan.auth, signal);
+}
+
+async function putCache(cache: Cache, cacheKey: string, response: Response): Promise<void> {
+  const body = await response.clone().arrayBuffer();
   const cached = new Response(body, {
-    status: res.status,
-    statusText: res.statusText,
-    headers: new Headers(res.headers),
+    headers: new Headers(response.headers),
+    status: response.status,
+    statusText: response.statusText,
   });
   cached.headers.set(TIMESTAMP_HEADER, Date.now().toString());
-  await cache.put(url, cached);
+  await cache.put(cacheKey, cached);
 }
 
-function revalidateInBackground(cache: Cache, url: string, token: string | undefined) {
-  void networkFetch(url, token)
-    .then((res) => {
-      if (res.ok) return putCache(cache, url, res);
+function revalidateInBackground(input: {
+  access: GitHubRequestAccess;
+  cache: Cache;
+  cacheKey: string;
+  path: string;
+  transport?: GitHubTransport;
+}): void {
+  void resolveGitHubExecutionPlan({
+    access: input.access,
+    proxyEnabled: getProxyEnabled(),
+    transport: input.transport,
+  })
+    .then(async (plan) => await executeGitHubRequest(input.path, plan))
+    .then(async (response) => {
+      if (response.ok) {
+        await putCache(input.cache, input.cacheKey, response);
+      }
     })
     .catch(() => {});
 }
@@ -182,50 +331,62 @@ export function openGithubTokenSettings(): void {
 
 export async function githubApiFetch(
   path: string,
-  options?: { signal?: AbortSignal },
+  options?: {
+    access?: GitHubRequestAccess;
+    signal?: AbortSignal;
+    transport?: GitHubTransport;
+  },
 ): Promise<Response> {
-  const url = `https://api.github.com${path}`;
-  const access = await resolveRegisteredGitHubAccess({ requireRepoScope: true });
-  const token = access.ok ? access.token : undefined;
+  const access = options?.access ?? "repo";
+  const plan = await resolveGitHubExecutionPlan({
+    access,
+    proxyEnabled: getProxyEnabled(),
+    transport: options?.transport,
+  });
 
-  if (typeof caches !== "undefined") {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match(url);
+  if (!shouldUseGitHubCache(access)) {
+    return await executeGitHubRequest(path, plan, options?.signal);
+  }
 
-    if (cached) {
-      if (rateLimitController.beforeRequest()) {
-        return cached;
-      }
+  const cache = await caches.open(CACHE_NAME);
+  const cacheKey = buildCacheKey(path);
+  const cached = await cache.match(cacheKey);
 
-      const cachedAt = Number(cached.headers.get(TIMESTAMP_HEADER) ?? 0);
-      const age = Date.now() - cachedAt;
+  if (cached) {
+    const cachedAt = Number(cached.headers.get(TIMESTAMP_HEADER) ?? 0);
+    const age = Date.now() - cachedAt;
 
-      if (age < FRESH_MS) {
-        return cached;
-      }
-
-      if (age < STALE_MS) {
-        revalidateInBackground(cache, url, token);
-        return cached;
-      }
+    if (age < FRESH_MS) {
+      return cached;
     }
 
-    try {
-      const res = await networkFetch(url, token, options?.signal);
-      if (res.ok) {
-        await putCache(cache, url, res);
-      }
-      return res;
-    } catch (error) {
-      if (cached && isRateLimitError(error)) {
-        return cached;
-      }
-
-      throw error;
+    if (age < STALE_MS) {
+      revalidateInBackground({
+        access,
+        cache,
+        cacheKey,
+        path,
+        transport: options?.transport,
+      });
+      return cached;
     }
   }
 
-  return networkFetch(url, token, options?.signal);
+  try {
+    const response = await executeGitHubRequest(path, plan, options?.signal);
+
+    if (response.ok) {
+      await putCache(cache, cacheKey, response);
+    }
+
+    return response;
+  } catch (error) {
+    if (cached && isRateLimitError(error)) {
+      return cached;
+    }
+
+    throw error;
+  }
 }
 
 export function isRateLimitError(err: unknown): err is GitHubRateLimitError {

@@ -1,9 +1,10 @@
 import type { ProviderGroupId, ThinkingLevel } from "@gitinspect/pi/types/models";
-import type { MessageRow, SessionData } from "@gitinspect/db/storage-types";
+import type { SessionData } from "@gitinspect/db/storage-types";
 import {
   BusyRuntimeError,
   MissingSessionRuntimeError,
 } from "@gitinspect/pi/agent/runtime-command-errors";
+import { getRuntimeWorker } from "@gitinspect/pi/agent/runtime-worker-client";
 import type { SessionRunner } from "@gitinspect/pi/agent/session-runner";
 import { WorkerBackedAgentHost } from "@gitinspect/pi/agent/worker-backed-agent-host";
 import {
@@ -14,11 +15,9 @@ import {
   releaseSessionLease,
   renewSessionLease,
 } from "@gitinspect/db/session-leases";
-import { getSessionRuntime, putSession } from "@gitinspect/db/schema";
-import { getIsoNow } from "@gitinspect/pi/lib/dates";
-import { getCanonicalProvider } from "@gitinspect/pi/models/catalog";
-import { loadSession, loadSessionWithMessages } from "@gitinspect/pi/sessions/session-service";
+import { loadSession } from "@gitinspect/pi/sessions/session-service";
 import { reconcileInterruptedSession } from "@gitinspect/pi/sessions/session-notices";
+import { loadSessionViewModel } from "@gitinspect/pi/sessions/session-view-model";
 import {
   type ActiveSessionViewState,
   deriveActiveSessionViewState,
@@ -76,8 +75,8 @@ export class RuntimeClient {
     this.listenersInstalled = true;
   }
 
-  private async createHost(session: SessionData, messages: MessageRow[]): Promise<SessionRunner> {
-    return new WorkerBackedAgentHost(session, messages);
+  private async createHost(session: SessionData): Promise<SessionRunner> {
+    return new WorkerBackedAgentHost(session);
   }
 
   private async claimOwnership(
@@ -146,34 +145,30 @@ export class RuntimeClient {
   }
 
   private async loadPersistedState(sessionId: string): Promise<{
-    loaded: { messages: MessageRow[]; session: SessionData };
     state: ReturnType<typeof deriveActiveSessionViewState>;
+    viewModel: NonNullable<Awaited<ReturnType<typeof loadSessionViewModel>>>;
   }> {
-    const loaded = await loadSessionWithMessages(sessionId);
+    const viewModel = await loadSessionViewModel(sessionId);
 
-    if (!loaded) {
+    if (!viewModel) {
       throw new MissingSessionRuntimeError(sessionId);
     }
 
-    const [leaseState, runtime] = await Promise.all([
-      loadSessionLeaseState(sessionId),
-      getSessionRuntime(sessionId),
-    ]);
+    const leaseState = await loadSessionLeaseState(sessionId);
     const state = deriveActiveSessionViewState({
       hasLocalRunner: this.hasActiveTurn(sessionId),
-      hasPartialAssistantText: false,
-      lastProgressAt: runtime?.lastProgressAt,
+      hasPartialAssistantText: viewModel.hasPartialAssistantText,
+      lastProgressAt: viewModel.runtime?.lastProgressAt,
       leaseState,
-      runtimeStatus: runtime?.status,
-      sessionIsStreaming: loaded.session.isStreaming,
+      runtimePhase: viewModel.runtime?.phase,
+      runtimeStatus: viewModel.runtime?.status,
+      sessionIsStreaming: viewModel.session.isStreaming,
     });
 
-    return { loaded, state };
+    return { state, viewModel };
   }
 
-  private async loadMutationSession(
-    sessionId: string,
-  ): Promise<{ messages: MessageRow[]; session: SessionData }> {
+  private async loadMutationSession(sessionId: string): Promise<SessionData> {
     let { state } = await this.loadPersistedState(sessionId);
 
     assertTurnMutationAllowed(sessionId, state, { allowRecovering: true });
@@ -188,17 +183,14 @@ export class RuntimeClient {
     assertTurnMutationAllowed(sessionId, state, { allowRecovering: false });
 
     await this.claimOwnership(sessionId, { keepAlive: false });
-    const reloaded = await loadSessionWithMessages(sessionId);
+    const reloaded = await loadSession(sessionId);
 
     if (!reloaded) {
       await releaseSessionLease(sessionId);
       throw new MissingSessionRuntimeError(sessionId);
     }
 
-    return {
-      ...reloaded,
-      session: reloaded.session,
-    };
+    return reloaded;
   }
 
   async startTurn(sessionId: string, content: string): Promise<void> {
@@ -208,8 +200,8 @@ export class RuntimeClient {
       throw new BusyRuntimeError(sessionId);
     }
 
-    const loaded = await this.loadMutationSession(sessionId);
-    const host = await this.createHost(loaded.session, loaded.messages);
+    const session = await this.loadMutationSession(sessionId);
+    const host = await this.createHost(session);
     this.activeTurns.set(sessionId, host);
 
     try {
@@ -227,7 +219,7 @@ export class RuntimeClient {
 
   async startInitialTurn(session: SessionData, content: string): Promise<void> {
     await this.claimOwnership(session.id);
-    const host = await this.createHost(session, []);
+    const host = await this.createHost(session);
     this.activeTurns.set(session.id, host);
 
     try {
@@ -257,16 +249,22 @@ export class RuntimeClient {
     return this.activeTurns.get(sessionId)?.isBusy() ?? false;
   }
 
-  async releaseSession(sessionId: string): Promise<void> {
+  async releaseSessionAndDrain(sessionId: string): Promise<void> {
     const host = this.activeTurns.get(sessionId);
 
     if (host) {
       await host.dispose();
+      this.activeTurns.delete(sessionId);
+    } else {
+      await getRuntimeWorker().disposeSession(sessionId);
     }
 
-    this.activeTurns.delete(sessionId);
     this.stopLeaseHeartbeat(sessionId);
     await releaseSessionLease(sessionId);
+  }
+
+  async releaseSession(sessionId: string): Promise<void> {
+    await this.releaseSessionAndDrain(sessionId);
   }
 
   async releaseAll(): Promise<void> {
@@ -283,16 +281,6 @@ export class RuntimeClient {
     }
 
     await releaseOwnedSessionLeases();
-  }
-
-  async refreshGithubToken(sessionId: string): Promise<void> {
-    const host = this.activeTurns.get(sessionId);
-
-    if (!host) {
-      return;
-    }
-
-    await host.refreshGithubToken();
   }
 
   async setModelSelection(
@@ -314,19 +302,10 @@ export class RuntimeClient {
         return;
       }
 
-      const session = await loadSession(sessionId);
-
-      if (!session) {
-        throw new MissingSessionRuntimeError(sessionId);
-      }
-
-      await putSession({
-        ...session,
-        error: undefined,
-        model: modelId,
-        provider: getCanonicalProvider(providerGroup),
+      await getRuntimeWorker().setModelSelection({
+        modelId,
         providerGroup,
-        updatedAt: getIsoNow(),
+        sessionId,
       });
     } finally {
       if (!this.hasActiveTurn(sessionId)) {
@@ -350,16 +329,9 @@ export class RuntimeClient {
         return;
       }
 
-      const session = await loadSession(sessionId);
-
-      if (!session) {
-        throw new MissingSessionRuntimeError(sessionId);
-      }
-
-      await putSession({
-        ...session,
+      await getRuntimeWorker().setThinkingLevel({
+        sessionId,
         thinkingLevel,
-        updatedAt: getIsoNow(),
       });
     } finally {
       if (!this.hasActiveTurn(sessionId)) {

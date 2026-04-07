@@ -1,9 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const githubApiFetchMock = vi.fn<(path: string) => Promise<Response>>();
+const githubApiFetchMock =
+  vi.fn<
+    (
+      path: string,
+      options?: { access?: "public" | "repo"; signal?: AbortSignal; transport?: string },
+    ) => Promise<Response>
+  >();
 
 vi.mock("@/repo/github-fetch", () => ({
-  githubApiFetch: (path: string) => githubApiFetchMock(path),
+  githubApiFetch: (
+    path: string,
+    options?: { access?: "public" | "repo"; signal?: AbortSignal; transport?: string },
+  ) => githubApiFetchMock(path, options),
 }));
 
 function createJsonResponse(value: object, status = 200): Response {
@@ -68,9 +77,41 @@ describe("resolveRepoIntent", () => {
         kind: "branch",
         name: "main",
       },
-      token: undefined,
       view: "repo",
     });
+  });
+
+  it("uses repo-scoped helper access while resolving refs", async () => {
+    githubApiFetchMock.mockImplementation(async (path) => {
+      if (path === "/repos/acme/demo") {
+        return createJsonResponse({ default_branch: "main" });
+      }
+
+      if (path === "/repos/acme/demo/git/ref/heads/main") {
+        return createGitRefResponse("commit-main");
+      }
+
+      return createNotFoundResponse();
+    });
+
+    const { resolveRepoIntent } = await import("@/repo/ref-resolver");
+
+    await resolveRepoIntent({
+      owner: "acme",
+      repo: "demo",
+      type: "repo-root",
+    });
+
+    expect(githubApiFetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/repos/acme/demo",
+      expect.objectContaining({ access: "repo" }),
+    );
+    expect(githubApiFetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/repos/acme/demo/git/ref/heads/main",
+      expect.objectContaining({ access: "repo" }),
+    );
   });
 
   it("resolves explicit single-segment branches", async () => {

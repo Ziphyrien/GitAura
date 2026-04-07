@@ -1,5 +1,5 @@
 import type { JsonValue } from "@gitinspect/pi/types/common";
-import type { ChatMessage } from "@gitinspect/pi/types/chat";
+import type { AssistantMessage, ChatMessage } from "@gitinspect/pi/types/chat";
 import type {
   ProviderGroupId,
   ProviderId,
@@ -33,7 +33,6 @@ export interface ResolvedRepoSource {
   ref: string;
   refOrigin: RepoRefOrigin;
   resolvedRef: ResolvedRepoRef;
-  token?: string;
 }
 
 export interface RepositoryRow {
@@ -66,6 +65,7 @@ export interface SessionData {
 export type MessageStatus = "aborted" | "completed" | "error" | "streaming";
 
 export type MessageRow = ChatMessage & {
+  order: number;
   sessionId: string;
   status: MessageStatus;
 };
@@ -77,6 +77,10 @@ export interface SessionLeaseRow {
   ownerToken: string;
   sessionId: string;
 }
+
+export type RuntimePhase = "idle" | "interrupted" | "running";
+
+export type RuntimeTerminalStatus = "aborted" | "completed" | "error";
 
 export type SessionRuntimeStatus =
   | "aborted"
@@ -90,10 +94,14 @@ export interface SessionRuntimeRow {
   assistantMessageId?: string;
   lastError?: string;
   lastProgressAt?: string;
+  lastTerminalStatus?: RuntimeTerminalStatus;
   ownerTabId?: string;
+  pendingToolCallOwners?: Record<string, string>;
+  phase?: RuntimePhase;
   sessionId: string;
   startedAt?: string;
-  status: SessionRuntimeStatus;
+  status?: SessionRuntimeStatus;
+  streamMessage?: AssistantMessage;
   turnId?: string;
   updatedAt: string;
 }

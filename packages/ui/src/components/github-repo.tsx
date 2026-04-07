@@ -5,6 +5,7 @@ import { ArrowRightIcon, KeyIcon, StarIcon } from "@phosphor-icons/react";
 import { Icons } from "@gitinspect/ui/components/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@gitinspect/ui/components/tooltip";
 import { formatGitHubStarCount } from "@gitinspect/pi/lib/format-github-stars";
+import { githubApiFetch } from "@gitinspect/pi/repo/github-fetch";
 import { cn } from "@gitinspect/ui/lib/utils";
 import { githubOwnerAvatarUrl } from "@gitinspect/pi/repo/url";
 import type { RepoRefOrigin } from "@gitinspect/db/storage-types";
@@ -61,9 +62,10 @@ function usePublicRepoMeta(owner: string, repo: string) {
 
     void (async () => {
       try {
-        const response = await fetch(
-          `/api/github/public?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
+        const response = await githubApiFetch(
+          `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
           {
+            access: "public",
             signal: ac.signal,
           },
         );
@@ -104,8 +106,8 @@ function GithubRepoMetaUnavailable() {
         </span>
       </TooltipTrigger>
       <TooltipContent className="max-w-[280px] text-left" side="top" sideOffset={6}>
-        Stars and language come from a tiny public metadata endpoint. Private repo reads still stay
-        client-side with your GitHub connection or PAT fallback.
+        Stars and language come from the app&apos;s public GitHub helper. Private repo reads still
+        stay client-side with your GitHub connection or PAT fallback.
       </TooltipContent>
     </Tooltip>
   );

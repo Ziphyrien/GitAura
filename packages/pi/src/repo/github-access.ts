@@ -18,6 +18,13 @@ export type GitHubAccess =
       reason: GitHubAccessFailureReason;
     };
 
+export type GitHubRequestAccess = "public" | "repo";
+
+export type GitHubResolvedRequestAuth =
+  | { mode: "anon" }
+  | { mode: "oauth"; token: string; scopes: string[] }
+  | { mode: "pat"; token: string };
+
 export type GitHubAuthState = {
   session: "signed-in" | "signed-out";
   githubLink: "linked" | "unlinked" | "unknown";
@@ -60,6 +67,31 @@ export async function resolveRegisteredGitHubAccess(
   }
 
   return await resolver(options);
+}
+
+export async function resolveRegisteredGitHubRequestAuth(
+  access: GitHubRequestAccess = "repo",
+): Promise<GitHubResolvedRequestAuth> {
+  const result = await resolveRegisteredGitHubAccess({
+    requireRepoScope: access === "repo",
+  });
+
+  if (!result.ok) {
+    return { mode: "anon" };
+  }
+
+  if (result.source === "oauth") {
+    return {
+      mode: "oauth",
+      scopes: result.scopes ?? [],
+      token: result.token,
+    };
+  }
+
+  return {
+    mode: "pat",
+    token: result.token,
+  };
 }
 
 export type GitHubNoticeCtaIntent =

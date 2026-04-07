@@ -286,61 +286,24 @@ describe("GitHubFs", () => {
       expect(rl!.remaining).toBe(4999);
     });
 
-    it("blocks repeated reads until the primary rate limit reset", async () => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date("2026-03-29T10:00:00.000Z"));
-
+    it("does not keep cross-request blocked state after a rate limit response", async () => {
       const resetAtSeconds = Math.floor((Date.now() + 2 * 60_000) / 1000);
-      let shouldRateLimit = true;
       fetchSpy = vi.fn(async (url: string | URL | Request) => {
         const urlStr = typeof url === "string" ? url : url.toString();
 
         if (urlStr.includes("git/ref/heads/main")) {
-          if (shouldRateLimit) {
-            shouldRateLimit = false;
-            return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
-              status: 403,
-              headers: {
-                "Content-Type": "application/json",
-                "x-ratelimit-limit": "60",
-                "x-ratelimit-remaining": "0",
-                "x-ratelimit-reset": String(resetAtSeconds),
-              },
-            });
-          }
-
-          return new Response(JSON.stringify({ object: { sha: "commit-sha", type: "commit" } }), {
-            status: 200,
+          return new Response(JSON.stringify({ message: "API rate limit exceeded" }), {
+            status: 403,
             headers: {
               "Content-Type": "application/json",
               "x-ratelimit-limit": "60",
-              "x-ratelimit-remaining": "59",
-              "x-ratelimit-reset": String(resetAtSeconds + 3600),
+              "x-ratelimit-remaining": "0",
+              "x-ratelimit-reset": String(resetAtSeconds),
             },
           });
         }
 
-        if (urlStr.includes("commits/commit-sha")) {
-          return new Response(JSON.stringify(mockCommitResponse), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "x-ratelimit-limit": "60",
-              "x-ratelimit-remaining": "59",
-              "x-ratelimit-reset": String(resetAtSeconds + 3600),
-            },
-          });
-        }
-
-        return new Response(JSON.stringify(mockFileContent), {
-          status: 200,
-          headers: {
-            "Content-Type": "application/json",
-            "x-ratelimit-limit": "60",
-            "x-ratelimit-remaining": "59",
-            "x-ratelimit-reset": String(resetAtSeconds + 3600),
-          },
-        });
+        return new Response("Not Found", { status: 404 });
       });
       vi.stubGlobal("fetch", fetchSpy);
       fs = new GitHubFs({ owner: "o", repo: "r", ref: MAIN_REF });
@@ -349,19 +312,12 @@ describe("GitHubFs", () => {
         code: "EACCES",
         message: expect.stringContaining("GitHub API rate limit exceeded"),
       });
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-
       await expect(fs.readFile("src/index.ts")).rejects.toMatchObject({
         code: "EACCES",
         message: expect.stringContaining("GitHub API rate limit exceeded"),
       });
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
 
-      vi.setSystemTime(new Date((resetAtSeconds + 1) * 1000));
-
-      const content = await fs.readFile("src/index.ts");
-      expect(content).toBe("export const hello = 'world';");
-      expect(fetchSpy).toHaveBeenCalledTimes(4);
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
     it("falls back to anonymous reads when a token cannot access a public repo", async () => {
@@ -443,6 +399,74 @@ describe("GitHubFs", () => {
         expect.objectContaining({
           headers: expect.not.objectContaining({
             Authorization: expect.any(String),
+          }),
+        }),
+      );
+    });
+
+    it("resolves the latest token lazily for each request", async () => {
+      let token = "token-1";
+      fetchSpy = vi.fn(async (url: string | URL | Request) => {
+        const urlStr = typeof url === "string" ? url : url.toString();
+
+        if (urlStr.includes("git/ref/heads/main")) {
+          return new Response(JSON.stringify({ object: { sha: "commit-sha", type: "commit" } }), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "x-ratelimit-limit": "5000",
+              "x-ratelimit-remaining": "4999",
+              "x-ratelimit-reset": "1900000000",
+            },
+          });
+        }
+
+        if (urlStr.includes("commits/commit-sha")) {
+          return new Response(JSON.stringify(mockCommitResponse), {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "x-ratelimit-limit": "5000",
+              "x-ratelimit-remaining": "4999",
+              "x-ratelimit-reset": "1900000000",
+            },
+          });
+        }
+
+        return new Response(JSON.stringify(mockFileContent), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "x-ratelimit-limit": "5000",
+            "x-ratelimit-remaining": "4999",
+            "x-ratelimit-reset": "1900000000",
+          },
+        });
+      });
+      vi.stubGlobal("fetch", fetchSpy);
+      fs = new GitHubFs({
+        owner: "o",
+        repo: "r",
+        ref: MAIN_REF,
+        cache: { enabled: false },
+        getToken: async () => token,
+      });
+
+      await fs.readFile("src/index.ts");
+      token = "token-2";
+      await fs.readFile("src/index.ts");
+
+      expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer token-1",
+          }),
+        }),
+      );
+      expect(fetchSpy.mock.calls[3]?.[1]).toEqual(
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer token-2",
           }),
         }),
       );

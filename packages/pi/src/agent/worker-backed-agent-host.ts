@@ -1,183 +1,164 @@
 import { BusyRuntimeError } from "@gitinspect/pi/agent/runtime-command-errors";
-import { deserializeRuntimeError } from "@gitinspect/pi/agent/runtime-error-payload";
-import { AgentTurnPersistence } from "@gitinspect/pi/agent/agent-turn-persistence";
-import {
-  createRuntimeWorkerEvents,
-  getRuntimeWorker,
-} from "@gitinspect/pi/agent/runtime-worker-client";
-import type { WorkerSnapshotEnvelope } from "@gitinspect/pi/agent/runtime-worker-types";
+import { getCurrentTabId } from "@gitinspect/pi/agent/tab-id";
+import { getRuntimeWorker } from "@gitinspect/pi/agent/runtime-worker-client";
 import type { SessionRunner } from "@gitinspect/pi/agent/session-runner";
-import { resolveRegisteredGitHubAccess } from "@gitinspect/pi/repo/github-access";
-import type { MessageRow, SessionData } from "@gitinspect/db/storage-types";
+import type { TurnEnvelope } from "@gitinspect/pi/agent/turn-event-store";
+import { createId } from "@gitinspect/pi/lib/ids";
+import { getCanonicalProvider } from "@gitinspect/pi/models/catalog";
+import type { SessionData } from "@gitinspect/db/storage-types";
 import type { ProviderGroupId, ThinkingLevel } from "@gitinspect/pi/types/models";
 
-export class WorkerBackedAgentHost implements SessionRunner {
-  private readonly persistence: AgentTurnPersistence;
-  private readonly worker = getRuntimeWorker();
-  private promptPending = false;
-  private runningTurn?: Promise<void>;
-  private disposed = false;
-  private lastEnvelope?: WorkerSnapshotEnvelope;
+type HostState = "idle" | "starting" | "running" | "disposing" | "disposed";
 
-  constructor(
-    private readonly session: SessionData,
-    messages: Array<MessageRow>,
-  ) {
-    this.persistence = new AgentTurnPersistence(session, messages);
-  }
+function createTurn(content: string): TurnEnvelope {
+  return {
+    turnId: createId(),
+    userMessage: {
+      content,
+      id: createId(),
+      role: "user",
+      timestamp: Date.now(),
+    },
+  };
+}
+
+export class WorkerBackedAgentHost implements SessionRunner {
+  private readonly worker = getRuntimeWorker();
+  private runningTurn?: Promise<void>;
+  private disposePromise?: Promise<void>;
+  private state: HostState = "idle";
+  private startSequence = 0;
+
+  constructor(private session: SessionData) {}
 
   isBusy(): boolean {
-    return (
-      this.promptPending || this.runningTurn !== undefined || this.persistence.session.isStreaming
-    );
+    return this.state === "starting" || this.state === "running" || this.runningTurn !== undefined;
   }
 
   async startTurn(content: string): Promise<void> {
     const trimmed = content.trim();
 
-    if (!trimmed || this.disposed) {
+    if (!trimmed || this.state === "disposing" || this.state === "disposed") {
       return;
     }
 
-    if (this.isBusy()) {
+    if (this.state !== "idle") {
       throw new BusyRuntimeError(this.session.id);
     }
 
-    const turn = this.persistence.createTurn(trimmed);
-    this.promptPending = true;
+    this.state = "starting";
+    const startSequence = ++this.startSequence;
+    const turn = createTurn(trimmed);
+    let waitForTurnPromise: Promise<void> | undefined;
 
     try {
-      await this.persistence.beginTurn(turn);
-      const access = await resolveRegisteredGitHubAccess({ requireRepoScope: true });
-      await this.worker.startTurn(
-        {
-          githubRuntimeToken: access.ok ? access.token : undefined,
-          messages: this.persistence.getSeedMessages(),
-          session: this.persistence.session,
-          turn,
-        },
-        createRuntimeWorkerEvents({
-          pushSnapshot: async (envelope) => {
-            this.lastEnvelope = envelope;
+      await this.worker.startTurn({
+        ownerTabId: getCurrentTabId(),
+        session: this.session,
+        turn,
+      });
 
-            for (const runtimeError of envelope.runtimeErrors ?? []) {
-              await this.persistence.appendSystemNoticeFromError(
-                deserializeRuntimeError(runtimeError),
-              );
-            }
-
-            await this.persistence.applySnapshot({
-              snapshot: envelope.snapshot,
-              terminalStatus: envelope.terminalStatus,
-            });
-
-            if (envelope.rotateStreamingAssistantDraft) {
-              this.persistence.rotateStreamingAssistantDraft();
-            }
-          },
-        }),
-      );
-      this.runningTurn = this.worker
+      waitForTurnPromise = this.worker
         .waitForTurn(this.session.id)
-        .then((envelope) => {
-          if (envelope) {
-            this.lastEnvelope = envelope;
-          }
-        })
+        .then(() => undefined)
         .finally(() => {
-          this.runningTurn = undefined;
+          if (this.runningTurn === waitForTurnPromise) {
+            this.runningTurn = undefined;
+          }
+
+          if (this.state === "running") {
+            this.state = "idle";
+          }
         });
-    } catch (error) {
-      await this.persistence.repairTurnFailure(
-        error instanceof Error ? error : new Error(String(error)),
-        this.lastEnvelope?.snapshot,
-      );
-      throw error;
+      this.runningTurn = waitForTurnPromise;
+
+      if (!this.isStartActive(startSequence)) {
+        if (this.shouldAbortAfterCancelledStart()) {
+          await this.worker.abortTurn(this.session.id);
+        }
+
+        await waitForTurnPromise.catch(() => undefined);
+        return;
+      }
+
+      this.state = "running";
     } finally {
-      this.promptPending = false;
+      if (this.state === "starting" && this.startSequence === startSequence) {
+        this.state = "idle";
+      }
     }
   }
 
   async waitForTurn(): Promise<void> {
     await this.runningTurn;
-    await this.persistence.flush();
-
-    if (this.persistence.session.isStreaming) {
-      const finalized = this.lastEnvelope
-        ? await this.persistence.persistCurrentTurnBoundary(this.lastEnvelope.snapshot)
-        : false;
-
-      if (finalized) {
-        return;
-      }
-
-      console.warn("[runtime-fallback] worker-host.waitForTurn", {
-        hasLastEnvelope: this.lastEnvelope !== undefined,
-        hasLastEnvelopeStreamMessage: this.lastEnvelope?.snapshot.streamMessage !== null,
-        lastEnvelopeIsStreaming: this.lastEnvelope?.snapshot.isStreaming,
-        lastEnvelopeMessageCount: this.lastEnvelope?.snapshot.messages.length,
-        lastEnvelopeTerminalStatus: this.lastEnvelope?.terminalStatus,
-        persistenceSessionIsStreaming: this.persistence.session.isStreaming,
-        sessionId: this.session.id,
-      });
-
-      await this.persistence.repairTurnFailure(
-        this.lastEnvelope?.snapshot.error ??
-          new Error("Runtime stopped before clearing the streaming state."),
-        this.lastEnvelope?.snapshot,
-      );
-    }
   }
 
   async abort(): Promise<void> {
+    if (this.state !== "running") {
+      return;
+    }
+
     await this.worker.abortTurn(this.session.id);
   }
 
   async setModelSelection(providerGroup: ProviderGroupId, modelId: string): Promise<void> {
-    if (this.disposed) {
+    if (this.state === "disposing" || this.state === "disposed") {
       return;
     }
 
-    await this.persistence.updateModelSelection(providerGroup, modelId);
     await this.worker.setModelSelection({
       modelId,
       providerGroup,
       sessionId: this.session.id,
     });
+    this.session = {
+      ...this.session,
+      model: modelId,
+      provider: getCanonicalProvider(providerGroup),
+      providerGroup,
+    };
   }
 
   async setThinkingLevel(thinkingLevel: ThinkingLevel): Promise<void> {
-    if (this.disposed) {
+    if (this.state === "disposing" || this.state === "disposed") {
       return;
     }
 
-    await this.persistence.updateThinkingLevel(thinkingLevel);
     await this.worker.setThinkingLevel({
       sessionId: this.session.id,
       thinkingLevel,
     });
-  }
-
-  async refreshGithubToken(): Promise<void> {
-    if (this.disposed) {
-      return;
-    }
-
-    const access = await resolveRegisteredGitHubAccess({ requireRepoScope: true });
-
-    await this.worker.refreshGithubToken({
-      sessionId: this.session.id,
-      token: access.ok ? access.token : undefined,
-    });
+    this.session = {
+      ...this.session,
+      thinkingLevel,
+    };
   }
 
   async dispose(): Promise<void> {
-    if (this.disposed) {
+    if (this.state === "disposed") {
       return;
     }
 
-    this.disposed = true;
-    this.persistence.dispose();
-    await this.worker.disposeSession(this.session.id);
+    if (this.disposePromise) {
+      return await this.disposePromise;
+    }
+
+    this.state = "disposing";
+    this.disposePromise = (async () => {
+      await this.worker.disposeSession(this.session.id);
+      await this.runningTurn?.catch(() => undefined);
+      this.runningTurn = undefined;
+      this.state = "disposed";
+    })();
+
+    return await this.disposePromise;
+  }
+
+  private isStartActive(startSequence: number): boolean {
+    return this.state === "starting" && this.startSequence === startSequence;
+  }
+
+  private shouldAbortAfterCancelledStart(): boolean {
+    return this.state !== "disposing" && this.state !== "disposed";
   }
 }

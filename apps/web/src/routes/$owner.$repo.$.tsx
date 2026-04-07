@@ -13,6 +13,10 @@ export const Route = createFileRoute("/$owner/$repo/$")({
   loader: async ({ params }) => {
     const decodedSplat = decodePathFragment(params._splat ?? "");
     const intent = parseRepoRoutePath(`/${params.owner}/${params.repo}/${decodedSplat}`);
+    if (intent.type === "invalid") {
+      return toResolvedRepoSource(await resolveRepoIntent(intent));
+    }
+
     return toResolvedRepoSource(await resolveRepoIntent(intent));
   },
   validateSearch: (search: RepoSplatSearch) => ({

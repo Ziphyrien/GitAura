@@ -1,5 +1,5 @@
 import * as React from "react";
-import { githubApiFetch, handleGithubError } from "@gitinspect/pi/repo/github-fetch";
+import { githubApiFetch } from "@gitinspect/pi/repo/github-fetch";
 
 /** Public app repo linked from the header and mobile menu (stars from GitHub API). */
 export const GITHUB_APP_REPO = {
@@ -17,19 +17,23 @@ export function useGitHubRepoStargazers(owner: string, repo: string) {
 
     void (async () => {
       try {
-        const res = await githubApiFetch(
+        const response = await githubApiFetch(
           `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-          { signal: ac.signal },
+          {
+            access: "public",
+            signal: ac.signal,
+          },
         );
-        if (!res.ok) {
+
+        if (!response.ok) {
           setState({ status: "error" });
           return;
         }
-        const data = (await res.json()) as { stargazers_count: number };
+
+        const data = (await response.json()) as { stargazers_count: number };
         setState({ status: "ok", count: data.stargazers_count });
-      } catch (err) {
+      } catch {
         if (!ac.signal.aborted) {
-          await handleGithubError(err);
           setState({ status: "error" });
         }
       }
