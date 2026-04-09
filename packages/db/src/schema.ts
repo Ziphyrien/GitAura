@@ -5,6 +5,7 @@ import {
   createTagRepoRef,
   displayResolvedRepoRef,
 } from "@gitinspect/pi/repo/refs";
+import { normalizePersistedSessionState } from "@gitinspect/pi/sessions/session-state-normalization";
 import type {
   MessageRow,
   RepoRefOrigin,
@@ -334,4 +335,101 @@ export function registerAppDbSchema(db: Dexie): void {
     settings: "key, updatedAt",
     shareOwners: null,
   });
+
+  db.version(8)
+    .stores({
+      daily_costs: "date",
+      messages:
+        "id, sessionId, [sessionId+order], [sessionId+timestamp], [sessionId+status], order, timestamp, status",
+      "provider-keys": "provider, updatedAt",
+      publicMessages: null,
+      publicSessions: null,
+      repositories: "[owner+repo+ref], lastOpenedAt",
+      session_leases: "sessionId, ownerTabId, heartbeatAt",
+      session_runtime: "sessionId, phase, status, ownerTabId, lastProgressAt, updatedAt",
+      sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
+      settings: "key, updatedAt",
+      shareOwners: null,
+    })
+    .upgrade(async (tx) => {
+      const sessions = tx.table("sessions") as Table<LegacySessionData, string>;
+      const messages = tx.table("messages") as Table<LegacyMessageRow, string>;
+      const runtime = tx.table("session_runtime") as Table<LegacySessionRuntimeRow, string>;
+      const migrationNow = new Date().toISOString();
+      const [sessionRows, messageRows, runtimeRows] = await Promise.all([
+        sessions.toArray(),
+        messages.toArray(),
+        runtime.toArray(),
+      ]);
+      const sessionIds = new Set(sessionRows.map((session) => session.id));
+      const messagesBySession = new Map<string, LegacyMessageRow[]>();
+      const runtimeBySession = new Map(runtimeRows.map((row) => [row.sessionId, row]));
+      const nextMessages: MessageRow[] = [];
+      const deletedMessageIds = new Set<string>();
+      const nextSessions: SessionData[] = [];
+      const nextRuntimeRows: SessionRuntimeRow[] = [];
+      const deletedRuntimeIds = new Set<string>();
+
+      for (const message of messageRows) {
+        const sessionMessages = messagesBySession.get(message.sessionId);
+
+        if (sessionMessages) {
+          sessionMessages.push(message);
+          continue;
+        }
+
+        messagesBySession.set(message.sessionId, [message]);
+      }
+
+      for (const runtimeRow of runtimeRows) {
+        if (!sessionIds.has(runtimeRow.sessionId)) {
+          deletedRuntimeIds.add(runtimeRow.sessionId);
+        }
+      }
+
+      for (const session of sessionRows) {
+        const normalized = normalizePersistedSessionState({
+          messages: (messagesBySession.get(session.id) ?? []) as MessageRow[],
+          options: {
+            allowInterruptedHydration: true,
+            now: migrationNow,
+          },
+          runtime: runtimeBySession.get(session.id),
+          session: session as SessionData,
+        });
+
+        nextMessages.push(...normalized.messages);
+        nextSessions.push(normalized.session);
+
+        for (const messageId of normalized.deletedMessageIds) {
+          deletedMessageIds.add(messageId);
+        }
+
+        if (normalized.runtime) {
+          nextRuntimeRows.push(normalized.runtime);
+        } else if (runtimeBySession.has(session.id)) {
+          deletedRuntimeIds.add(session.id);
+        }
+      }
+
+      if (deletedMessageIds.size > 0) {
+        await messages.bulkDelete([...deletedMessageIds]);
+      }
+
+      if (nextMessages.length > 0) {
+        await messages.bulkPut(nextMessages);
+      }
+
+      if (nextSessions.length > 0) {
+        await sessions.bulkPut(nextSessions);
+      }
+
+      if (deletedRuntimeIds.size > 0) {
+        await runtime.bulkDelete([...deletedRuntimeIds]);
+      }
+
+      if (nextRuntimeRows.length > 0) {
+        await runtime.bulkPut(nextRuntimeRows);
+      }
+    });
 }

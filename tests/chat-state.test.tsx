@@ -1,6 +1,7 @@
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { db, deleteAllLocalData, putSession } from "@gitinspect/db";
 import type { MessageRow, SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
 
@@ -15,6 +16,9 @@ const useRuntimeSessionMock = vi.fn(() => ({
   setThinkingLevel: vi.fn(),
 }));
 const toastErrorMock = vi.fn();
+const { touchRepositoryMock } = vi.hoisted(() => ({
+  touchRepositoryMock: vi.fn(async () => {}),
+}));
 const handleGithubErrorMock = vi.fn(
   async (_error: unknown, _options?: { sessionId?: string }) => false,
 );
@@ -113,9 +117,14 @@ vi.mock("@/sessions/session-actions", () => ({
   })),
 }));
 
-vi.mock("@gitinspect/db", () => ({
-  touchRepository: vi.fn(async () => {}),
-}));
+vi.mock("@gitinspect/db", async () => {
+  const actual = await vi.importActual<typeof import("@gitinspect/db")>("@gitinspect/db");
+
+  return {
+    ...actual,
+    touchRepository: touchRepositoryMock,
+  };
+});
 
 vi.mock("@/components/chat-empty-state", () => ({
   ChatEmptyState: () => <div data-testid="empty-state">empty</div>,
@@ -123,6 +132,14 @@ vi.mock("@/components/chat-empty-state", () => ({
 
 vi.mock("@/components/chat-composer", () => ({
   ChatComposer: () => <div data-testid="composer">composer</div>,
+}));
+
+vi.mock("@/components/session-utility-actions", () => ({
+  SessionUtilityActions: () => null,
+}));
+
+vi.mock("@/components/chat-usage-notice", () => ({
+  ChatUsageNotice: () => null,
 }));
 
 vi.mock("@/components/repo-combobox", () => ({
@@ -240,13 +257,16 @@ function mockChatQueries(options: {
 }
 
 describe("Chat state", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await deleteAllLocalData();
     navigateMock.mockReset();
     useLiveQueryMock.mockReset();
     hasActiveTurnMock.mockReset();
     hasActiveTurnMock.mockReturnValue(false);
     useRuntimeSessionMock.mockClear();
     toastErrorMock.mockReset();
+    touchRepositoryMock.mockReset();
+    touchRepositoryMock.mockResolvedValue(undefined);
     handleGithubErrorMock.mockReset();
     handleGithubErrorMock.mockResolvedValue(false);
   });
@@ -422,6 +442,88 @@ describe("Chat state", () => {
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("loads dirty sessions through the chat live query without writing in the querier", async () => {
+    const sessionState = buildSession({
+      id: "session-dirty",
+      isStreaming: true,
+      messageCount: 2,
+    });
+    await putSession(sessionState.viewModel.session);
+    await db.table<MessageRow, string>("messages").bulkPut([
+      {
+        content: "hello",
+        id: "user-1",
+        order: 7,
+        role: "user",
+        sessionId: sessionState.viewModel.session.id,
+        status: "completed",
+        timestamp: 1,
+      },
+      {
+        api: "openai-responses",
+        content: [{ text: "partial", type: "text" }],
+        id: "assistant-stream",
+        model: "gpt-5.1-codex-mini",
+        order: 11,
+        provider: "openai-codex",
+        role: "assistant",
+        sessionId: sessionState.viewModel.session.id,
+        status: "streaming",
+        stopReason: "toolUse",
+        timestamp: 2,
+        usage: createEmptyUsage(),
+      } as MessageRow,
+    ]);
+
+    const capturedQueries: Array<() => unknown> = [];
+    useLiveQueryMock.mockImplementation((querier: () => unknown) => {
+      capturedQueries.push(querier);
+      const callIndex = useLiveQueryMock.mock.calls.length;
+
+      switch ((callIndex - 1) % 3) {
+        case 0:
+          return undefined;
+        case 1:
+          return {
+            model: "gpt-5.1-codex-mini",
+            providerGroup: "openai-codex",
+            thinkingLevel: "medium",
+          };
+        default:
+          return [];
+      }
+    });
+
+    const { Chat } = await import("@/components/chat");
+
+    expect(() => render(<Chat sessionId={sessionState.viewModel.session.id} />)).not.toThrow();
+    const loadSelectedSession = capturedQueries[0];
+
+    expect(loadSelectedSession).toBeTypeOf("function");
+
+    if (!loadSelectedSession) {
+      throw new Error("Missing selected-session live query");
+    }
+
+    await expect(loadSelectedSession()).resolves.toMatchObject({
+      kind: "active",
+      viewModel: {
+        displayMessages: [
+          expect.objectContaining({ id: "user-1" }),
+          expect.objectContaining({ id: "assistant-stream", status: "interrupted" }),
+        ],
+      },
+    });
+    expect(await db.sessionRuntime.get(sessionState.viewModel.session.id)).toBeUndefined();
+    expect(
+      await db.messages.where("sessionId").equals(sessionState.viewModel.session.id).toArray(),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "assistant-stream", status: "streaming" }),
+      ]),
+    );
   });
 
   it("shows the GitHub token action when a new GitHub system notice appears", async () => {

@@ -67,17 +67,17 @@ describe("session-service legacy sanitize", () => {
     await deleteAllLocalData();
   });
 
-  it("backfills order, removes transcript streaming rows, hydrates interrupted runtime, and writes back once when safe", async () => {
+  it("normalizes dirty current-schema rows in memory without writing repaired state", async () => {
     const session = createSession();
     await putSession(session);
     await db
       .table<LegacyMessageRow, string>("messages")
       .bulkPut([createUserRow(session.id), createLegacyStreamingAssistantRow(session.id)]);
 
+    const persistedMessagesBefore = await getSessionMessages(session.id);
     const firstLoad = await loadSessionWithMessages(session.id);
-    const persistedMessages = await getSessionMessages(session.id);
+    const persistedMessagesAfter = await getSessionMessages(session.id);
     const persistedRuntime = await getSessionRuntime(session.id);
-    const firstRuntimeUpdatedAt = persistedRuntime?.updatedAt;
 
     expect(firstLoad?.messages).toEqual([
       expect.objectContaining({ id: "user-1", order: 0, role: "user" }),
@@ -90,22 +90,20 @@ describe("session-service legacy sanitize", () => {
         content: [{ text: "partial", type: "text" }],
       }),
     });
-    expect(persistedMessages).toEqual([
-      expect.objectContaining({ id: "user-1", order: 0, role: "user" }),
-    ]);
-    expect(persistedRuntime).toMatchObject({
-      phase: "interrupted",
-      status: "interrupted",
-      streamMessage: expect.objectContaining({ id: "assistant-stream" }),
+    expect(firstLoad?.session).toMatchObject({
+      isStreaming: false,
+      messageCount: 1,
+      preview: "hello",
+      title: "hello",
     });
+    expect(persistedMessagesAfter).toEqual(persistedMessagesBefore);
+    expect(persistedRuntime).toBeUndefined();
 
     const secondLoad = await loadSessionWithMessages(session.id);
-    const secondRuntime = await getSessionRuntime(session.id);
 
-    expect(secondLoad?.messages).toEqual(firstLoad?.messages);
-    expect(secondLoad?.runtime).toEqual(firstLoad?.runtime);
-    expect(secondLoad?.session).toEqual(firstLoad?.session);
-    expect(secondRuntime?.updatedAt).toBe(firstRuntimeUpdatedAt);
+    expect(secondLoad).toEqual(firstLoad);
+    expect(await getSessionMessages(session.id)).toEqual(persistedMessagesBefore);
+    expect(await getSessionRuntime(session.id)).toBeUndefined();
   });
 
   it("defers runtime hydration when the session is actively leased", async () => {

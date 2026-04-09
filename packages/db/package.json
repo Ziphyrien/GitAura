@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./session-leases": "./src/session-leases.ts",
-    "./session-runtime": "./src/session-runtime.ts"
+    "./session-runtime": "./src/session-runtime.ts",
+    "./session-runtime-normalization": "./src/session-runtime-normalization.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit"

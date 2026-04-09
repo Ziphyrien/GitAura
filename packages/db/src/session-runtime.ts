@@ -1,55 +1,15 @@
 import { getIsoNow } from "@gitinspect/pi/lib/dates";
+import {
+  derivePhaseFromStatus,
+  deriveStatusFromPhase,
+  normalizeSessionRuntime,
+} from "./session-runtime-normalization";
 import { deleteSessionRuntime, getSessionRuntime, putSessionRuntime } from "./sessions";
-import type { RuntimePhase, SessionRuntimeRow, SessionRuntimeStatus } from "./types";
+import type { SessionRuntimeRow } from "./types";
+
+export { derivePhaseFromStatus, deriveStatusFromPhase, normalizeSessionRuntime };
 
 export type SessionRuntimePatch = Partial<Omit<SessionRuntimeRow, "sessionId" | "updatedAt">>;
-
-function derivePhaseFromStatus(status: SessionRuntimeStatus | undefined): RuntimePhase {
-  switch (status) {
-    case "streaming":
-      return "running";
-    case "interrupted":
-    case "aborted":
-    case "error":
-      return "interrupted";
-    default:
-      return "idle";
-  }
-}
-
-function deriveStatusFromPhase(
-  phase: RuntimePhase,
-  current: SessionRuntimeRow | undefined,
-): SessionRuntimeStatus {
-  if (phase === "running") {
-    return "streaming";
-  }
-
-  if (phase === "interrupted") {
-    const currentStatus = current?.status;
-    return currentStatus === "aborted" || currentStatus === "error" ? currentStatus : "interrupted";
-  }
-
-  return "completed";
-}
-
-export function normalizeSessionRuntime(
-  sessionId: string,
-  runtime: SessionRuntimeRow | undefined,
-): SessionRuntimeRow | undefined {
-  if (!runtime) {
-    return undefined;
-  }
-
-  const phase = runtime.phase ?? derivePhaseFromStatus(runtime.status);
-
-  return {
-    ...runtime,
-    phase,
-    sessionId,
-    status: runtime.status ?? deriveStatusFromPhase(phase, runtime),
-  };
-}
 
 export async function patchSessionRuntime(
   sessionId: string,
@@ -150,7 +110,7 @@ export async function markTurnCompleted(params: {
   lastError?: string;
   ownerTabId?: string;
   sessionId: string;
-  status: Extract<SessionRuntimeStatus, "aborted" | "completed" | "error">;
+  status: Extract<SessionRuntimeRow["status"], "aborted" | "completed" | "error">;
   turnId?: string;
 }): Promise<SessionRuntimeRow> {
   return await patchSessionRuntime(params.sessionId, {
