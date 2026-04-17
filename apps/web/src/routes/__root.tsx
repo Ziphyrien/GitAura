@@ -9,6 +9,7 @@ import {
   createRootRoute,
   retainSearchParams,
   useNavigate,
+  useRouterState,
 } from "@tanstack/react-router";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { Analytics as OneDollarStats } from "@/components/analytics";
@@ -19,7 +20,8 @@ import { AuthDialogWrapper } from "@/components/auth-dialog-wrapper";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 import { PricingSettingsPanel } from "@/components/pricing-settings-panel";
 import { RootGuard } from "@/components/root-guard";
-import { useSubscription } from "@/hooks/use-subscription";
+import { SyncBootstrapGate } from "@/components/sync-bootstrap-gate";
+import { getAppBootstrap, getSignedOutAppBootstrap } from "@/lib/app-bootstrap";
 import { parseSettingsSection } from "@/navigation/search-state";
 import { DataSettings } from "@gitinspect/ui/components/data-settings";
 import { SidebarInset, SidebarProvider } from "@gitinspect/ui/components/sidebar";
@@ -49,6 +51,14 @@ type RootSearch = {
 };
 
 export const Route = createRootRoute({
+  loader: async () => {
+    try {
+      return await getAppBootstrap();
+    } catch (error) {
+      console.error("Could not load app bootstrap", error);
+      return getSignedOutAppBootstrap();
+    }
+  },
   validateSearch: (search: RootSearchInput): RootSearch => ({
     feedback: search.feedback === "open" ? "open" : undefined,
     feedbackIncludeDiagnostics: search.feedbackIncludeDiagnostics === "true" ? true : undefined,
@@ -144,76 +154,88 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RootLayout() {
+export function RootLayout() {
   return (
-    <AppAuthProvider>
-      <AutumnProvider
-        backendUrl={env.VITE_BETTER_AUTH_URL}
-        includeCredentials
-        pathPrefix="/api/autumn"
-      >
-        <RootAppChrome />
-      </AutumnProvider>
-    </AppAuthProvider>
+    <AutumnProvider
+      backendUrl={env.VITE_BETTER_AUTH_URL}
+      includeCredentials
+      pathPrefix="/api/autumn"
+    >
+      <BootstrappedRootApp />
+    </AutumnProvider>
   );
 }
 
-function RootAppChrome() {
-  const navigate = useNavigate();
-  const search = Route.useSearch();
-  const { isSignedIn, subscriptionState } = useSubscription();
+export function BootstrappedRootApp() {
+  const bootstrap = Route.useLoaderData();
+  const syncEnabled = bootstrap.isSubscribed && Boolean(env.VITE_DEXIE_CLOUD_DB_URL);
 
   return (
-    <RootGuard>
-      <SidebarProvider
-        onOpenChange={(open) => {
-          void navigate({
-            search: (prev) => ({
-              ...prev,
-              sidebar: open ? "open" : undefined,
-            }),
-            to: ".",
-          });
-        }}
-        open={search.sidebar === "open"}
-      >
-        <div className="relative flex h-svh w-full overflow-hidden overscroll-none">
-          <AppSidebar />
-          <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <AppHeader />
-            <main className="flex min-h-0 flex-1 overflow-hidden">
-              <Outlet />
-            </main>
-          </SidebarInset>
-        </div>
-        <AppSettingsDialog
-          dataPanel={
-            <DataSettings
-              canRequestSync={subscriptionState?.isSubscribed === true}
-              onRequestSync={() => {
-                void navigate({
-                  replace: true,
-                  search: (prev) => ({
-                    ...prev,
-                    feedback: "open",
-                    feedbackIncludeDiagnostics: undefined,
-                    feedbackMessage:
-                      "Implement the fucking sync feature across devices someone is paying for it ! (Press enter for me to receive this message)",
-                    feedbackSentiment: "sad",
-                  }),
-                  to: ".",
-                });
-              }}
-            />
-          }
-          pricingLabel={isSignedIn ? "Subscription" : "Get Pro"}
-          pricingPanel={<PricingSettingsPanel />}
+    <SyncBootstrapGate syncEnabled={syncEnabled}>
+      <AppAuthProvider>
+        <RootAppChrome
+          isSignedIn={bootstrap.isSignedIn}
+          isSubscribed={bootstrap.isSubscribed}
+          syncEnabled={syncEnabled}
         />
-        <FeedbackDialog />
-      </SidebarProvider>
+      </AppAuthProvider>
+    </SyncBootstrapGate>
+  );
+}
+
+function RootAppChrome(props: {
+  isSignedIn: boolean;
+  isSubscribed: boolean;
+  syncEnabled: boolean;
+}) {
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const currentMatch = useRouterState({
+    select: (state) => state.matches[state.matches.length - 1],
+  });
+  const isSharedTranscriptRoute = currentMatch.routeId === "/share/$sessionId";
+
+  return (
+    <>
+      <RootGuard>
+        {isSharedTranscriptRoute ? (
+          <Outlet />
+        ) : (
+          <SidebarProvider
+            onOpenChange={(open) => {
+              void navigate({
+                search: (prev) => ({
+                  ...prev,
+                  sidebar: open ? "open" : undefined,
+                }),
+                to: ".",
+              });
+            }}
+            open={search.sidebar === "open"}
+          >
+            <div className="relative flex h-svh w-full overflow-hidden overscroll-none">
+              <AppSidebar showGetPro={!props.isSubscribed} />
+              <SidebarInset className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                <AppHeader />
+                <main className="flex min-h-0 flex-1 overflow-hidden">
+                  <Outlet />
+                </main>
+              </SidebarInset>
+            </div>
+            <AppSettingsDialog
+              dataPanel={
+                <DataSettings canRequestSync={props.isSubscribed} syncEnabled={props.syncEnabled} />
+              }
+              pricingLabel={props.isSignedIn ? "Subscription" : "Get Pro"}
+              pricingPanel={<PricingSettingsPanel />}
+            />
+            <FeedbackDialog />
+          </SidebarProvider>
+        )}
+      </RootGuard>
       <AuthDialogWrapper />
       <Toaster position="bottom-right" />
-    </RootGuard>
+    </>
   );
 }
 

@@ -5,7 +5,15 @@ import { OrgRepoPicker } from "@gitinspect/ui/components/org-repo-picker";
 export const Route = createFileRoute("/$owner/")({
   beforeLoad: ({ params }) => {
     if (isReservedRootOwnerSegment(params.owner)) {
-      throw redirect({ to: "/" });
+      throw redirect({
+        search: {
+          tab: undefined,
+          feedback: undefined,
+          settings: undefined,
+          sidebar: undefined,
+        },
+        to: "/",
+      });
     }
   },
   component: OwnerLandingRoute,

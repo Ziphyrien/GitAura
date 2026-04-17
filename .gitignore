@@ -11,6 +11,8 @@ build
 # Environment variables
 .env
 .env*.local
+dexie-cloud.json
+dexie-cloud.key
 .nitro
 .tanstack
 .wrangler

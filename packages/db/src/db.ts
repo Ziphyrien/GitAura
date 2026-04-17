@@ -1,28 +1,29 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
+import dexieCloud, { type DexieCloudTable } from "dexie-cloud-addon";
 import { DB_NAME, registerAppDbSchema } from "./schema";
 import type {
   DailyCostAggregate,
-  MessageRow,
   ProviderKeyRecord,
   RepositoryRow,
-  SessionData,
   SessionLeaseRow,
   SessionRuntimeRow,
   SettingsRow,
+  SyncedMessageRow,
+  SyncedSessionRow,
 } from "./types";
 
 export class AppDb extends Dexie {
   dailyCosts!: EntityTable<DailyCostAggregate, "date">;
-  messages!: EntityTable<MessageRow, "id">;
+  messages!: DexieCloudTable<SyncedMessageRow, "id">;
   providerKeys!: EntityTable<ProviderKeyRecord, "provider">;
   repositories!: Table<RepositoryRow, [string, string, string]>;
   sessionLeases!: EntityTable<SessionLeaseRow, "sessionId">;
   sessionRuntime!: EntityTable<SessionRuntimeRow, "sessionId">;
-  sessions!: EntityTable<SessionData, "id">;
+  sessions!: DexieCloudTable<SyncedSessionRow, "id">;
   settings!: EntityTable<SettingsRow, "key">;
 
   constructor(name = DB_NAME) {
-    super(name);
+    super(name, { addons: [dexieCloud] });
 
     registerAppDbSchema(this);
 

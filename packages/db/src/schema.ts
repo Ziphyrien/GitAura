@@ -432,4 +432,18 @@ export function registerAppDbSchema(db: Dexie): void {
         await runtime.bulkPut(nextRuntimeRows);
       }
     });
+
+  db.version(9).stores({
+    daily_costs: "date",
+    messages:
+      "id, sessionId, [sessionId+order], [sessionId+timestamp], [sessionId+status], order, timestamp, status",
+    "provider-keys": "provider, updatedAt",
+    publicMessages: "id, sessionId, [sessionId+order], order, timestamp",
+    publicSessions: "id, ownerUserId, publishedAt, updatedAt",
+    repositories: "[owner+repo+ref], lastOpenedAt",
+    session_leases: "sessionId, ownerTabId, heartbeatAt",
+    session_runtime: "sessionId, phase, status, ownerTabId, lastProgressAt, updatedAt",
+    sessions: "id, updatedAt, createdAt, provider, model, isStreaming",
+    settings: "key, updatedAt",
+  });
 }

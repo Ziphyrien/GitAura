@@ -2,6 +2,10 @@ import * as React from "react";
 import { useCustomer } from "autumn-js/react";
 
 import { authClient } from "@/lib/auth-client";
+import {
+  AUTUMN_CUSTOMER_EXPAND_FIELDS,
+  hasPaidAutumnCustomer,
+} from "@/lib/subscription-entitlements";
 
 export type SubscriptionStatus = "active" | "canceled" | "inactive" | "past_due" | "scheduled";
 
@@ -16,11 +20,7 @@ export type SubscriptionState = {
   status: SubscriptionStatus;
 };
 
-const CUSTOMER_EXPAND_FIELDS = ["subscriptions.plan", "purchases.plan"];
-
-function isPaidSubscription(autoEnable: boolean | undefined): boolean {
-  return autoEnable !== true;
-}
+const CUSTOMER_EXPAND_FIELDS = [...AUTUMN_CUSTOMER_EXPAND_FIELDS];
 
 export function useSubscription() {
   const sessionState = authClient.useSession();
@@ -54,7 +54,9 @@ export function useSubscription() {
       return {
         currentPeriodEnd: activeSubscription.currentPeriodEnd,
         customerId: customer?.id ?? null,
-        isSubscribed: isPaidSubscription(activeSubscription.autoEnable),
+        isSubscribed: hasPaidAutumnCustomer({
+          subscriptions: [activeSubscription],
+        }),
         plan: activeSubscription.planId,
         planId: activeSubscription.planId,
         planName: activeSubscription.plan?.name ?? activeSubscription.planId,
@@ -102,20 +104,10 @@ export function useSubscription() {
 
   return {
     attach: customerState.attach,
-    customer: customerState.data,
     error: customerState.error,
     isPending: sessionPending || (isSignedIn && customerState.isLoading),
     isSignedIn,
     openCustomerPortal: customerState.openCustomerPortal,
-    refetch: customerState.refetch,
-    refresh: async () => {
-      if (!isSignedIn) {
-        return;
-      }
-
-      await customerState.refetch();
-    },
     subscriptionState,
-    subscriptionStatus: subscriptionState,
   };
 }

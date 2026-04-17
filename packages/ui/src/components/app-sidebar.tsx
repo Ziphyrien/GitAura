@@ -26,7 +26,7 @@ export function AppSidebar({ showGetPro = true }: { showGetPro?: boolean } = {})
     select: (state) => state.matches[state.matches.length - 1],
   });
   const search = useSearch({ strict: false });
-  const sessions = useLiveQuery(async () => await listSessions(), []);
+  const sessions = useLiveQuery(() => listSessions(), []);
   const leases = useLiveQuery(async () => await listSessionLeases(), []);
 
   const sessionList = sessions ?? [];

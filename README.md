@@ -20,10 +20,10 @@ You can replace `hub` with `inspect` in any GitHub URL to open the corresponding
 
 ## Models & GitHub access (two different things)
 
-| | What it’s for |
-|---|----------------|
-| **Settings → Providers** | LLM API keys / OAuth. Use this for the models you want and for providers you pay for. |
-| **Settings → GitHub** | Optional **PAT** stored only in this browser: higher GitHub API rate limits (60/h → 5,000/h) and richer repo metadata where applicable. |
+|                          | What it’s for                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Settings → Providers** | LLM API keys / OAuth. Use this for the models you want and for providers you pay for.                                                   |
+| **Settings → GitHub**    | Optional **PAT** stored only in this browser: higher GitHub API rate limits (60/h → 5,000/h) and richer repo metadata where applicable. |
 
 If you have **no provider configured**, the app still offers a **free tier** model in the picker (“Free (with limits)”). That path is **rate-limited** and **subject to the host’s terms**; traffic goes through **gitinspect’s proxy** (`/api/proxy`) so we can enforce limits and run the shared API key on the server—your prompts are not sent straight from the browser to the model host the way they are when you bring your own key.
 
@@ -47,6 +47,21 @@ We use **Vercel** (hosting) and **OneDollar Stats** for **aggregate** traffic an
 - **Smart API selection** — Contents API for small files; raw endpoint for large files (>1 MB).
 
 Inspired by [Sitegeist](https://sitegeist.ai), [btca](https://github.com/davis7dotsh/better-context) & [repogrep](https://repogrep.com).
+
+---
+
+## Dexie Cloud local setup
+
+If you want to test paid sync or public sharing locally:
+
+1. Create or connect a Dexie Cloud database.
+   - `npx dexie-cloud create`
+   - or `npx dexie-cloud connect`
+2. Whitelist your local and production origins.
+   - `npx dexie-cloud whitelist http://localhost:3001`
+   - `npx dexie-cloud whitelist https://gitinspect.com`
+3. Copy the generated URL, client id, and client secret into `apps/web/.env.example` values in your local `.env`.
+4. Keep `dexie-cloud.json` and `dexie-cloud.key` out of git. They are ignored in `.gitignore`.
 
 ---
 

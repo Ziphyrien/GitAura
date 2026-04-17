@@ -41,7 +41,7 @@ function downloadJson(filename: string, data: unknown) {
   URL.revokeObjectURL(url);
 }
 
-export function DataSettings(props: { canRequestSync?: boolean; onRequestSync?: () => void }) {
+export function DataSettings(props: { canRequestSync?: boolean; syncEnabled?: boolean }) {
   const navigate = useNavigate();
   const currentMatch = useRouterState({
     select: (state) => state.matches[state.matches.length - 1],
@@ -132,15 +132,7 @@ export function DataSettings(props: { canRequestSync?: boolean; onRequestSync?: 
         </ItemContent>
         <ItemActions>
           {props.canRequestSync ? (
-            <Switch
-              aria-label="Enable sync"
-              checked={false}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  props.onRequestSync?.();
-                }
-              }}
-            />
+            <Switch aria-label="Enable sync" checked={props.syncEnabled === true} disabled />
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>

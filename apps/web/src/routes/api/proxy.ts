@@ -29,8 +29,9 @@ export const Route = createFileRoute("/api/proxy")({
         const session = await auth.api.getSession({
           headers: request.headers,
         });
+        const customerId = session?.user.ghId ?? session?.user.id;
 
-        if (!session?.user.ghId) {
+        if (!customerId) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/api/proxy")({
 
           try {
             const { allowed } = await autumn.check({
-              customerId: session.user.ghId,
+              customerId,
               featureId: AUTUMN_MESSAGES_FEATURE_ID,
               requiredBalance: 1,
             });
@@ -113,7 +114,7 @@ export const Route = createFileRoute("/api/proxy")({
         if (shouldTrackUsage && response.ok && autumn) {
           try {
             await autumn.track({
-              customerId: session.user.ghId,
+              customerId,
               featureId: AUTUMN_MESSAGES_FEATURE_ID,
               value: 1,
             });

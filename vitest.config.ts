@@ -21,8 +21,32 @@ export default defineConfig({
         replacement: fromRoot("./apps/web/src/components/analytics.tsx"),
       },
       {
+        find: "@/components/app-auth-provider",
+        replacement: fromRoot("./apps/web/src/components/app-auth-provider.tsx"),
+      },
+      {
+        find: "@/components/app-header",
+        replacement: fromRoot("./apps/web/src/components/app-header.tsx"),
+      },
+      {
+        find: "@/components/app-sidebar",
+        replacement: fromRoot("./apps/web/src/components/app-sidebar.tsx"),
+      },
+      {
+        find: "@/components/auth-dialog-wrapper",
+        replacement: fromRoot("./apps/web/src/components/auth-dialog-wrapper.tsx"),
+      },
+      {
         find: "@/components/feedback-dialog",
         replacement: fromRoot("./apps/web/src/components/feedback-dialog.tsx"),
+      },
+      {
+        find: "@/components/pricing-settings-panel",
+        replacement: fromRoot("./apps/web/src/components/pricing-settings-panel.tsx"),
+      },
+      {
+        find: "@/components/sync-bootstrap-gate",
+        replacement: fromRoot("./apps/web/src/components/sync-bootstrap-gate.tsx"),
       },
       {
         find: "@/components/chat-adapter",
@@ -37,8 +61,52 @@ export default defineConfig({
         replacement: fromRoot("./packages/ui/src/hooks/use-mobile.ts"),
       },
       {
+        find: "@/hooks/use-subscription",
+        replacement: fromRoot("./apps/web/src/hooks/use-subscription.ts"),
+      },
+      {
+        find: "@/lib/app-bootstrap",
+        replacement: fromRoot("./apps/web/src/lib/app-bootstrap.ts"),
+      },
+      {
+        find: "@/lib/auth-client",
+        replacement: fromRoot("./apps/web/src/lib/auth-client.ts"),
+      },
+      {
+        find: "@/lib/github-access",
+        replacement: fromRoot("./apps/web/src/lib/github-access.ts"),
+      },
+      {
+        find: "@/lib/autumn.server",
+        replacement: fromRoot("./apps/web/src/lib/autumn.server.ts"),
+      },
+      {
+        find: "@/lib/bootstrap-dexie-cloud",
+        replacement: fromRoot("./apps/web/src/lib/bootstrap-dexie-cloud.ts"),
+      },
+      {
+        find: "@/lib/dexie-cloud-rest.server",
+        replacement: fromRoot("./apps/web/src/lib/dexie-cloud-rest.server.ts"),
+      },
+      {
+        find: "@/lib/fetch-dexie-cloud-tokens",
+        replacement: fromRoot("./apps/web/src/lib/fetch-dexie-cloud-tokens.ts"),
+      },
+      {
         find: "@/lib/feedback.server",
         replacement: fromRoot("./apps/web/src/lib/feedback.server.ts"),
+      },
+      {
+        find: "@/lib/subscription-entitlements",
+        replacement: fromRoot("./apps/web/src/lib/subscription-entitlements.ts"),
+      },
+      {
+        find: "@/middleware/auth",
+        replacement: fromRoot("./apps/web/src/middleware/auth.ts"),
+      },
+      {
+        find: "@/store/auth-store",
+        replacement: fromRoot("./apps/web/src/store/auth-store.ts"),
       },
       { find: "@/lib/github/cache", replacement: fromRoot("./packages/just-github/src/cache.ts") },
       {

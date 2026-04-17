@@ -40,13 +40,18 @@ function ShareButtonIcon(props: Pick<SessionUtilityActionProps, "canUnshare" | "
   );
 }
 
+function canToggleShare(props: SessionUtilityActionProps): boolean {
+  return props.isPro || (props.isShared && props.canUnshare);
+}
+
 function ShareActionButton(props: SessionUtilityActionProps) {
+  const canShare = canToggleShare(props);
   const button = (
     <Button
       className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
       disabled={props.disabled || props.isSharing}
       onClick={() => {
-        if (!props.isPro) {
+        if (!canShare) {
           props.onUpgradeClick();
           return;
         }
@@ -68,7 +73,7 @@ function ShareActionButton(props: SessionUtilityActionProps) {
     </Button>
   );
 
-  if (props.isPro) {
+  if (canShare) {
     return button;
   }
 
@@ -126,9 +131,9 @@ export function SessionUtilityActions(props: SessionUtilityActionProps) {
               <span>Copy as Markdown</span>
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={props.isSharing || (!props.isPro && props.disabled)}
+              disabled={props.isSharing || props.disabled}
               onClick={() => {
-                if (!props.isPro) {
+                if (!canToggleShare(props)) {
                   props.onUpgradeClick();
                   return;
                 }

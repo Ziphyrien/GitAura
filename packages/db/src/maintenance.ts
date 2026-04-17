@@ -28,32 +28,10 @@ export async function exportAllChatData(): Promise<ChatDataExportV1> {
 }
 
 /**
- * Clears every persisted store (sessions, messages, settings, provider keys,
- * repositories, daily cost aggregates, runtime metadata). Release active
- * runtime ownership before calling.
+ * Wipes this browser's IndexedDB for this app without syncing deletions to Dexie Cloud.
+ * Release active runtime ownership and sign the user out before calling.
  */
 export async function deleteAllLocalData(): Promise<void> {
-  await db.transaction(
-    "rw",
-    [
-      db.sessions,
-      db.messages,
-      db.settings,
-      db.providerKeys,
-      db.repositories,
-      db.dailyCosts,
-      db.sessionLeases,
-      db.sessionRuntime,
-    ],
-    async () => {
-      await db.sessions.clear();
-      await db.messages.clear();
-      await db.settings.clear();
-      await db.providerKeys.clear();
-      await db.repositories.clear();
-      await db.dailyCosts.clear();
-      await db.sessionLeases.clear();
-      await db.sessionRuntime.clear();
-    },
-  );
+  await db.delete();
+  await db.open();
 }

@@ -13,7 +13,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "dexie": "^4.3.0"
+    "dexie": "^4.3.0",
+    "dexie-cloud-addon": "^4.4.10"
   },
   "devDependencies": {
     "@gitinspect/config": "workspace:*",

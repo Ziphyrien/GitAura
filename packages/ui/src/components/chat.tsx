@@ -34,7 +34,13 @@ import {
 import { StatusShimmer } from "@gitinspect/ui/components/ai-elements/shimmer";
 import { ProgressiveBlur } from "@gitinspect/ui/components/progressive-blur";
 import { copySessionToClipboard } from "@gitinspect/pi/lib/copy-session-markdown";
-import { db, touchRepository } from "@gitinspect/db";
+import {
+  getSessionShareState,
+  publishSessionShare,
+  unshareSession,
+  type SessionShareState,
+} from "@gitinspect/pi/lib/public-share-client";
+import { db, syncDb, touchRepository } from "@gitinspect/db";
 import { runtimeClient } from "@gitinspect/pi/agent/runtime-client";
 import { getRuntimeCommandErrorMessage } from "@gitinspect/pi/agent/runtime-command-errors";
 import { useRuntimeSession } from "@gitinspect/pi/hooks/use-runtime-session";
@@ -256,8 +262,12 @@ export function Chat(props: ChatProps) {
   const surfacedSystemNoticeFingerprintsRef = React.useRef(new Set<string>());
   const surfacedSystemNoticeSessionIdRef = React.useRef<string | undefined>(undefined);
   const [promptHeight, setPromptHeight] = React.useState(0);
-  const shareFeedbackMessage =
-    "Implement the fucking share feature you morron someone payed for it ! (Press enter for me to receive this message)";
+  const [isSharing, setIsSharing] = React.useState(false);
+  const [shareState, setShareState] = React.useState<SessionShareState>({
+    canUnshare: false,
+    isShared: false,
+    url: null,
+  });
 
   const promptRef = React.useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
@@ -292,6 +302,47 @@ export function Chat(props: ChatProps) {
     () => (proCustomerState.data ? hasProSubscription(proCustomerState.data) : false),
     [proCustomerState.data],
   );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadShareState() {
+      if (!activeSession || auth?.authState.session !== "signed-in") {
+        if (!cancelled) {
+          setShareState({
+            canUnshare: false,
+            isShared: false,
+            url: null,
+          });
+        }
+        return;
+      }
+
+      try {
+        const nextShareState = await getSessionShareState(activeSession.id);
+
+        if (!cancelled) {
+          setShareState(nextShareState);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setShareState({
+            canUnshare: false,
+            isShared: false,
+            url: null,
+          });
+        }
+
+        console.error("Could not load share state", error);
+      }
+    }
+
+    void loadShareState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSession?.id, auth?.authState.session]);
 
   React.useEffect(() => {
     if (!displayRepoSource) {
@@ -672,27 +723,60 @@ export function Chat(props: ChatProps) {
   }, [navigate]);
 
   const handleShareToggle = React.useCallback(async () => {
-    if (!activeSession) {
+    if (!activeSession || !sessionViewModel) {
       return;
     }
 
-    if (!isPro) {
+    if (!isPro && !(shareState.isShared && shareState.canUnshare)) {
       handleUpgradeToPro();
       return;
     }
 
-    void navigate({
-      replace: true,
-      search: (prev) => ({
-        ...prev,
-        feedback: "open",
-        feedbackIncludeDiagnostics: undefined,
-        feedbackMessage: shareFeedbackMessage,
-        feedbackSentiment: "sad",
-      }),
-      to: ".",
-    });
-  }, [activeSession, handleUpgradeToPro, isPro, navigate, shareFeedbackMessage]);
+    setIsSharing(true);
+
+    try {
+      if (shareState.isShared && shareState.canUnshare) {
+        await unshareSession(activeSession.id);
+        setShareState({
+          canUnshare: false,
+          isShared: false,
+          url: null,
+        });
+        toast.success("Share link removed");
+        return;
+      }
+
+      await syncDb();
+
+      const nextShareState = await publishSessionShare({
+        messages: sessionViewModel.transcriptMessages,
+        session: activeSession,
+      });
+
+      setShareState(nextShareState);
+
+      if (nextShareState.url) {
+        await navigator.clipboard.writeText(nextShareState.url);
+        toast.success("Share link copied to clipboard");
+      } else {
+        toast.success("Share link created");
+      }
+    } catch (error) {
+      console.error("Could not update share state", error);
+      toast.error(
+        shareState.isShared ? "Could not remove share link" : "Could not create share link",
+      );
+    } finally {
+      setIsSharing(false);
+    }
+  }, [
+    activeSession,
+    handleUpgradeToPro,
+    isPro,
+    sessionViewModel,
+    shareState.canUnshare,
+    shareState.isShared,
+  ]);
 
   if (loadedSessionState === undefined) {
     return <LoadingState label="Loading session..." />;
@@ -809,10 +893,10 @@ export function Chat(props: ChatProps) {
             />
             {messages.length > 0 ? (
               <SessionUtilityActions
-                canUnshare={false}
+                canUnshare={shareState.canUnshare}
                 isPro={isPro}
-                isShared={false}
-                isSharing={false}
+                isShared={shareState.isShared}
+                isSharing={isSharing}
                 onCopy={handleCopySession}
                 onShareToggle={() => {
                   void handleShareToggle();

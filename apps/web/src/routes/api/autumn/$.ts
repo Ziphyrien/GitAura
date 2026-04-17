@@ -14,7 +14,7 @@ const handleAutumnRequest = autumnHandler({
         email: session?.user.email ?? undefined,
         name: session?.user.name ?? undefined,
       },
-      customerId: session?.user.ghId,
+      customerId: session?.user.ghId ?? session?.user.id,
     };
   },
   pathPrefix: "/api/autumn",
