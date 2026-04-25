@@ -3,7 +3,7 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Plugin } from "vite-plus";
 import { comlink } from "vite-plugin-comlink";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 

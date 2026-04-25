@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { ChatUsageNotice } from "@/components/chat-usage-notice";
 import { renderWithProviders } from "@/test/render-with-providers";
 

@@ -18,7 +18,10 @@
       "tailwindcss": "^4.1.18",
       "better-auth": "1.5.5",
       "@types/react": "^19.2.10",
-      "@types/react-dom": "^19.2.3"
+      "@types/react-dom": "^19.2.3",
+      "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+      "vitest": "npm:@voidzero-dev/vite-plus-test@latest",
+      "vite-plus": "latest"
     }
   },
   "type": "module",
@@ -28,12 +31,12 @@
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:cli": "turbo -F @gitinspect/cli dev",
-    "check": "oxlint && oxfmt --write",
+    "check": "vp lint && vp fmt --write",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish",
-    "prepare": "husky",
-    "test": "vitest run"
+    "prepare": "vp config",
+    "test": "vp test run"
   },
   "dependencies": {
     "@gitinspect/env": "workspace:*",
@@ -45,19 +48,14 @@
     "@gitinspect/config": "workspace:*",
     "@types/node": "catalog:",
     "fake-indexeddb": "^6.2.5",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.1.2",
-    "oxfmt": "^0.26.0",
-    "oxlint": "^1.41.0",
     "turbo": "^2.8.12",
     "typescript": "^5",
-    "vitest": "^4.1.2"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
-  "lint-staged": {
-    "*": [
-      "oxlint",
-      "oxfmt --write"
-    ]
+  "overrides": {
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "packageManager": "bun@1.2.17"
 }

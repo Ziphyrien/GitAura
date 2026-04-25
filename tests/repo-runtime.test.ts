@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createRepoRuntime, execInRepoShell } from "@/repo/repo-runtime";
 import { installMockRepoFetch, TEST_REPO_SOURCE } from "./repo-test-utils";
 

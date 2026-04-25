@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { TurnEventStore } from "@/agent/turn-event-store";
 import { deleteAllLocalData, getSessionMessages, getSessionRuntime } from "@gitinspect/db";
 import type { AssistantMessage, ToolResultMessage } from "@/types/chat";

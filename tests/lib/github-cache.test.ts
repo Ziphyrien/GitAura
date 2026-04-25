@@ -1,5 +1,5 @@
 //just-github test - DO NOT Delete.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { ContentCache, TreeCache } from "@/lib/github/cache";
 
 describe("TreeCache", () => {

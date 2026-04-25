@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createEmptyUsage } from "@/types/models";
 import { serializeOAuthCredentials } from "@/auth/oauth-types";
 import {

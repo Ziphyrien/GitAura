@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vp build",
     "check-types": "tsc --noEmit",
-    "serve": "vite preview",
-    "dev": "vite dev"
+    "serve": "vp preview",
+    "dev": "vp dev"
   },
   "dependencies": {
     "@gitinspect/auth": "workspace:*",
@@ -44,8 +44,9 @@
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^27.4.0",
     "typescript": "^5",
-    "vite": "^7.3.1",
+    "vite": "catalog:",
     "vite-plugin-comlink": "^5.3.0",
+    "vite-plus": "catalog:",
     "web-vitals": "^5.1.0"
   }
 }

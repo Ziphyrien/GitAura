@@ -1,5 +1,5 @@
 //just-github test - DO NOT Delete.
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vite-plus/test";
 import { GitHubFs } from "../src/github-fs.js";
 import { GitHubFsError } from "../src/types.js";
 import type { GitHubResolvedRef } from "../src/refs.js";

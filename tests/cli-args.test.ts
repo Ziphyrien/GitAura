@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { parseCliArgs, renderLoginHelp, renderTopLevelHelp } from "../apps/cli/src/lib/args";
 
 describe("cli args", () => {

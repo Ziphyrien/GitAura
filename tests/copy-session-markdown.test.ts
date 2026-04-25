@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { messagesToMarkdown } from "@/lib/copy-session-markdown";
 import type { ChatMessage } from "@/types/chat";
 import { createEmptyUsage } from "@/types/models";

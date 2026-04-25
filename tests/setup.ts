@@ -1,5 +1,6 @@
 import "fake-indexeddb/auto";
-import { afterAll, vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { afterAll, afterEach, vi } from "vite-plus/test";
 import { db } from "@gitinspect/db";
 
 vi.mock("autumn-js/react", () => ({
@@ -36,6 +37,10 @@ class MockResizeObserver {
 Object.defineProperty(globalThis, "ResizeObserver", {
   configurable: true,
   value: MockResizeObserver,
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 afterAll(() => {

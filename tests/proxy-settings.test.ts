@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { DEFAULT_PROXY_URL } from "@/proxy/settings";
 
 const mocks = vi.hoisted(() => ({

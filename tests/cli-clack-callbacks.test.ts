@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { LoginCancelledError } from "../apps/cli/src/lib/errors";
 
 const cancelToken = Symbol("cancel-token");

@@ -23,8 +23,8 @@
   "scripts": {
     "build": "tsc",
     "check-types": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vp test run",
+    "test:watch": "vp test"
   },
   "dependencies": {
     "just-bash": "^2.14.0"
@@ -32,7 +32,8 @@
   "devDependencies": {
     "tsx": "^4.21.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=18"

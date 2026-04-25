@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 import type * as PiAi from "@mariozechner/pi-ai";
 import type { AssistantMessage as PiAssistantMessage } from "@mariozechner/pi-ai";

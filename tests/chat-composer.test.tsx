@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { ChatComposer } from "@/components/chat-composer";
 import { renderWithProviders } from "@/test/render-with-providers";
 

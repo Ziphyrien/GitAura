@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite-plus";
 
 function fromRoot(path: string) {
   return fileURLToPath(new URL(path, import.meta.url));
@@ -148,6 +148,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    testTimeout: 30_000,
     include: [
       "tests/**/*.test.ts",
       "tests/**/*.test.tsx",

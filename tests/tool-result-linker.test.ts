@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { linkToolResults } from "@/agent/tool-result-linker";
 import type { AssistantMessage, ToolResultMessage } from "@/types/chat";
 import { createEmptyUsage } from "@/types/models";

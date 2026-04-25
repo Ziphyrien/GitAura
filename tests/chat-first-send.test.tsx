@@ -1,5 +1,5 @@
 import * as React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createEmptyUsage } from "@/types/models";
 import type { ResolvedRepoSource, SessionData } from "@/types/storage";

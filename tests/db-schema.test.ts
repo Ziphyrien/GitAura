@@ -1,5 +1,5 @@
 import Dexie from "dexie";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { AppDb } from "@gitinspect/db";
 import { createEmptyUsage } from "@/types/models";
 import type {

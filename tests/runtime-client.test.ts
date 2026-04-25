@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { SessionRunner } from "@/agent/session-runner";
 import type { SessionData, SessionLeaseRow } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";

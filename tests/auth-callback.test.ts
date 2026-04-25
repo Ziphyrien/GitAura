@@ -1,5 +1,5 @@
 import * as React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { AuthCallbackPage } from "@/components/auth-callback-page";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { toOpenAIResponsesInput, webMessageTransformer } from "@/agent/message-transformer";
 
 describe("webMessageTransformer", () => {

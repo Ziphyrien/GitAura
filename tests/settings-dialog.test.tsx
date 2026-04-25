@@ -1,5 +1,5 @@
 import * as React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanup, render } from "@testing-library/react";
 
 const { navigate, state } = vi.hoisted(() => ({

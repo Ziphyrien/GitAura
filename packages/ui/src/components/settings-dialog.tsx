@@ -361,15 +361,18 @@ function AboutPanel() {
           </div>
           <div className="space-y-2 text-muted-foreground">
             <p>
-              <span className="font-medium text-foreground">No gitinspect backend for your data.</span>{" "}
+              <span className="font-medium text-foreground">
+                No gitinspect backend for your data.
+              </span>{" "}
               Chats, sessions, settings, optional GitHub token, provider keys, and usage stay only
               in this browser (IndexedDB).
             </p>
             <p>
               <span className="font-medium text-foreground">Network:</span>{" "}
               <span className="font-medium text-foreground">GitHub</span> is called from your
-              browser for repo data. With <span className="font-medium text-foreground">your own</span>{" "}
-              provider keys, chat goes to those APIs (optional proxy in settings). The{" "}
+              browser for repo data. With{" "}
+              <span className="font-medium text-foreground">your own</span> provider keys, chat goes
+              to those APIs (optional proxy in settings). The{" "}
               <span className="font-medium text-foreground">free tier</span> uses gitinspect&apos;s
               server proxy for limits and a shared key—not a direct browser-to-provider call like
               when you add your own keys.
@@ -432,8 +435,8 @@ function AboutPanel() {
               repository and chat in natural language; answers are grounded in the code.
             </li>
             <li>
-              <span className="font-medium text-foreground">Stack</span> — pi-mono, read-only
-              shell via just-bash, virtual filesystem from the GitHub API.
+              <span className="font-medium text-foreground">Stack</span> — pi-mono, read-only shell
+              via just-bash, virtual filesystem from the GitHub API.
             </li>
             <li>
               <span className="font-medium text-foreground">Local first</span> — Agent runs in a
@@ -444,16 +447,16 @@ function AboutPanel() {
               recovery, and interrupted-turn repair on the main thread.
             </li>
             <li>
-              <span className="font-medium text-foreground">Lazy loading</span> — Nothing
-              prefetched at construction; everything on demand.
+              <span className="font-medium text-foreground">Lazy loading</span> — Nothing prefetched
+              at construction; everything on demand.
             </li>
             <li>
-              <span className="font-medium text-foreground">Tree cache</span> — Full repo tree
-              once; stat, exists, readdir from cache.
+              <span className="font-medium text-foreground">Tree cache</span> — Full repo tree once;
+              stat, exists, readdir from cache.
             </li>
             <li>
-              <span className="font-medium text-foreground">Content cache</span> — File contents
-              by blob SHA (content-addressable).
+              <span className="font-medium text-foreground">Content cache</span> — File contents by
+              blob SHA (content-addressable).
             </li>
             <li>
               <span className="font-medium text-foreground">Smart API selection</span> — Contents
@@ -469,9 +472,9 @@ function AboutPanel() {
         </p>
 
         <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">AI disclosure:</span> This codebase has
-          been built with a lot of support from AI. Very little is hand-written; GPT 5.4 was used
-          to create this repository alongside that small amount of manual code.
+          <span className="font-medium text-foreground">AI disclosure:</span> This codebase has been
+          built with a lot of support from AI. Very little is hand-written; GPT 5.4 was used to
+          create this repository alongside that small amount of manual code.
         </p>
       </div>
 

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   fetchMock: vi.fn(),
@@ -156,14 +156,15 @@ describe("FeedbackDialog", () => {
         },
       ),
     );
+    state.search = {
+      feedback: "open",
+      feedbackMessage: "The repo switcher feels great.",
+      feedbackSentiment: "happy",
+    };
     const { FeedbackDialog } = await import("@/components/feedback-dialog");
 
     render(<FeedbackDialog />);
 
-    fireEvent.change(screen.getByLabelText("Feedback"), {
-      target: { value: "The repo switcher feels great." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Happy" }));
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
 
     await waitFor(() => {
@@ -195,15 +196,16 @@ describe("FeedbackDialog", () => {
         },
       ),
     );
+    state.search = {
+      feedback: "open",
+      feedbackIncludeDiagnostics: true,
+      feedbackMessage: "Streaming status is confusing.",
+      feedbackSentiment: "sad",
+    };
     const { FeedbackDialog } = await import("@/components/feedback-dialog");
 
     render(<FeedbackDialog />);
 
-    fireEvent.change(screen.getByLabelText("Feedback"), {
-      target: { value: "Streaming status is confusing." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Sad" }));
-    fireEvent.click(screen.getByLabelText("Include technical details for debugging"));
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
 
     await waitFor(() => {

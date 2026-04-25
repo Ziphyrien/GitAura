@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { loadSessionViewModel } from "@/sessions/session-view-model";
 import { db, deleteAllLocalData, putSession, putSessionRuntime } from "@gitinspect/db";
 import type { AssistantMessage } from "@/types/chat";

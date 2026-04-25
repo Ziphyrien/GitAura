@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { encodeCredentialsBase64, formatCredentialsJson } from "../apps/cli/src/lib/output";
 
 describe("cli output", () => {

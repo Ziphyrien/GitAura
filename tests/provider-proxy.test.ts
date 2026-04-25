@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { FIREWORKS_FREE_PROXY_MARKER } from "@/auth/public-provider-fallbacks";
 import { shouldUseProxyForProvider } from "@/agent/provider-proxy";
 
