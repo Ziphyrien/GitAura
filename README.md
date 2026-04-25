@@ -1,4 +1,4 @@
-# gitinspect
+# GitAura
 
 ![Screenshot 2026-03-28 at 01 36 31](https://github.com/user-attachments/assets/a39a420d-a538-4e8e-82a3-16794b3e0e6f)
 
@@ -80,3 +80,12 @@ This codebase has been built with a lot of support from AI. Very little is hand-
 ## License
 
 [AGPL-3.0](LICENSE)
+
+## Copyright
+
+GitAura is a fork of gitinspect by Jeremy Osih.
+
+Copyright (C) 2026 Ziphyrien and contributors.
+Original project: <https://github.com/jeremyosih/gitinspect>
+
+Licensed under the GNU Affero General Public License v3.0.
