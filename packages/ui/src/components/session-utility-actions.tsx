@@ -1,102 +1,36 @@
-import { MoreHorizontal, Unlink2 } from "lucide-react";
-import { Button } from "@gitinspect/ui/components/button";
+import { MoreHorizontal } from "lucide-react";
+import { Button } from "@gitaura/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@gitinspect/ui/components/dropdown-menu";
-import { Icons } from "@gitinspect/ui/components/icons";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitinspect/ui/components/tooltip";
+} from "@gitaura/ui/components/dropdown-menu";
+import { Icons } from "@gitaura/ui/components/icons";
 
 type SessionUtilityActionProps = {
-  canUnshare: boolean;
   disabled?: boolean;
-  isPro: boolean;
-  isShared: boolean;
-  isSharing?: boolean;
   onCopy: () => void;
-  onShareToggle: () => void;
-  onUpgradeClick: () => void;
+  onShare?: () => void;
 };
 
-function ShareButtonLabel(
-  props: Pick<SessionUtilityActionProps, "canUnshare" | "isShared" | "isSharing">,
-) {
-  const isUnshareAction = props.isShared && props.canUnshare;
-
-  if (props.isSharing) {
-    return isUnshareAction ? "Unsharing..." : "Sharing...";
-  }
-
-  return isUnshareAction ? "Unshare" : "Share";
-}
-
-function ShareButtonIcon(props: Pick<SessionUtilityActionProps, "canUnshare" | "isShared">) {
-  return props.isShared && props.canUnshare ? (
-    <Unlink2 className="size-3.5" />
-  ) : (
-    <Icons.Globe className="size-3.5" />
-  );
-}
-
-function canToggleShare(props: SessionUtilityActionProps): boolean {
-  return props.isPro || (props.isShared && props.canUnshare);
-}
-
-function ShareActionButton(props: SessionUtilityActionProps) {
-  const canShare = canToggleShare(props);
-  const button = (
-    <Button
-      className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
-      disabled={props.disabled || props.isSharing}
-      onClick={() => {
-        if (!canShare) {
-          props.onUpgradeClick();
-          return;
-        }
-
-        props.onShareToggle();
-      }}
-      size="sm"
-      type="button"
-      variant="ghost"
-    >
-      <ShareButtonIcon canUnshare={props.canUnshare} isShared={props.isShared} />
-      <span>
-        <ShareButtonLabel
-          canUnshare={props.canUnshare}
-          isShared={props.isShared}
-          isSharing={props.isSharing}
-        />
-      </span>
-    </Button>
-  );
-
-  if (canShare) {
-    return button;
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent sideOffset={6}>Pro users only</TooltipContent>
-    </Tooltip>
-  );
-}
-
 export function SessionUtilityActions(props: SessionUtilityActionProps) {
-  const shareLabel = (
-    <ShareButtonLabel
-      canUnshare={props.canUnshare}
-      isShared={props.isShared}
-      isSharing={props.isSharing}
-    />
-  );
-
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
+        {props.onShare ? (
+          <Button
+            className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
+            disabled={props.disabled}
+            onClick={props.onShare}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icons.gitHub className="size-3.5" />
+            <span>Share as Gist</span>
+          </Button>
+        ) : null}
         <Button
           className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
           disabled={props.disabled}
@@ -108,7 +42,6 @@ export function SessionUtilityActions(props: SessionUtilityActionProps) {
           <Icons.copy className="size-3.5" />
           <span>Copy as Markdown</span>
         </Button>
-        <ShareActionButton {...props} />
       </div>
 
       <div className="md:hidden">
@@ -126,23 +59,15 @@ export function SessionUtilityActions(props: SessionUtilityActionProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
+            {props.onShare ? (
+              <DropdownMenuItem onClick={props.onShare}>
+                <Icons.gitHub className="size-4" />
+                <span>Share as Gist</span>
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onClick={props.onCopy}>
               <Icons.copy className="size-4" />
               <span>Copy as Markdown</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={props.isSharing || props.disabled}
-              onClick={() => {
-                if (!canToggleShare(props)) {
-                  props.onUpgradeClick();
-                  return;
-                }
-
-                props.onShareToggle();
-              }}
-            >
-              <ShareButtonIcon canUnshare={props.canUnshare} isShared={props.isShared} />
-              <span>{shareLabel}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
