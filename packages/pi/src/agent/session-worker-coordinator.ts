@@ -171,7 +171,7 @@ class WorkerAgentRunner {
     const provider = getCanonicalProvider(providerGroup);
     const model = getModel(provider, modelId);
 
-    this.agent.setModel(model);
+    this.agent.state.model = model;
     this.agent.sessionId = this.sessionId;
     await persistSessionSettings(this.store, {
       model: modelId,
@@ -185,7 +185,7 @@ class WorkerAgentRunner {
       return;
     }
 
-    this.agent.setThinkingLevel(thinkingLevel);
+    this.agent.state.thinkingLevel = thinkingLevel;
     await persistSessionSettings(this.store, {
       thinkingLevel,
     });

@@ -16,15 +16,15 @@
     "@gitinspect/db": "workspace:*",
     "@gitinspect/env": "workspace:*",
     "@gitinspect/just-github": "workspace:*",
-    "@mariozechner/pi-agent-core": "^0.62.0",
-    "@mariozechner/pi-ai": "^0.62.0",
-    "@sinclair/typebox": "^0.34.41",
+    "@mariozechner/pi-agent-core": "0.70.2",
+    "@mariozechner/pi-ai": "0.70.2",
     "better-auth": "catalog:",
     "comlink": "^4.4.2",
     "dexie-react-hooks": "^4.2.0",
     "just-bash": "^2.14.0",
     "react": "catalog:",
-    "sonner": "catalog:"
+    "sonner": "catalog:",
+    "typebox": "1.1.24"
   },
   "devDependencies": {
     "@gitinspect/config": "workspace:*",

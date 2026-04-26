@@ -1,4 +1,4 @@
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, type Static } from "typebox";
 import type { RepoRuntime } from "@gitinspect/pi/repo/repo-types";
 import { warningMessageToError } from "@gitinspect/pi/tools/repo-warnings";
 import {

@@ -1,4 +1,4 @@
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 import type * as PiAi from "@mariozechner/pi-ai";
@@ -21,12 +21,45 @@ vi.mock("@/proxy/settings", () => ({
   getProxyConfig,
 }));
 
-vi.mock("@mariozechner/pi-ai", async () => {
-  const actual = await vi.importActual<typeof PiAi>("@mariozechner/pi-ai");
+vi.mock("@/agent/provider-proxy", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/agent/provider-proxy")>("@/agent/provider-proxy");
 
   return {
     ...actual,
-    streamSimple,
+    createProxyAwareStreamFn: () => {
+      return async <TApi extends PiAi.Api>(
+        model: PiAi.Model<TApi>,
+        context: PiAi.Context,
+        options?: PiAi.SimpleStreamOptions,
+      ) => {
+        const apiKey = options?.apiKey;
+
+        if (!apiKey) {
+          return await streamSimple(model, context, options);
+        }
+
+        const proxy = await getProxyConfig();
+        const proxyUrl = proxy.enabled ? proxy.url : undefined;
+
+        if (
+          !proxyUrl ||
+          !model.baseUrl ||
+          !actual.shouldUseProxyForProvider(model.provider, apiKey)
+        ) {
+          return await streamSimple(model, context, options);
+        }
+
+        return await streamSimple(
+          {
+            ...model,
+            baseUrl: buildProxiedUrl(proxyUrl, model.baseUrl),
+          },
+          context,
+          options,
+        );
+      };
+    },
   };
 });
 

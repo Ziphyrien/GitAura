@@ -1,4 +1,4 @@
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, type Static } from "typebox";
 import { GitHubFsError } from "@gitinspect/just-github/types";
 import { execInRepoShell } from "@gitinspect/pi/repo/repo-runtime";
 import type { RepoRuntime } from "@gitinspect/pi/repo/repo-types";

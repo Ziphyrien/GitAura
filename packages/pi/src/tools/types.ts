@@ -1,5 +1,5 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
-import type { Static, TSchema } from "@sinclair/typebox";
+import type { Static, TSchema } from "typebox";
 import type { ImageContent, TextContent } from "@gitinspect/pi/types/chat";
 
 export interface AppToolResult<TDetails = undefined> {

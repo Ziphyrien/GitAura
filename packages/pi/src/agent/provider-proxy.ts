@@ -1,5 +1,6 @@
-import { streamSimple } from "@mariozechner/pi-ai";
 import type { Api, Model, SimpleStreamOptions } from "@mariozechner/pi-ai";
+
+type StreamSimple = (typeof import("@mariozechner/pi-ai"))["streamSimple"];
 import { isFreeTierProxyMarker } from "@gitinspect/pi/auth/public-provider-fallbacks";
 import { getProxyConfig } from "@gitinspect/pi/proxy/settings";
 import { buildProxiedUrl } from "@gitinspect/pi/proxy/url";
@@ -43,9 +44,10 @@ function applyProxyIfNeeded<TApi extends Api>(
 export function createProxyAwareStreamFn() {
   return async <TApi extends Api>(
     model: Model<TApi>,
-    context: Parameters<typeof streamSimple>[1],
+    context: Parameters<StreamSimple>[1],
     options?: SimpleStreamOptions,
   ) => {
+    const { streamSimple } = await import("@mariozechner/pi-ai");
     const apiKey = options?.apiKey;
 
     if (!apiKey) {
