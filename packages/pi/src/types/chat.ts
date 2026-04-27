@@ -23,7 +23,20 @@ export interface ToolCall {
 export type UserContent = ImageContent | TextContent;
 export type AssistantContent = TextContent | ThinkingContent | ToolCall;
 
-export type UserMessage = PiUserMessage & { id: string };
+export interface ChatAttachment {
+  contentPartIndex?: number;
+  fileName: string;
+  id: string;
+  mediaType: string;
+  size?: number;
+  type: "document" | "image";
+}
+
+export type UserMessage = PiUserMessage & {
+  attachments?: ChatAttachment[];
+  displayText?: string;
+  id: string;
+};
 
 export type AssistantMessage = PiAssistantMessage & { id: string };
 

@@ -59,6 +59,21 @@ function isToolResultFor(message: Message, toolCallIds: Set<string>): message is
   return message.role === "toolResult" && toolCallIds.has(message.toolCallId);
 }
 
+function stripRuntimeMetadata(message: Message): Message {
+  switch (message.role) {
+    case "assistant":
+      return message;
+    case "toolResult":
+      return message;
+    case "user":
+      return {
+        content: message.content,
+        role: "user",
+        timestamp: message.timestamp,
+      };
+  }
+}
+
 type ReplayMessage = Message | MessageRow;
 
 export function pruneOrphanToolResults<TMessage extends ReplayMessage>(
@@ -108,7 +123,9 @@ function reorderMessages(messages: Message[]): Message[] {
 }
 
 export function webMessageTransformer(messages: AgentMessage[]): Message[] {
-  return reorderMessages(linkToolResults(messages.filter(isLlmMessage)).messages);
+  return reorderMessages(
+    linkToolResults(messages.filter(isLlmMessage).map(stripRuntimeMetadata)).messages,
+  );
 }
 
 export function toOpenAIResponsesInput(messages: Message[]) {

@@ -89,6 +89,46 @@ describe("WorkerBackedAgentHost", () => {
     expect(workerWaitForTurn).toHaveBeenCalledWith("session-1");
   });
 
+  it("forwards attachment turns as multimodal user messages", async () => {
+    const { WorkerBackedAgentHost } = await import("@/agent/worker-backed-agent-host");
+    const host = new WorkerBackedAgentHost(createSession());
+
+    await host.startTurn({
+      files: [
+        {
+          filename: "notes.txt",
+          mediaType: "text/plain",
+          size: 5,
+          url: `data:text/plain;base64,${btoa("hello")}`,
+        },
+      ],
+      text: "read this",
+    });
+    await host.waitForTurn();
+
+    expect(workerStartTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        turn: expect.objectContaining({
+          userMessage: expect.objectContaining({
+            attachments: [
+              expect.objectContaining({
+                contentPartIndex: 1,
+                fileName: "notes.txt",
+                type: "document",
+              }),
+            ],
+            content: [
+              { text: "read this", type: "text" },
+              { text: "\n\n[Document: notes.txt]\nhello", type: "text" },
+            ],
+            displayText: "read this",
+            role: "user",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("forwards worker maintenance commands", async () => {
     const { WorkerBackedAgentHost } = await import("@/agent/worker-backed-agent-host");
     const host = new WorkerBackedAgentHost(createSession());

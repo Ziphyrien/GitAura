@@ -4,6 +4,7 @@ import { event as trackEvent } from "onedollarstats";
 import { toast } from "sonner";
 import type { ResolvedRepoSource } from "@gitaura/db";
 import { runtimeClient } from "@gitaura/pi/agent/runtime-client";
+import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
 import { getRuntimeCommandErrorMessage } from "@gitaura/pi/agent/runtime-command-errors";
 import {
   createSessionForChat,
@@ -22,7 +23,7 @@ export function useConversationStarter() {
 
   const startNewConversation = React.useCallback(
     async (input: {
-      initialPrompt: string;
+      initialPrompt: string | UserTurnInput;
       model: string;
       providerGroup: ProviderGroupId;
       thinkingLevel: ThinkingLevel;
@@ -74,7 +75,7 @@ export function useConversationStarter() {
         console.error("[gitaura:runtime] command_failed", {
           message: runtimeError.message,
         });
-        return undefined;
+        throw runtimeError;
       } finally {
         setIsStartingSession(false);
       }

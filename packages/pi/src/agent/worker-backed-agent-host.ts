@@ -5,21 +5,31 @@ import type { SessionRunner } from "@gitaura/pi/agent/session-runner";
 import type { TurnEnvelope } from "@gitaura/pi/agent/turn-event-store";
 import { createId } from "@gitaura/pi/lib/ids";
 import { clampThinkingLevel } from "@gitaura/pi/agent/thinking-levels";
+import {
+  createUserMessageFromTurnInput,
+  hasUserTurnInputContent,
+  type UserTurnInput,
+} from "@gitaura/pi/agent/user-turn-input";
 import { getCanonicalProvider, getModel } from "@gitaura/pi/models/catalog";
 import type { SessionData } from "@gitaura/db";
 import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
 
 type HostState = "idle" | "starting" | "running" | "disposing" | "disposed";
 
-function createTurn(content: string): TurnEnvelope {
+async function createTurn(input: string | UserTurnInput): Promise<TurnEnvelope | undefined> {
+  const userMessage = await createUserMessageFromTurnInput({
+    id: createId(),
+    input,
+    timestamp: Date.now(),
+  });
+
+  if (!userMessage) {
+    return undefined;
+  }
+
   return {
     turnId: createId(),
-    userMessage: {
-      content,
-      id: createId(),
-      role: "user",
-      timestamp: Date.now(),
-    },
+    userMessage,
   };
 }
 
@@ -36,10 +46,12 @@ export class WorkerBackedAgentHost implements SessionRunner {
     return this.state === "starting" || this.state === "running" || this.runningTurn !== undefined;
   }
 
-  async startTurn(content: string): Promise<void> {
-    const trimmed = content.trim();
-
-    if (!trimmed || this.state === "disposing" || this.state === "disposed") {
+  async startTurn(input: string | UserTurnInput): Promise<void> {
+    if (
+      !hasUserTurnInputContent(input) ||
+      this.state === "disposing" ||
+      this.state === "disposed"
+    ) {
       return;
     }
 
@@ -49,10 +61,15 @@ export class WorkerBackedAgentHost implements SessionRunner {
 
     this.state = "starting";
     const startSequence = ++this.startSequence;
-    const turn = createTurn(trimmed);
     let waitForTurnPromise: Promise<void> | undefined;
 
     try {
+      const turn = await createTurn(input);
+
+      if (!turn) {
+        return;
+      }
+
       await this.worker.startTurn({
         ownerTabId: getCurrentTabId(),
         session: this.session,

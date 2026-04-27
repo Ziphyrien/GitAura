@@ -3,6 +3,7 @@ import {
   deriveAssistantView,
   getAssistantText,
   getToolResultText,
+  getUserAttachments,
   getUserText,
 } from "@gitaura/pi/lib/chat-adapter";
 import { repoSourceToGitHubUrl } from "@gitaura/pi/repo/url";
@@ -96,6 +97,24 @@ function formatToolArguments(toolCall: ToolCall, toolResult?: ToolResultMessage)
   return lines;
 }
 
+function formatUserMessage(message: Extract<DisplayChatMessage, { role: "user" }>): string {
+  const text = getUserText(message).trim();
+  const lines = text ? [text] : [];
+  const attachments = getUserAttachments(message);
+
+  if (attachments.length > 0) {
+    if (lines.length > 0) {
+      lines.push("");
+    }
+    lines.push(
+      "Attachments:",
+      ...attachments.map((file) => `- ${file.fileName} (${file.mediaType})`),
+    );
+  }
+
+  return lines.join("\n");
+}
+
 function formatToolExecutions(
   toolExecutions: ReturnType<typeof deriveAssistantView>["toolExecutions"],
 ): string[] {
@@ -118,7 +137,7 @@ export function messagesToMarkdown(
   for (const [index, message] of messages.entries()) {
     switch (message.role) {
       case "user":
-        parts.push(`## User\n\n${getUserText(message)}`);
+        parts.push(`## User\n\n${formatUserMessage(message)}`);
         break;
       case "assistant": {
         const text = getAssistantText(message);

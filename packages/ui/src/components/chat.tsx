@@ -12,6 +12,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import { ChatMessage as ChatMessageBlock } from "./chat-message";
 import { RepoCombobox } from "./repo-combobox";
 import type { RepoComboboxHandle } from "./repo-combobox";
+import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
 import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
 import type { AssistantMessage, DisplayChatMessage } from "@gitaura/pi/types/chat";
 import type { ResolvedRepoSource } from "@gitaura/db";
@@ -467,13 +468,13 @@ export function Chat(props: ChatProps) {
   );
 
   const handleFirstSend = React.useCallback(
-    async (content: string) => {
+    async (input: UserTurnInput) => {
       if (!draft) {
         return;
       }
 
       await startNewConversation({
-        initialPrompt: content,
+        initialPrompt: input,
         model: draft.model,
         providerGroup: draft.providerGroup,
         repoSource: props.repoSource,
@@ -485,7 +486,7 @@ export function Chat(props: ChatProps) {
   );
 
   const handleSend = React.useCallback(
-    async (content: string) => {
+    async (input: UserTurnInput) => {
       if (activeSession) {
         if (!activeComposerState?.canSend) {
           if (activeComposerState?.disabledReason) {
@@ -495,17 +496,19 @@ export function Chat(props: ChatProps) {
         }
 
         try {
-          await runtime.send(content);
+          await runtime.send(input);
           void trackEvent("Message sent", "/chat").catch(() => {
             // Analytics must never interfere with chat sends.
           });
         } catch (error) {
-          reportRuntimeFailure(error instanceof Error ? error : new Error(String(error)));
+          const runtimeError = error instanceof Error ? error : new Error(String(error));
+          reportRuntimeFailure(runtimeError);
+          throw runtimeError;
         }
         return;
       }
 
-      await handleFirstSend(content);
+      await handleFirstSend(input);
     },
     [activeComposerState, activeSession, handleFirstSend, reportRuntimeFailure, runtime],
   );
@@ -642,7 +645,7 @@ export function Chat(props: ChatProps) {
             </div>
           ) : chatPanelMode === "empty" ? (
             <ChatEmptyState
-              onSuggestionClick={(text) => void handleSend(text)}
+              onSuggestionClick={(text) => void handleSend({ text })}
               onSwitchRepo={() => repoComboboxRef.current?.focusAndClear()}
               repoSource={displayRepoSource}
             />

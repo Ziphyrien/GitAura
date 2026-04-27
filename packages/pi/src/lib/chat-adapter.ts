@@ -1,6 +1,7 @@
 import { linkToolResults } from "@gitaura/pi/agent/tool-result-linker";
 import type {
   AssistantMessage,
+  ChatAttachment,
   ChatMessage,
   DisplayChatMessage,
   SystemMessage,
@@ -10,6 +11,10 @@ import type {
 } from "@gitaura/pi/types/chat";
 
 export function getUserText(message: UserMessage): string {
+  if (typeof message.displayText === "string") {
+    return message.displayText;
+  }
+
   if (typeof message.content === "string") {
     return message.content;
   }
@@ -18,6 +23,10 @@ export function getUserText(message: UserMessage): string {
     .filter((part) => part.type === "text")
     .map((part) => part.text)
     .join("\n");
+}
+
+export function getUserAttachments(message: UserMessage): readonly ChatAttachment[] {
+  return message.attachments ?? [];
 }
 
 export function getAssistantText(message: AssistantMessage): string {

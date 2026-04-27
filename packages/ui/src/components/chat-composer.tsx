@@ -1,7 +1,15 @@
 import * as React from "react";
+import { toast } from "sonner";
+import { PaperclipIcon } from "lucide-react";
 import { ChatModelSelector } from "./chat-model-selector";
 import type { ChatStatus } from "ai";
 import type { PromptInputMessage } from "@gitaura/ui/components/ai-elements/prompt-input";
+import {
+  MAX_ATTACHMENT_SIZE_BYTES,
+  SUPPORTED_ATTACHMENT_ACCEPT,
+  SUPPORTED_ATTACHMENT_PICKER_TYPES,
+  type UserTurnInput,
+} from "@gitaura/pi/agent/user-turn-input";
 import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
 import { getModelForGroup } from "@gitaura/pi/models/catalog";
 import {
@@ -24,14 +32,10 @@ import {
 } from "@gitaura/ui/components/ai-elements/attachments";
 import {
   PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionAddScreenshot,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
   PromptInputBody,
   PromptInputFooter,
   PromptInputHeader,
+  PromptInputButton,
   PromptInputProvider,
   PromptInputSubmit,
   PromptInputTextarea,
@@ -47,30 +51,43 @@ function ChatComposerInner(props: {
   model: string;
   onAbort: () => void;
   onSelectModel: (providerGroup: ProviderGroupId, modelId: string) => Promise<void> | void;
-  onSend: (value: string) => Promise<void> | void;
+  onSend: (input: UserTurnInput) => Promise<void> | void;
   onThinkingLevelChange: (level: ThinkingLevel) => Promise<void> | void;
   placeholder?: string;
   providerGroup: ProviderGroupId;
   thinkingLevel: ThinkingLevel;
   utilityActions?: React.ReactNode;
 }) {
-  const { textInput } = usePromptInputController();
+  const { attachments, textInput } = usePromptInputController();
   const text = textInput.value;
+  const hasAttachments = attachments.files.length > 0;
   const locked = props.composerDisabled === true;
 
+  const handleAddAttachments = React.useCallback(() => {
+    attachments.openFileDialog();
+  }, [attachments]);
+
   const handleSubmit = React.useCallback(
-    (message: PromptInputMessage) => {
-      if (locked) {
+    async (message: PromptInputMessage) => {
+      if (locked || props.isStreaming) {
         return;
       }
 
-      const next = message.text.trim();
+      const input: UserTurnInput = {
+        files: message.files.map((file) => ({
+          filename: file.filename,
+          mediaType: file.mediaType,
+          size: file.size,
+          url: file.url,
+        })),
+        text: message.text.trim(),
+      };
 
-      if (!next || props.isStreaming) {
+      if (!input.text && input.files?.length === 0) {
         return;
       }
 
-      void props.onSend(next);
+      await props.onSend(input);
     },
     [locked, props.isStreaming, props.onSend],
   );
@@ -85,7 +102,14 @@ function ChatComposerInner(props: {
 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-4">
-      <PromptInput onSubmit={handleSubmit}>
+      <PromptInput
+        accept={SUPPORTED_ATTACHMENT_ACCEPT}
+        filePickerTypes={SUPPORTED_ATTACHMENT_PICKER_TYPES}
+        maxFileSize={MAX_ATTACHMENT_SIZE_BYTES}
+        multiple
+        onError={(error) => toast.error(error.message)}
+        onSubmit={handleSubmit}
+      >
         <PromptInputHeader>
           <PromptInputAttachmentsRow />
         </PromptInputHeader>
@@ -104,20 +128,16 @@ function ChatComposerInner(props: {
 
         <PromptInputFooter>
           <PromptInputTools>
-            <PromptInputActionMenu>
-              <PromptInputActionMenuTrigger
-                aria-label="Add attachments"
-                disabled={locked}
-                tooltip={{
-                  content:
-                    "Add files for local preview. Only message text is sent in this version.",
-                }}
-              />
-              <PromptInputActionMenuContent>
-                <PromptInputActionAddAttachments />
-                <PromptInputActionAddScreenshot />
-              </PromptInputActionMenuContent>
-            </PromptInputActionMenu>
+            <PromptInputButton
+              aria-label="Add attachments"
+              disabled={locked}
+              onClick={handleAddAttachments}
+              tooltip={{
+                content: "Attach supported images and documents to this message.",
+              }}
+            >
+              <PaperclipIcon className="size-4" />
+            </PromptInputButton>
 
             <ChatModelSelector
               disabled={controlsDisabled}
@@ -153,7 +173,7 @@ function ChatComposerInner(props: {
           ) : null}
 
           <PromptInputSubmit
-            disabled={locked || (!text.trim() && !props.isStreaming)}
+            disabled={locked || (!text.trim() && !hasAttachments && !props.isStreaming)}
             onStop={props.onAbort}
             status={submitStatus}
           />
@@ -190,7 +210,7 @@ export function ChatComposer(props: {
   model: string;
   onAbort: () => void;
   onSelectModel: (providerGroup: ProviderGroupId, modelId: string) => Promise<void> | void;
-  onSend: (value: string) => Promise<void> | void;
+  onSend: (input: UserTurnInput) => Promise<void> | void;
   onThinkingLevelChange: (level: ThinkingLevel) => Promise<void> | void;
   placeholder?: string;
   providerGroup: ProviderGroupId;

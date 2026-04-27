@@ -1,3 +1,4 @@
+import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
 import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
 import type { SessionData } from "@gitaura/db";
 import {
@@ -193,7 +194,7 @@ export class RuntimeClient {
     return reloaded;
   }
 
-  async startTurn(sessionId: string, content: string): Promise<void> {
+  async startTurn(sessionId: string, input: string | UserTurnInput): Promise<void> {
     const existing = this.activeTurns.get(sessionId);
 
     if (existing?.isBusy()) {
@@ -205,7 +206,7 @@ export class RuntimeClient {
     this.activeTurns.set(sessionId, host);
 
     try {
-      await host.startTurn(content);
+      await host.startTurn(input);
       this.startLeaseHeartbeat(sessionId);
       this.watchActiveTurn(sessionId, host);
     } catch (error) {
@@ -217,13 +218,13 @@ export class RuntimeClient {
     }
   }
 
-  async startInitialTurn(session: SessionData, content: string): Promise<void> {
+  async startInitialTurn(session: SessionData, input: string | UserTurnInput): Promise<void> {
     await this.claimOwnership(session.id);
     const host = await this.createHost(session);
     this.activeTurns.set(session.id, host);
 
     try {
-      await host.startTurn(content);
+      await host.startTurn(input);
       this.watchActiveTurn(session.id, host);
     } catch (error) {
       await host.dispose();

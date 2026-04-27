@@ -33,7 +33,7 @@ import { Spinner } from "@gitaura/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
 import { cn } from "@gitaura/ui/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
-import { CornerDownLeftIcon, ImageIcon, Monitor, PlusIcon, SquareIcon, XIcon } from "lucide-react";
+import { CornerDownLeftIcon, PaperclipIcon, SquareIcon, XIcon } from "lucide-react";
 import { nanoid } from "nanoid";
 import type {
   ChangeEvent,
@@ -63,6 +63,28 @@ import {
 // Helpers
 // ============================================================================
 
+export type PromptInputFilePickerType = {
+  accept: Record<string, readonly string[]>;
+  description?: string;
+};
+
+type NativeFilePickerHandle = {
+  getFile: () => Promise<File>;
+};
+
+type NativeFilePickerOptions = {
+  excludeAcceptAllOption?: boolean;
+  multiple?: boolean;
+  types?: Array<{
+    accept: Record<string, string[]>;
+    description?: string;
+  }>;
+};
+
+type WindowWithNativeFilePicker = Window & {
+  showOpenFilePicker?: (options?: NativeFilePickerOptions) => Promise<NativeFilePickerHandle[]>;
+};
+
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch(url);
@@ -82,90 +104,64 @@ const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   }
 };
 
-const captureScreenshot = async (): Promise<File | null> => {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getDisplayMedia) {
-    return null;
+function toNativeFilePickerTypes(
+  types: readonly PromptInputFilePickerType[] | undefined,
+): NativeFilePickerOptions["types"] | undefined {
+  if (!types || types.length === 0) {
+    return undefined;
   }
 
-  let stream: MediaStream | null = null;
-  const video = document.createElement("video");
-  video.muted = true;
-  video.playsInline = true;
+  return types.map((type) => ({
+    accept: Object.fromEntries(
+      Object.entries(type.accept).map(([mediaType, extensions]) => [mediaType, [...extensions]]),
+    ),
+    description: type.description,
+  }));
+}
+
+async function pickFilesWithoutAcceptAllOption(params: {
+  multiple?: boolean;
+  types?: readonly PromptInputFilePickerType[];
+}): Promise<File[] | undefined> {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  const picker = (window as WindowWithNativeFilePicker).showOpenFilePicker;
+
+  if (!picker) {
+    return undefined;
+  }
 
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: false,
-      video: true,
+    const handles = await picker.call(window, {
+      excludeAcceptAllOption: true,
+      multiple: params.multiple,
+      types: toNativeFilePickerTypes(params.types),
     });
 
-    video.srcObject = stream;
-
-    // Video element uses callback-based API, wrapping in Promise is necessary
-    // oxlint-disable-next-line eslint-plugin-promise(avoid-new)
-    await new Promise<void>((resolve, reject) => {
-      // oxlint-disable-next-line eslint-plugin-unicorn(prefer-add-event-listener)
-      video.onloadedmetadata = () => resolve();
-      // oxlint-disable-next-line eslint-plugin-unicorn(prefer-add-event-listener)
-      video.onerror = () => reject(new Error("Failed to load screen stream"));
-    });
-
-    await video.play();
-
-    const width = video.videoWidth;
-    const height = video.videoHeight;
-    if (!width || !height) {
-      return null;
+    return await Promise.all(handles.map((handle) => handle.getFile()));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return [];
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return null;
-    }
-
-    context.drawImage(video, 0, 0, width, height);
-    // canvas.toBlob uses callback-based API, wrapping in Promise is necessary
-    // oxlint-disable-next-line eslint-plugin-promise(avoid-new)
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, "image/png");
-    });
-    if (!blob) {
-      return null;
-    }
-
-    const timestamp = new Date()
-      .toISOString()
-      .replaceAll(/[:.]/g, "-")
-      .replace("T", "_")
-      .replace("Z", "");
-
-    return new File([blob], `screenshot-${timestamp}.png`, {
-      lastModified: Date.now(),
-      type: "image/png",
-    });
-  } finally {
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-    }
-    video.pause();
-    video.srcObject = null;
+    throw error;
   }
-};
+}
 
 // ============================================================================
 // Provider Context & Types
 // ============================================================================
 
+export type PromptInputFile = FileUIPart & { id?: string; size?: number };
+
 export interface AttachmentsContext {
-  files: (FileUIPart & { id: string })[];
+  files: (FileUIPart & { id: string; size?: number })[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
-  openFileDialog: () => void;
+  openFileDialog: () => Promise<void> | void;
   fileInputRef: RefObject<HTMLInputElement | null>;
 }
 
@@ -179,7 +175,10 @@ export interface PromptInputControllerProps {
   textInput: TextInputContext;
   attachments: AttachmentsContext;
   /** INTERNAL: Allows PromptInput to register its file textInput + "open" callback */
-  __registerFileInput: (ref: RefObject<HTMLInputElement | null>, open: () => void) => void;
+  __registerFileInput: (
+    ref: RefObject<HTMLInputElement | null>,
+    open: () => Promise<void> | void,
+  ) => void;
 }
 
 const PromptInputController = createContext<PromptInputControllerProps | null>(null);
@@ -227,10 +226,12 @@ export const PromptInputProvider = ({
   const clearInput = useCallback(() => setTextInput(""), []);
 
   // ----- attachments state (global when wrapped)
-  const [attachmentFiles, setAttachmentFiles] = useState<(FileUIPart & { id: string })[]>([]);
+  const [attachmentFiles, setAttachmentFiles] = useState<
+    (FileUIPart & { id: string; size?: number })[]
+  >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // oxlint-disable-next-line eslint(no-empty-function)
-  const openRef = useRef<() => void>(() => {});
+  const openRef = useRef<() => Promise<void> | void>(() => {});
 
   const add = useCallback((files: File[] | FileList) => {
     const incoming = [...files];
@@ -244,6 +245,7 @@ export const PromptInputProvider = ({
         filename: file.name,
         id: nanoid(),
         mediaType: file.type,
+        size: file.size,
         type: "file" as const,
         url: URL.createObjectURL(file),
       })),
@@ -307,7 +309,7 @@ export const PromptInputProvider = ({
   );
 
   const __registerFileInput = useCallback(
-    (ref: RefObject<HTMLInputElement | null>, open: () => void) => {
+    (ref: RefObject<HTMLInputElement | null>, open: () => Promise<void> | void) => {
       fileInputRef.current = ref.current;
       openRef.current = open;
     },
@@ -398,63 +400,20 @@ export const PromptInputActionAddAttachments = ({
 
   return (
     <DropdownMenuItem {...props} onSelect={handleSelect}>
-      <ImageIcon className="mr-2 size-4" /> {label}
-    </DropdownMenuItem>
-  );
-};
-
-export type PromptInputActionAddScreenshotProps = ComponentProps<typeof DropdownMenuItem> & {
-  label?: string;
-};
-
-export const PromptInputActionAddScreenshot = ({
-  label = "Take screenshot",
-  onSelect,
-  ...props
-}: PromptInputActionAddScreenshotProps) => {
-  const attachments = usePromptInputAttachments();
-
-  const handleSelect = useCallback(
-    async (event: Event) => {
-      onSelect?.(event);
-      if (event.defaultPrevented) {
-        return;
-      }
-
-      try {
-        const screenshot = await captureScreenshot();
-        if (screenshot) {
-          attachments.add([screenshot]);
-        }
-      } catch (error) {
-        if (
-          error instanceof DOMException &&
-          (error.name === "NotAllowedError" || error.name === "AbortError")
-        ) {
-          return;
-        }
-        throw error;
-      }
-    },
-    [onSelect, attachments],
-  );
-
-  return (
-    <DropdownMenuItem {...props} onSelect={handleSelect}>
-      <Monitor className="mr-2 size-4" />
-      {label}
+      <PaperclipIcon className="mr-2 size-4" /> {label}
     </DropdownMenuItem>
   );
 };
 
 export interface PromptInputMessage {
+  files: PromptInputFile[];
   text: string;
-  files: FileUIPart[];
 }
 
 export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
   // e.g., "image/*" or leave undefined for any
   accept?: string;
+  filePickerTypes?: readonly PromptInputFilePickerType[];
   multiple?: boolean;
   // When true, accepts drops anywhere on document. Default false (opt-in).
   globalDrop?: boolean;
@@ -474,6 +433,7 @@ export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" 
 export const PromptInput = ({
   className,
   accept,
+  filePickerTypes,
   multiple,
   globalDrop,
   syncHiddenInput,
@@ -493,7 +453,7 @@ export const PromptInput = ({
   const formRef = useRef<HTMLFormElement | null>(null);
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
+  const [items, setItems] = useState<(FileUIPart & { id: string; size?: number })[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
 
   // ----- Local referenced sources (always local to PromptInput)
@@ -508,10 +468,6 @@ export const PromptInput = ({
     filesRef.current = files;
   }, [files]);
 
-  const openFileDialogLocal = useCallback(() => {
-    inputRef.current?.click();
-  }, []);
-
   const matchesAccept = useCallback(
     (f: File) => {
       if (!accept || accept.trim() === "") {
@@ -524,12 +480,21 @@ export const PromptInput = ({
         .filter(Boolean);
 
       return patterns.some((pattern) => {
-        if (pattern.endsWith("/*")) {
-          // e.g: image/* -> image/
-          const prefix = pattern.slice(0, -1);
-          return f.type.startsWith(prefix);
+        const normalizedPattern = pattern.toLowerCase();
+        const fileName = f.name.toLowerCase();
+        const mediaType = f.type.toLowerCase();
+
+        if (normalizedPattern.startsWith(".")) {
+          return fileName.endsWith(normalizedPattern);
         }
-        return f.type === pattern;
+
+        if (normalizedPattern.endsWith("/*")) {
+          // e.g: image/* -> image/
+          const prefix = normalizedPattern.slice(0, -1);
+          return mediaType.startsWith(prefix);
+        }
+
+        return mediaType === normalizedPattern;
       });
     },
     [accept],
@@ -566,12 +531,13 @@ export const PromptInput = ({
             message: "Too many files. Some were not added.",
           });
         }
-        const next: (FileUIPart & { id: string })[] = [];
+        const next: (FileUIPart & { id: string; size?: number })[] = [];
         for (const file of capped) {
           next.push({
             filename: file.name,
             id: nanoid(),
             mediaType: file.type,
+            size: file.size,
             type: "file",
             url: URL.createObjectURL(file),
           });
@@ -653,6 +619,23 @@ export const PromptInput = ({
 
   const add = usingProvider ? addWithProviderValidation : addLocal;
   const remove = usingProvider ? controller.attachments.remove : removeLocal;
+
+  const openFileDialogLocal = useCallback(async () => {
+    const selectedFiles = await pickFilesWithoutAcceptAllOption({
+      multiple,
+      types: filePickerTypes,
+    });
+
+    if (selectedFiles) {
+      if (selectedFiles.length > 0) {
+        add(selectedFiles);
+      }
+      return;
+    }
+
+    inputRef.current?.click();
+  }, [add, filePickerTypes, multiple]);
+
   const openFileDialog = usingProvider
     ? controller.attachments.openFileDialog
     : openFileDialogLocal;
@@ -667,8 +650,8 @@ export const PromptInput = ({
     if (!usingProvider) {
       return;
     }
-    controller.__registerFileInput(inputRef, () => inputRef.current?.click());
-  }, [usingProvider, controller]);
+    controller.__registerFileInput(inputRef, () => openFileDialogLocal());
+  }, [usingProvider, controller, openFileDialogLocal]);
 
   // Note: File input cannot be programmatically set for security reasons
   // The syncHiddenInput prop is no longer functional
@@ -807,7 +790,7 @@ export const PromptInput = ({
 
       try {
         // Convert blob URLs to data URLs asynchronously
-        const convertedFiles: FileUIPart[] = await Promise.all(
+        const convertedFiles: PromptInputFile[] = await Promise.all(
           files.map(async ({ id: _id, ...item }) => {
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url);
@@ -1089,7 +1072,7 @@ export const PromptInputActionMenuTrigger = ({
 }: PromptInputActionMenuTriggerProps) => (
   <DropdownMenuTrigger asChild>
     <PromptInputButton className={className} {...props}>
-      {children ?? <PlusIcon className="size-4" />}
+      {children ?? <PaperclipIcon className="size-4" />}
     </PromptInputButton>
   </DropdownMenuTrigger>
 );

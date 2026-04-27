@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AlertCircle, AlertTriangle, ChevronDown, Info } from "lucide-react";
 import {
   deriveAssistantView,
+  getUserAttachments,
   getUserText,
   isSystemMessage,
   isToolResultMessage,
@@ -33,6 +34,12 @@ import {
 import { ToolExecution } from "@gitaura/ui/components/tool-execution";
 import { ToolResultBubble } from "@gitaura/ui/components/tool-result-bubble";
 import {
+  Attachment,
+  AttachmentInfo,
+  AttachmentPreview,
+  Attachments,
+} from "@gitaura/ui/components/ai-elements/attachments";
+import {
   Item,
   ItemActions,
   ItemContent,
@@ -48,6 +55,28 @@ import {
 } from "@gitaura/ui/components/collapsible";
 import { cn } from "@gitaura/ui/lib/utils";
 
+function getAttachmentUrl(
+  message: Extract<DisplayChatMessage, { role: "user" }>,
+  index: number,
+): string {
+  const attachment = message.attachments?.[index];
+
+  if (!attachment || attachment.type !== "image" || typeof message.content === "string") {
+    return "";
+  }
+
+  const part =
+    typeof attachment.contentPartIndex === "number"
+      ? message.content[attachment.contentPartIndex]
+      : undefined;
+
+  if (!part || part.type !== "image") {
+    return "";
+  }
+
+  return `data:${part.mimeType};base64,${part.data}`;
+}
+
 export function ChatMessage(props: {
   followingMessages?: ReadonlyArray<DisplayChatMessage>;
   isStreamingReasoning: boolean;
@@ -56,10 +85,32 @@ export function ChatMessage(props: {
   const { message } = props;
 
   if (message.role === "user") {
+    const attachments = getUserAttachments(message);
+    const text = getUserText(message);
+
     return (
       <Message from="user">
         <MessageContent>
-          <MessageResponse>{getUserText(message)}</MessageResponse>
+          {text ? <MessageResponse>{text}</MessageResponse> : null}
+          {attachments.length > 0 ? (
+            <Attachments className="mt-2" variant="inline">
+              {attachments.map((attachment, index) => (
+                <Attachment
+                  data={{
+                    filename: attachment.fileName,
+                    id: attachment.id,
+                    mediaType: attachment.mediaType,
+                    type: "file",
+                    url: getAttachmentUrl(message, index),
+                  }}
+                  key={attachment.id}
+                >
+                  <AttachmentPreview />
+                  <AttachmentInfo />
+                </Attachment>
+              ))}
+            </Attachments>
+          ) : null}
         </MessageContent>
       </Message>
     );

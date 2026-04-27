@@ -1,6 +1,10 @@
 import type { AssistantContent, ChatMessage, UserContent } from "@gitaura/pi/types/chat";
 
-function getTextFromUserContent(content: string | UserContent[]): string {
+function getTextFromUserContent(content: string | UserContent[], displayText?: string): string {
+  if (typeof displayText === "string") {
+    return displayText.trim();
+  }
+
   if (typeof content === "string") {
     return content.trim();
   }
@@ -22,7 +26,7 @@ function getTextFromAssistantContent(content: AssistantContent[]): string {
 
 export function getMessageText(message: ChatMessage): string {
   if (message.role === "user") {
-    return getTextFromUserContent(message.content);
+    return getTextFromUserContent(message.content, message.displayText);
   }
 
   if (message.role === "assistant") {

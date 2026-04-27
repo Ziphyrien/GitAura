@@ -63,8 +63,8 @@ vi.mock("@/components/chat-empty-state", () => ({
 }));
 
 vi.mock("@/components/chat-composer", () => ({
-  ChatComposer: ({ onSend }: { onSend: (content: string) => Promise<void> }) => (
-    <button onClick={() => void onSend("hello")} type="button">
+  ChatComposer: ({ onSend }: { onSend: (input: { text: string }) => Promise<void> }) => (
+    <button onClick={() => void onSend({ text: "hello" })} type="button">
       Send
     </button>
   ),
@@ -208,7 +208,7 @@ describe("Chat first send", () => {
     });
 
     await vi.waitFor(() => {
-      expect(startInitialTurnMock).toHaveBeenCalledWith(session, "hello");
+      expect(startInitialTurnMock).toHaveBeenCalledWith(session, { text: "hello" });
     });
 
     expect(startInitialTurnMock.mock.invocationCallOrder[0]).toBeLessThan(

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { runtimeClient, type InterruptedResumeMode } from "@gitaura/pi/agent/runtime-client";
+import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
 
 export function useRuntimeSession(sessionId: string | undefined) {
   const runMutation = React.useEffectEvent(
@@ -12,9 +13,9 @@ export function useRuntimeSession(sessionId: string | undefined) {
     },
   );
 
-  const send = React.useEffectEvent(async (content: string) => {
+  const send = React.useEffectEvent(async (input: string | UserTurnInput) => {
     await runMutation(async (currentSessionId) => {
-      await runtimeClient.startTurn(currentSessionId, content);
+      await runtimeClient.startTurn(currentSessionId, input);
     });
   });
 

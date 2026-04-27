@@ -1,16 +1,20 @@
+import { getUserText } from "@gitaura/pi/lib/chat-adapter";
 import type { DisplayChatMessage } from "@gitaura/pi/types/chat";
 import type { ResolvedRepoSource } from "@gitaura/db";
 
 function formatMessageContent(message: DisplayChatMessage): string {
   if (message.role === "user") {
-    if (typeof message.content === "string") return message.content;
-    return message.content
-      .map((part) => {
-        if (part.type === "text") return part.text;
-        if (part.type === "image") return "[Image]";
-        return "";
-      })
-      .join("\n");
+    const attachmentLines =
+      message.attachments?.map(
+        (attachment) => `- ${attachment.fileName} (${attachment.mediaType})`,
+      ) ?? [];
+    const text = getUserText(message);
+
+    if (attachmentLines.length === 0) {
+      return text;
+    }
+
+    return [text, "", "Attachments:", ...attachmentLines].filter(Boolean).join("\n");
   }
 
   if (message.role === "assistant") {

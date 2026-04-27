@@ -52,6 +52,20 @@ describe("chat-adapter", () => {
     ).toBe("a\nb");
   });
 
+  it("getUserText prefers display text for attachment-backed messages", () => {
+    expect(
+      getUserText(
+        userMessage({
+          content: [
+            { text: "visible", type: "text" },
+            { text: "hidden extracted document text", type: "text" },
+          ],
+          displayText: "visible",
+        }),
+      ),
+    ).toBe("visible");
+  });
+
   it("getAssistantText filters text blocks", () => {
     const msg = assistantMessage([
       { text: "Hi ", type: "text" },
