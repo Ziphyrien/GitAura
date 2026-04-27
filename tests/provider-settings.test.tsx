@@ -1,6 +1,7 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
 type ProviderKeyRecord = {
   provider: string;
   value: string;
@@ -9,8 +10,12 @@ type ProviderKeyRecord = {
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 const toastWarning = vi.fn();
+const loginAndStoreOAuthProvider = vi.fn();
+const setProviderApiKey = vi.fn();
 
 const state = vi.hoisted(() => ({
+  failLogin: false,
+  holdLogin: false,
   providerKeys: [] as ProviderKeyRecord[],
   settingsRows: [] as Array<{ key: string; value: string }>,
 }));
@@ -43,6 +48,12 @@ vi.mock("@gitaura/db", () => ({
 }));
 
 vi.mock("@gitaura/pi/models/provider-registry", () => ({
+  getOAuthProvidersForSettings: () => [
+    "anthropic",
+    "github-copilot",
+    "google-gemini-cli",
+    "openai-codex",
+  ],
   getProviderGroupMetadata: (provider: string) => ({
     label:
       provider === "anthropic"
@@ -90,29 +101,34 @@ vi.mock("@gitaura/pi/auth/auth-service", () => ({
         return provider;
     }
   },
-  importOAuthCredentialsForProvider: async (provider: string, value: string) => {
-    const credentials = JSON.parse(value) as {
-      access: string;
-      accountId?: string;
-      expires: number;
-      projectId?: string;
-      providerId: string;
-      refresh: string;
-    };
+  loginAndStoreOAuthProvider: async (
+    provider: string,
+    redirectUri: string,
+    onDeviceCode?: (info: { userCode: string; verificationUri: string }) => void,
+  ) => {
+    loginAndStoreOAuthProvider(provider, redirectUri);
 
-    if (credentials.providerId !== provider) {
-      const actualName =
-        provider === "anthropic"
-          ? "GitHub Copilot"
-          : credentials.providerId === "github-copilot"
-            ? "GitHub Copilot"
-            : credentials.providerId;
-      const expectedName = provider === "anthropic" ? "Anthropic (Claude Pro/Max)" : provider;
-      throw new Error(
-        `This code is for ${actualName}. Paste it into the ${expectedName} row instead.`,
-      );
+    if (provider === "github-copilot") {
+      onDeviceCode?.({
+        userCode: "ABCD-1234",
+        verificationUri: "https://github.com/login/device",
+      });
     }
 
+    if (state.failLogin) {
+      throw new Error("OAuth failed");
+    }
+
+    if (state.holdLogin) {
+      return await new Promise(() => {});
+    }
+
+    const value = JSON.stringify({
+      access: `${provider}-access`,
+      expires: Date.now() + 60_000,
+      providerId: provider,
+      refresh: `${provider}-refresh`,
+    });
     state.providerKeys = [
       ...state.providerKeys.filter((record) => record.provider !== provider),
       {
@@ -121,16 +137,16 @@ vi.mock("@gitaura/pi/auth/auth-service", () => ({
       },
     ];
 
-    return credentials;
+    return JSON.parse(value);
   },
-  setProviderApiKey: vi.fn(),
+  setProviderApiKey,
 }));
 
 vi.mock("@gitaura/ui/components/button", () => ({
   Button: ({
     children,
-    onClick,
     disabled,
+    onClick,
     type,
   }: {
     children: React.ReactNode;
@@ -154,11 +170,6 @@ vi.mock("@gitaura/ui/components/input", () => ({
     React.createElement("input", { onChange, placeholder, type, value }),
 }));
 
-vi.mock("@gitaura/ui/components/textarea", () => ({
-  Textarea: ({ value, onChange, placeholder }: React.ComponentProps<"textarea">) =>
-    React.createElement("textarea", { onChange, placeholder, value }),
-}));
-
 vi.mock("@gitaura/ui/components/item", () => {
   const Passthrough = ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", undefined, children);
@@ -177,98 +188,56 @@ describe("provider settings", () => {
     toastSuccess.mockReset();
     toastError.mockReset();
     toastWarning.mockReset();
+    loginAndStoreOAuthProvider.mockReset();
+    setProviderApiKey.mockReset();
+    state.failLogin = false;
+    state.holdLogin = false;
     state.providerKeys = [];
     state.settingsRows = [];
-
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: vi.fn().mockResolvedValue(undefined),
-      },
-    });
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("shows a provider-specific CLI connect flow and copies the command", async () => {
+  it("starts browser OAuth login and stores the provider row", async () => {
     const { ProviderSettings } = await import("@/components/provider-settings");
     const { rerender } = render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Connect with CLI" })[0]);
-    rerender(React.createElement(ProviderSettings));
-
-    expect(screen.getByText("Connect with login code")).toBeTruthy();
-    expect(screen.getByText("npx @gitaura/cli login -p anthropic")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Copy command" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
 
     await waitFor(() => {
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        "npx @gitaura/cli login -p anthropic",
+      expect(loginAndStoreOAuthProvider).toHaveBeenCalledWith(
+        "anthropic",
+        "http://localhost:3000/auth/callback",
       );
-      expect(toastSuccess).toHaveBeenCalledWith("Command copied");
+      expect(toastSuccess).toHaveBeenCalledWith("Connected to Anthropic (Claude Pro/Max)");
     });
-  });
 
-  it("imports a pasted provider code and updates the provider row", async () => {
-    const { ProviderSettings } = await import("@/components/provider-settings");
-    const { rerender } = render(React.createElement(ProviderSettings));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Connect with CLI" })[1]);
-    rerender(React.createElement(ProviderSettings));
-
-    fireEvent.change(
-      screen.getByPlaceholderText("Paste the code from npx @gitaura/cli login -p copilot"),
-      {
-        target: {
-          value: JSON.stringify({
-            access: "copilot-access",
-            expires: Date.now() + 60_000,
-            providerId: "github-copilot",
-            refresh: "copilot-refresh",
-          }),
-        },
-      },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-    rerender(React.createElement(ProviderSettings));
-
-    await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("Connected to GitHub Copilot");
-    });
     rerender(React.createElement(ProviderSettings));
     expect(screen.getAllByText("Connected").length).toBeGreaterThan(0);
   });
 
-  it("shows an inline error when the pasted code belongs to another provider", async () => {
+  it("shows the Copilot device code while login is pending", async () => {
+    state.holdLogin = true;
     const { ProviderSettings } = await import("@/components/provider-settings");
-    const { rerender } = render(React.createElement(ProviderSettings));
+    render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Connect with CLI" })[0]);
-    rerender(React.createElement(ProviderSettings));
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
 
-    fireEvent.change(
-      screen.getByPlaceholderText("Paste the code from npx @gitaura/cli login -p anthropic"),
-      {
-        target: {
-          value: JSON.stringify({
-            access: "copilot-access",
-            expires: Date.now() + 60_000,
-            providerId: "github-copilot",
-            refresh: "copilot-refresh",
-          }),
-        },
-      },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    expect(await screen.findByText("Complete device sign-in")).toBeTruthy();
+    expect(screen.getByText("ABCD-1234")).toBeTruthy();
+    expect(screen.getByText("https://github.com/login/device")).toBeTruthy();
+  });
 
-    expect(
-      await screen.findByText(
-        "This code is for GitHub Copilot. Paste it into the Anthropic (Claude Pro/Max) row instead.",
-      ),
-    ).toBeTruthy();
+  it("shows an inline error when browser OAuth fails", async () => {
+    state.failLogin = true;
+    const { ProviderSettings } = await import("@/components/provider-settings");
+    render(React.createElement(ProviderSettings));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
+
+    expect(await screen.findByText("OAuth failed")).toBeTruthy();
   });
 
   it("shows connected providers from stored oauth credentials", async () => {

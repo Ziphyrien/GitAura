@@ -5,19 +5,21 @@ import { isOAuthCredentials, parseOAuthCredentials } from "@gitaura/pi/auth/oaut
 import {
   getAtlasProviderGroups,
   getCanonicalProvider,
+  getConfiguredDefaultModels,
+  getDefaultModelId,
   getDefaultProviderGroup,
   getProviderGroupMetadata,
+  getProviderSelectorModelIds,
   getRuntimeSupportedProviders,
   isProviderGroupId,
 } from "@gitaura/pi/models/provider-registry";
 
 const SUPPORTED_PROVIDERS = getRuntimeSupportedProviders();
 
-/** OpenAI API key + Codex OAuth: model selector only lists these. */
-const OPENAI_SELECTOR_MODEL_IDS = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"] as const;
+export const DEFAULT_MODELS = getConfiguredDefaultModels();
 
-function isOpenAiSelectorModelId(modelId: string): boolean {
-  return (OPENAI_SELECTOR_MODEL_IDS as readonly string[]).includes(modelId);
+function hasConfiguredSelectorModel(provider: ProviderId, modelId: string): boolean {
+  return getProviderSelectorModelIds(provider)?.includes(modelId) ?? false;
 }
 
 function requireProviderGroups(): Array<ProviderGroupId> {
@@ -67,44 +69,40 @@ function syntheticOpenAiCodexModel(modelId: string): ModelDefinition | undefined
 
 function openAiCodexSelectorModels(
   codexRegistryModels: Array<ModelDefinition>,
+  selectorModelIds: readonly string[],
 ): Array<ModelDefinition> {
   const byId = new Map(codexRegistryModels.map((model) => [model.id, model]));
-  return OPENAI_SELECTOR_MODEL_IDS.map((id) => {
-    return byId.get(id) ?? syntheticOpenAiCodexModel(id);
-  }).filter((model): model is ModelDefinition => model !== undefined);
+  return selectorModelIds
+    .map((id) => byId.get(id) ?? syntheticOpenAiCodexModel(id))
+    .filter((model): model is ModelDefinition => model !== undefined);
 }
-
-/** Preferred default model ids when registry still exposes them; otherwise first model is used. */
-export const DEFAULT_MODELS: Partial<Record<ProviderId, string>> = {
-  anthropic: "claude-sonnet-4-6",
-  "github-copilot": "gpt-4o",
-  "google-gemini-cli": "gemini-2.5-pro",
-  openai: "gpt-5.4",
-  opencode: "gpt-5.1-codex-mini",
-  "opencode-go": "glm-5",
-  "openai-codex": "gpt-5.4",
-};
 
 export function getProviders(): Array<ProviderId> {
   return SUPPORTED_PROVIDERS;
 }
 
-function pickOpenAiSelectorModels(models: Array<ModelDefinition>): Array<ModelDefinition> {
+function pickSelectorModels(
+  provider: ProviderId,
+  models: Array<ModelDefinition>,
+): Array<ModelDefinition> {
+  const selectorModelIds = getProviderSelectorModelIds(provider);
+  if (!selectorModelIds) {
+    return models;
+  }
+
+  if (provider === "openai-codex") {
+    return openAiCodexSelectorModels(models, selectorModelIds);
+  }
+
   const byId = new Map(models.map((model) => [model.id, model]));
-  return OPENAI_SELECTOR_MODEL_IDS.map((id) => byId.get(id)).filter(
-    (model): model is ModelDefinition => model !== undefined,
-  );
+  return selectorModelIds
+    .map((id) => byId.get(id))
+    .filter((model): model is ModelDefinition => model !== undefined);
 }
 
 export function getPiAiModels(provider: ProviderId): ModelDefinition[] {
   const registryModels = getRegistryModels(provider as never) as ModelDefinition[];
-  if (provider === "openai") {
-    return pickOpenAiSelectorModels(registryModels);
-  }
-  if (provider === "openai-codex") {
-    return openAiCodexSelectorModels(registryModels);
-  }
-  return registryModels;
+  return pickSelectorModels(provider, registryModels);
 }
 
 export function getPiAiModel(provider: ProviderId, modelId: string): ModelDefinition | undefined {
@@ -114,7 +112,7 @@ export function getPiAiModel(provider: ProviderId, modelId: string): ModelDefini
   if (direct) {
     return direct;
   }
-  if (provider === "openai-codex" && isOpenAiSelectorModelId(modelId)) {
+  if (provider === "openai-codex" && hasConfiguredSelectorModel(provider, modelId)) {
     return syntheticOpenAiCodexModel(modelId);
   }
   return undefined;
@@ -203,11 +201,7 @@ export function getModelsForGroup(providerGroup: ProviderGroupId): Array<ModelDe
   const provider = getCanonicalProvider(group);
   const models = getModels(provider);
 
-  if (provider === "openai" || provider === "openai-codex") {
-    return models;
-  }
-
-  return sortModelsForDisplay(models);
+  return getProviderSelectorModelIds(provider) ? models : sortModelsForDisplay(models);
 }
 
 export function getDefaultModelForGroup(providerGroup: ProviderGroupId): ModelDefinition {
@@ -234,7 +228,7 @@ export function getModelForGroup(providerGroup: ProviderGroupId, modelId: string
 }
 
 export function getDefaultModel(provider: ProviderId): ModelDefinition {
-  const preferredId = DEFAULT_MODELS[provider];
+  const preferredId = getDefaultModelId(provider);
   if (preferredId) {
     const defaultModel = getPiAiModel(provider, preferredId);
     if (defaultModel) {

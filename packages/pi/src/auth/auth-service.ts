@@ -5,31 +5,25 @@ import { loginGitHubCopilot } from "@gitaura/pi/auth/providers/github-copilot";
 import { loginGeminiCli } from "@gitaura/pi/auth/providers/google-gemini-cli";
 import { loginOpenAICodex } from "@gitaura/pi/auth/providers/openai-codex";
 import {
-  parseImportedOAuthCredentials,
+  isOAuthProviderId,
   serializeOAuthCredentials,
   type OAuthCredentials,
+  type OAuthProviderId,
 } from "@gitaura/pi/auth/oauth-types";
 import type { ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
 import type { ProviderAuthKind, ProviderAuthState } from "@gitaura/pi/types/auth";
 import type { ProviderId } from "@gitaura/pi/types/models";
+import { getOAuthProviderLabel } from "@gitaura/pi/models/provider-registry";
 
 export { oauthRefresh } from "@gitaura/pi/auth/oauth-refresh";
-
-export type OAuthProviderId = "anthropic" | "github-copilot" | "google-gemini-cli" | "openai-codex";
-
-export const OAUTH_PROVIDERS: Record<OAuthProviderId, { label: string }> = {
-  anthropic: { label: "Anthropic (Claude Pro/Max)" },
-  "github-copilot": { label: "GitHub Copilot" },
-  "google-gemini-cli": { label: "Google Gemini" },
-  "openai-codex": { label: "ChatGPT Plus/Pro" },
-};
+export type { OAuthProviderId } from "@gitaura/pi/auth/oauth-types";
 
 export function isOAuthProvider(provider: string): provider is OAuthProviderId {
-  return provider in OAUTH_PROVIDERS;
+  return isOAuthProviderId(provider);
 }
 
 export function getOAuthProviderName(provider: OAuthProviderId): string {
-  return OAUTH_PROVIDERS[provider].label;
+  return getOAuthProviderLabel(provider);
 }
 
 export async function oauthLogin(
@@ -57,24 +51,13 @@ export async function upsertProviderOAuth(
   await setProviderKey(provider, serializeOAuthCredentials(credentials));
 }
 
-export async function importOAuthCredentials(value: string): Promise<OAuthCredentials> {
-  const credentials = parseImportedOAuthCredentials(value);
-  await upsertProviderOAuth(credentials.providerId, credentials);
-  return credentials;
-}
-
-export async function importOAuthCredentialsForProvider(
+export async function loginAndStoreOAuthProvider(
   provider: OAuthProviderId,
-  value: string,
+  redirectUri: string,
+  onDeviceCode?: (info: { userCode: string; verificationUri: string }) => void,
+  options?: ProxyRequestOptions,
 ): Promise<OAuthCredentials> {
-  const credentials = parseImportedOAuthCredentials(value);
-
-  if (credentials.providerId !== provider) {
-    throw new Error(
-      `This code is for ${getOAuthProviderName(credentials.providerId)}. Paste it into the ${getOAuthProviderName(provider)} row instead.`,
-    );
-  }
-
+  const credentials = await oauthLogin(provider, redirectUri, onDeviceCode, options);
   await upsertProviderOAuth(provider, credentials);
   return credentials;
 }

@@ -1,9 +1,18 @@
+export const OAUTH_PROVIDER_IDS = [
+  "anthropic",
+  "github-copilot",
+  "google-gemini-cli",
+  "openai-codex",
+] as const;
+
+export type OAuthProviderId = (typeof OAUTH_PROVIDER_IDS)[number];
+
 export interface OAuthCredentials {
   access: string;
   accountId?: string;
   expires: number;
   projectId?: string;
-  providerId: "anthropic" | "github-copilot" | "google-gemini-cli" | "openai-codex";
+  providerId: OAuthProviderId;
   refresh: string;
 }
 
@@ -16,15 +25,8 @@ interface OAuthCredentialsDraft {
   refresh?: string;
 }
 
-const OAUTH_PROVIDER_IDS = [
-  "anthropic",
-  "github-copilot",
-  "google-gemini-cli",
-  "openai-codex",
-] as const satisfies readonly OAuthCredentials["providerId"][];
-
-export function isOAuthProviderId(value: string): value is OAuthCredentials["providerId"] {
-  return OAUTH_PROVIDER_IDS.includes(value as OAuthCredentials["providerId"]);
+export function isOAuthProviderId(value: string): value is OAuthProviderId {
+  return OAUTH_PROVIDER_IDS.includes(value as OAuthProviderId);
 }
 
 function requireString(value: string | number | undefined, field: string): string {
@@ -68,23 +70,6 @@ function validateDraft(credentials: OAuthCredentialsDraft): OAuthCredentials {
   return normalized;
 }
 
-function decodeBase64Url(value: string): string {
-  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-
-  try {
-    if (typeof atob === "function") {
-      const binary = atob(padded);
-      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      return new TextDecoder().decode(bytes);
-    }
-
-    return Buffer.from(padded, "base64").toString("utf8");
-  } catch {
-    throw new Error("Invalid login code");
-  }
-}
-
 export function isOAuthCredentials(value: string): boolean {
   return value.startsWith("{");
 }
@@ -95,18 +80,4 @@ export function parseOAuthCredentials(value: string): OAuthCredentials {
 
 export function serializeOAuthCredentials(credentials: OAuthCredentials): string {
   return JSON.stringify(validateDraft(credentials));
-}
-
-export function parseImportedOAuthCredentials(value: string): OAuthCredentials {
-  const trimmed = value.trim();
-
-  if (trimmed.length === 0) {
-    throw new Error("Enter a login code first");
-  }
-
-  if (trimmed.startsWith("{")) {
-    return parseOAuthCredentials(trimmed);
-  }
-
-  return parseOAuthCredentials(decodeBase64Url(trimmed));
 }

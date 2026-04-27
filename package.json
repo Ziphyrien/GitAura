@@ -29,7 +29,6 @@
     "build": "turbo build",
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
-    "dev:cli": "turbo -F @gitaura/cli dev",
     "check": "vp lint && vp fmt --write",
     "changeset": "changeset",
     "version-packages": "changeset version",

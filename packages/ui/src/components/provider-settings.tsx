@@ -5,13 +5,14 @@ import type { ProviderGroupId, ProviderId } from "@gitaura/pi/types/models";
 import {
   disconnectProvider,
   getOAuthProviderName,
-  importOAuthCredentialsForProvider,
+  loginAndStoreOAuthProvider,
   setProviderApiKey,
   type OAuthProviderId,
 } from "@gitaura/pi/auth/auth-service";
 import { isOAuthCredentials } from "@gitaura/pi/auth/oauth-types";
 import { db } from "@gitaura/db";
 import {
+  getOAuthProvidersForSettings,
   getProviderGroupMetadata,
   getSortedApiKeyProvidersForSettings,
 } from "@gitaura/pi/models/provider-registry";
@@ -30,29 +31,11 @@ import {
   ItemDescription,
   ItemTitle,
 } from "@gitaura/ui/components/item";
-import { Textarea } from "@gitaura/ui/components/textarea";
 
-const SUBSCRIPTION_OAUTH_PROVIDERS: OAuthProviderId[] = [
-  "anthropic",
-  "openai-codex",
-  "github-copilot",
-  "google-gemini-cli",
-];
-
-const CLI_PROVIDER_ALIASES: Record<OAuthProviderId, string> = {
-  anthropic: "anthropic",
-  "github-copilot": "copilot",
-  "google-gemini-cli": "gemini",
-  "openai-codex": "codex",
+type DeviceCodePrompt = {
+  userCode: string;
+  verificationUri: string;
 };
-
-function sortSubscriptionOAuthByName(providers: OAuthProviderId[]): OAuthProviderId[] {
-  return [...providers].sort((a, b) =>
-    getOAuthProviderName(a).localeCompare(getOAuthProviderName(b), undefined, {
-      sensitivity: "base",
-    }),
-  );
-}
 
 function isOAuthConnected(value: string | undefined): boolean {
   const trimmed = value?.trim();
@@ -70,23 +53,6 @@ function hasStoredPlainApiKey(
   const record = providerKeys.find((item) => item.provider === provider);
   const trimmed = record?.value?.trim() ?? "";
   return Boolean(trimmed && !trimmed.startsWith("{"));
-}
-
-function getCliLoginCommand(provider: OAuthProviderId): string {
-  return `npx @gitaura/cli login -p ${CLI_PROVIDER_ALIASES[provider]}`;
-}
-
-async function copyText(value: string): Promise<boolean> {
-  if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-    return false;
-  }
-
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
@@ -107,16 +73,13 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
   }, [proxySettingRows]);
 
   const [draftValues, setDraftValues] = React.useState<Partial<Record<ProviderId, string>>>({});
-  const [expandedProvider, setExpandedProvider] = React.useState<OAuthProviderId | undefined>();
-  const [importValues, setImportValues] = React.useState<Partial<Record<OAuthProviderId, string>>>(
+  const [devicePrompts, setDevicePrompts] = React.useState<
+    Partial<Record<OAuthProviderId, DeviceCodePrompt>>
+  >({});
+  const [loginErrors, setLoginErrors] = React.useState<Partial<Record<OAuthProviderId, string>>>(
     {},
   );
-  const [importErrors, setImportErrors] = React.useState<Partial<Record<OAuthProviderId, string>>>(
-    {},
-  );
-  const [isImporting, setIsImporting] = React.useState<Partial<Record<OAuthProviderId, boolean>>>(
-    {},
-  );
+  const [loggingInProvider, setLoggingInProvider] = React.useState<OAuthProviderId | undefined>();
 
   React.useEffect(() => {
     setDraftValues(
@@ -131,10 +94,45 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
 
   const apiKeyProviders = React.useMemo(() => getSortedApiKeyProvidersForSettings(), []);
 
-  const subscriptionOAuthProviders = React.useMemo(
-    () => sortSubscriptionOAuthByName(SUBSCRIPTION_OAUTH_PROVIDERS),
-    [],
-  );
+  const subscriptionOAuthProviders = React.useMemo(() => getOAuthProvidersForSettings(), []);
+
+  const handleOAuthLogin = async (provider: OAuthProviderId) => {
+    setLoggingInProvider(provider);
+    setLoginErrors((current) => ({
+      ...current,
+      [provider]: undefined,
+    }));
+    setDevicePrompts((current) => ({
+      ...current,
+      [provider]: undefined,
+    }));
+
+    try {
+      await loginAndStoreOAuthProvider(
+        provider,
+        new URL("/auth/callback", window.location.origin).toString(),
+        (info) => {
+          setDevicePrompts((current) => ({
+            ...current,
+            [provider]: info,
+          }));
+        },
+        provider === "anthropic" && proxyConfig.enabled ? { proxyUrl: proxyConfig.url } : undefined,
+      );
+      setDevicePrompts((current) => ({
+        ...current,
+        [provider]: undefined,
+      }));
+      toast.success(`Connected to ${getOAuthProviderName(provider)}`);
+    } catch (error) {
+      setLoginErrors((current) => ({
+        ...current,
+        [provider]: error instanceof Error ? error.message : "Could not complete sign-in",
+      }));
+    } finally {
+      setLoggingInProvider(undefined);
+    }
+  };
 
   return (
     <div className="space-y-10">
@@ -142,16 +140,16 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
         <div className="space-y-1.5">
           <h3 className="text-sm font-medium">Subscription Login</h3>
           <p className="text-xs text-muted-foreground">
-            Connect your existing subscription in your terminal, then paste the returned code back
-            here to finish setup in this browser.
+            Connect your existing subscriptions directly in your browser. Tokens are stored locally
+            in this browser.
           </p>
         </div>
 
         <div className="text-xs text-muted-foreground">
           <p>
-            Requests routed through{" "}
-            <span className="font-medium text-foreground">{proxyConfig.url}</span>. An untrusted
-            proxy can see your credentials.{" "}
+            Anthropic token exchanges use{" "}
+            <span className="font-medium text-foreground">{proxyConfig.url}</span> when proxying is
+            enabled. An untrusted proxy can see those credentials.{" "}
             {props.onNavigateToProxy ? (
               <button
                 className="font-medium text-foreground underline underline-offset-4 hover:text-foreground"
@@ -170,11 +168,9 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
           {subscriptionOAuthProviders.map((provider) => {
             const record = providerKeys.find((item) => item.provider === provider);
             const connected = isOAuthConnected(record?.value);
-            const expanded = expandedProvider === provider;
-            const importValue = importValues[provider] ?? "";
-            const importError = importErrors[provider];
-            const importing = isImporting[provider] ?? false;
-            const command = getCliLoginCommand(provider);
+            const devicePrompt = devicePrompts[provider];
+            const loginError = loginErrors[provider];
+            const loggingIn = loggingInProvider === provider;
 
             return (
               <div className="space-y-2" key={provider}>
@@ -186,7 +182,7 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
                     <ItemDescription>
                       {connected
                         ? "Connected"
-                        : "Run a terminal login command, then paste the returned code here."}
+                        : "Open a provider sign-in window and store the token locally."}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions className="ml-auto shrink-0">
@@ -207,131 +203,44 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
                       </Button>
                     ) : (
                       <Button
-                        onClick={() => {
-                          setExpandedProvider(expanded ? undefined : provider);
-                          setImportErrors((current) => ({
-                            ...current,
-                            [provider]: undefined,
-                          }));
-                        }}
+                        disabled={loggingInProvider !== undefined && !loggingIn}
+                        onClick={() => void handleOAuthLogin(provider)}
                         size="sm"
-                        variant={expanded ? "outline" : "secondary"}
+                        variant="secondary"
                       >
-                        {expanded ? "Hide" : "Connect with CLI"}
+                        {loggingIn ? "Signing in..." : "Sign in"}
                       </Button>
                     )}
                   </ItemActions>
                 </Item>
 
-                {!connected && expanded ? (
+                {!connected && devicePrompt ? (
                   <Item className="items-start" variant="muted">
                     <ItemContent className="min-w-0">
                       <ItemTitle className="text-sm font-medium text-foreground">
-                        Connect with login code
+                        Complete device sign-in
                       </ItemTitle>
                       <ItemDescription>
-                        1. Run the command below in your terminal. 2. Complete sign-in in your
-                        browser. 3. Paste the returned code here.
+                        Enter code{" "}
+                        <code className="border border-border bg-background px-1.5 py-0.5 font-mono text-foreground">
+                          {devicePrompt.userCode}
+                        </code>{" "}
+                        at{" "}
+                        <a
+                          className="font-medium text-foreground underline underline-offset-4"
+                          href={devicePrompt.verificationUri}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {devicePrompt.verificationUri}
+                        </a>
+                        .
                       </ItemDescription>
-                      <div className="mt-3 space-y-3">
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
-                            Run this command
-                          </div>
-                          <div className="flex flex-col gap-2 sm:flex-row">
-                            <code className="min-w-0 flex-1 overflow-x-auto border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
-                              {command}
-                            </code>
-                            <Button
-                              className="shrink-0"
-                              onClick={async () => {
-                                if (await copyText(command)) {
-                                  toast.success("Command copied");
-                                  return;
-                                }
-                                toast.error("Could not copy command");
-                              }}
-                              size="sm"
-                              type="button"
-                              variant="outline"
-                            >
-                              Copy command
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground uppercase">
-                            Paste the returned code
-                          </div>
-                          <Textarea
-                            autoComplete="off"
-                            className="min-h-24"
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              setImportValues((current) => ({
-                                ...current,
-                                [provider]: value,
-                              }));
-                              if (importErrors[provider]) {
-                                setImportErrors((current) => ({
-                                  ...current,
-                                  [provider]: undefined,
-                                }));
-                              }
-                            }}
-                            placeholder={`Paste the code from ${command}`}
-                            value={importValue}
-                          />
-                          {importError ? (
-                            <div className="text-xs text-destructive">{importError}</div>
-                          ) : null}
-                          <div className="flex justify-end">
-                            <Button
-                              disabled={importing || importValue.trim().length === 0}
-                              onClick={async () => {
-                                setIsImporting((current) => ({
-                                  ...current,
-                                  [provider]: true,
-                                }));
-                                setImportErrors((current) => ({
-                                  ...current,
-                                  [provider]: undefined,
-                                }));
-
-                                try {
-                                  await importOAuthCredentialsForProvider(provider, importValue);
-                                  setImportValues((current) => ({
-                                    ...current,
-                                    [provider]: "",
-                                  }));
-                                  setExpandedProvider(undefined);
-                                  toast.success(`Connected to ${getOAuthProviderName(provider)}`);
-                                } catch (error) {
-                                  setImportErrors((current) => ({
-                                    ...current,
-                                    [provider]:
-                                      error instanceof Error
-                                        ? error.message
-                                        : "Could not import login code",
-                                  }));
-                                } finally {
-                                  setIsImporting((current) => ({
-                                    ...current,
-                                    [provider]: false,
-                                  }));
-                                }
-                              }}
-                              size="sm"
-                              variant="secondary"
-                            >
-                              {importing ? "Connecting..." : "Connect"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
                     </ItemContent>
                   </Item>
                 ) : null}
+
+                {loginError ? <div className="text-xs text-destructive">{loginError}</div> : null}
               </div>
             );
           })}
