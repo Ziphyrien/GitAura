@@ -1,8 +1,4 @@
-/**
- * Single source for provider groups, UI labels, and Sitegeist-style API-key visibility.
- * Mirrors docs/sitegeist/src/dialogs/ApiKeysOAuthTab.ts for hidden providers, with
- * GitAura overrides so `opencode` and `opencode-go` stay visible.
- */
+/** Single source for provider groups, UI labels, and API-key visibility. */
 import { getProviders as getRegistryProviders } from "@mariozechner/pi-ai";
 import type {
   KnownProvider,
@@ -20,15 +16,7 @@ export const SITEGEIST_HIDDEN_API_KEY_PROVIDERS = new Set<KnownProvider>([
   "google-vertex",
   "openai-codex",
   "google-gemini-cli",
-  "opencode",
-  "opencode-go",
   "kimi-coding",
-]);
-
-/** Always show these in API key settings even though Sitegeist hides them. */
-export const GITAURA_FORCE_SHOW_API_KEY_PROVIDERS = new Set<KnownProvider>([
-  "opencode",
-  "opencode-go",
 ]);
 
 /** Subscription OAuth providers (explicit order). */
@@ -46,18 +34,10 @@ export const OAUTH_ONLY_PROVIDERS = new Set<KnownProvider>([
   "google-gemini-cli",
 ]);
 
-/**
- * API-key settings rows: full pi-ai registry minus Sitegeist hidden set, plus forced
- * OpenCode providers.
- */
+/** API-key settings rows: full pi-ai registry minus hidden providers. */
 export function getApiKeyProvidersForSettings(): KnownProvider[] {
   const fromRegistry = getRegistryProviders() as KnownProvider[];
-  return fromRegistry.filter((provider) => {
-    if (GITAURA_FORCE_SHOW_API_KEY_PROVIDERS.has(provider)) {
-      return true;
-    }
-    return !SITEGEIST_HIDDEN_API_KEY_PROVIDERS.has(provider);
-  });
+  return fromRegistry.filter((provider) => !SITEGEIST_HIDDEN_API_KEY_PROVIDERS.has(provider));
 }
 
 /** Providers that participate in model selection and runtime. */
