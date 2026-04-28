@@ -1,4 +1,4 @@
-import { deleteSetting, getSetting, setSetting } from "@gitaura/db";
+import { deleteSetting, getSetting, setSetting } from "@webaura/db";
 
 export interface ProxyConfig {
   enabled: boolean;

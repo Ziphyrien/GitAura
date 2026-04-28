@@ -1,6 +1,6 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { Static, TSchema } from "typebox";
-import type { ImageContent, TextContent } from "@gitaura/pi/types/chat";
+import type { ImageContent, TextContent } from "@webaura/pi/types/chat";
 
 export interface AppToolResult<TDetails = undefined> {
   content: Array<TextContent | ImageContent>;

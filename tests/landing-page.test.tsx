@@ -20,7 +20,7 @@ vi.mock("@tanstack/react-router", () => ({
   useSearch: () => useSearchMock(),
 }));
 
-vi.mock("@gitaura/db", () => ({
+vi.mock("@webaura/db", () => ({
   listRepositories: () => listRepositoriesMock(),
 }));
 
@@ -36,7 +36,7 @@ vi.mock("@/repo/github-fetch", () => ({
   handleGithubError: vi.fn(async () => false),
 }));
 
-vi.mock("@gitaura/pi/repo/suggested-repos", () => ({
+vi.mock("@webaura/pi/repo/suggested-repos", () => ({
   SUGGESTED_REPOS: [
     { owner: "anomalyco", ref: "dev", refOrigin: "explicit", repo: "opencode" },
     { owner: "acme", ref: "main", refOrigin: "default", repo: "demo" },
@@ -45,11 +45,11 @@ vi.mock("@gitaura/pi/repo/suggested-repos", () => ({
   ],
 }));
 
-vi.mock("@gitaura/ui/components/chat-logo", () => ({
+vi.mock("@webaura/ui/components/chat-logo", () => ({
   ChatLogo: () => <div>logo</div>,
 }));
 
-vi.mock("@gitaura/ui/components/github-repo", () => ({
+vi.mock("@webaura/ui/components/github-repo", () => ({
   GithubRepo: ({
     owner,
     ref,
@@ -68,7 +68,7 @@ vi.mock("@gitaura/ui/components/github-repo", () => ({
   ),
 }));
 
-vi.mock("@gitaura/ui/components/input-group", () => ({
+vi.mock("@webaura/ui/components/input-group", () => ({
   InputGroup: ({ children, className }: React.ComponentProps<"div">) => (
     <div className={className}>{children}</div>
   ),
@@ -80,14 +80,14 @@ vi.mock("@gitaura/ui/components/input-group", () => ({
   InputGroupText: ({ children }: React.ComponentProps<"span">) => <span>{children}</span>,
 }));
 
-vi.mock("@gitaura/ui/components/tabs", () => ({
+vi.mock("@webaura/ui/components/tabs", () => ({
   Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsTrigger: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@gitaura/ui/components/icons", () => ({
+vi.mock("@webaura/ui/components/icons", () => ({
   Icons: {
     clock: () => <span>clock</span>,
     gitHub: () => <span>github</span>,

@@ -1,4 +1,4 @@
-import type { RepoPathIntent } from "@gitaura/pi/repo/path-intent";
+import type { RepoPathIntent } from "@webaura/pi/repo/path-intent";
 
 export const RESERVED_ROOT_SEGMENTS = new Set(["auth", "chat", "api"]);
 

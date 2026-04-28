@@ -2,16 +2,16 @@ import {
   GitHubApiError,
   readGitHubErrorMessage,
   toGitHubApiError,
-} from "@gitaura/pi/repo/github-errors";
-import type { ResolvedRepoRef } from "@gitaura/db";
-import { githubApiFetch } from "@gitaura/pi/repo/github-fetch";
-import type { RepoPathIntent, ResolvedRepoLocation } from "@gitaura/pi/repo/path-intent";
+} from "@webaura/pi/repo/github-errors";
+import type { ResolvedRepoRef } from "@webaura/db";
+import { githubApiFetch } from "@webaura/pi/repo/github-fetch";
+import type { RepoPathIntent, ResolvedRepoLocation } from "@webaura/pi/repo/path-intent";
 import {
   createBranchRepoRef,
   createCommitRepoRef,
   createTagRepoRef,
   displayResolvedRepoRef,
-} from "@gitaura/pi/repo/refs";
+} from "@webaura/pi/repo/refs";
 
 const FULL_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 

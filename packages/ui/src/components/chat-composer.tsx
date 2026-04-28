@@ -3,33 +3,33 @@ import { toast } from "sonner";
 import { PaperclipIcon } from "lucide-react";
 import { ChatModelSelector } from "./chat-model-selector";
 import type { ChatStatus } from "ai";
-import type { PromptInputMessage } from "@gitaura/ui/components/ai-elements/prompt-input";
+import type { PromptInputMessage } from "@webaura/ui/components/ai-elements/prompt-input";
 import {
   MAX_ATTACHMENT_SIZE_BYTES,
   SUPPORTED_ATTACHMENT_ACCEPT,
   SUPPORTED_ATTACHMENT_PICKER_TYPES,
   type UserTurnInput,
-} from "@gitaura/pi/agent/user-turn-input";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
-import { getModelForGroup } from "@gitaura/pi/models/catalog";
+} from "@webaura/pi/agent/user-turn-input";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
+import { getModelForGroup } from "@webaura/pi/models/catalog";
 import {
   clampThinkingLevel,
   formatThinkingLevelLabel,
   getAvailableThinkingLevels,
-} from "@gitaura/pi/agent/thinking-levels";
+} from "@webaura/pi/agent/thinking-levels";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@gitaura/ui/components/select";
+} from "@webaura/ui/components/select";
 import {
   Attachment,
   AttachmentPreview,
   AttachmentRemove,
   Attachments,
-} from "@gitaura/ui/components/ai-elements/attachments";
+} from "@webaura/ui/components/ai-elements/attachments";
 import {
   PromptInput,
   PromptInputBody,
@@ -42,7 +42,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
   usePromptInputController,
-} from "@gitaura/ui/components/ai-elements/prompt-input";
+} from "@webaura/ui/components/ai-elements/prompt-input";
 
 function ChatComposerInner(props: {
   composerDisabled?: boolean;

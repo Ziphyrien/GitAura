@@ -3,13 +3,13 @@ import type { AgentEvent, AgentTool, StreamFn } from "@mariozechner/pi-agent-cor
 import {
   BusyRuntimeError,
   StreamInterruptedRuntimeError,
-} from "@gitaura/pi/agent/runtime-command-errors";
+} from "@webaura/pi/agent/runtime-command-errors";
 import {
   normalizeAssistantDraft,
   normalizeMessages,
   buildInitialAgentState,
-} from "@gitaura/pi/agent/session-adapter";
-import { TurnEventStore } from "@gitaura/pi/agent/turn-event-store";
+} from "@webaura/pi/agent/session-adapter";
+import { TurnEventStore } from "@webaura/pi/agent/turn-event-store";
 import {
   type AppendSessionNoticeInput,
   type ConfigureSessionInput,
@@ -17,23 +17,23 @@ import {
   type SetThinkingLevelInput,
   type StartTurnInput,
   type TurnCompletionResult,
-} from "@gitaura/pi/agent/runtime-worker-types";
-import { shouldStopStreamingForRuntimeError } from "@gitaura/pi/agent/runtime-errors";
-import { webMessageTransformer } from "@gitaura/pi/agent/message-transformer";
-import { streamChatWithPiAgent } from "@gitaura/pi/agent/provider-stream";
-import { clampThinkingLevel } from "@gitaura/pi/agent/thinking-levels";
-import { resolveApiKeyForProvider } from "@gitaura/pi/auth/resolve-api-key";
-import { putSession } from "@gitaura/db";
-import { getIsoNow } from "@gitaura/pi/lib/dates";
-import { getCanonicalProvider, getModel } from "@gitaura/pi/models/catalog";
+} from "@webaura/pi/agent/runtime-worker-types";
+import { shouldStopStreamingForRuntimeError } from "@webaura/pi/agent/runtime-errors";
+import { webMessageTransformer } from "@webaura/pi/agent/message-transformer";
+import { streamChatWithPiAgent } from "@webaura/pi/agent/provider-stream";
+import { clampThinkingLevel } from "@webaura/pi/agent/thinking-levels";
+import { resolveApiKeyForProvider } from "@webaura/pi/auth/resolve-api-key";
+import { putSession } from "@webaura/db";
+import { getIsoNow } from "@webaura/pi/lib/dates";
+import { getCanonicalProvider, getModel } from "@webaura/pi/models/catalog";
 import {
   loadSessionWithMessages,
   buildPersistedSession,
-} from "@gitaura/pi/sessions/session-service";
-import { createRepoTools } from "@gitaura/pi/tools/index";
-import type { ProviderId } from "@gitaura/pi/types/models";
-import type { AssistantMessage, ToolResultMessage } from "@gitaura/pi/types/chat";
-import type { MessageRow, SessionData, SessionRuntimeRow } from "@gitaura/db";
+} from "@webaura/pi/sessions/session-service";
+import { createRepoTools } from "@webaura/pi/tools/index";
+import type { ProviderId } from "@webaura/pi/types/models";
+import type { AssistantMessage, ToolResultMessage } from "@webaura/pi/types/chat";
+import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
 
 const TURN_IDLE_TIMEOUT_MS = 15 * 60_000;
 const TURN_IDLE_POLL_MS = 30_000;

@@ -12,11 +12,11 @@
   },
   "iconLibrary": "phosphor",
   "aliases": {
-    "components": "@gitaura/ui/components",
-    "utils": "@gitaura/ui/lib/utils",
-    "hooks": "@gitaura/ui/hooks",
-    "lib": "@gitaura/ui/lib",
-    "ui": "@gitaura/ui/components"
+    "components": "@webaura/ui/components",
+    "utils": "@webaura/ui/lib/utils",
+    "hooks": "@webaura/ui/hooks",
+    "lib": "@webaura/ui/lib",
+    "ui": "@webaura/ui/components"
   },
   "menuColor": "default-translucent",
   "menuAccent": "subtle",

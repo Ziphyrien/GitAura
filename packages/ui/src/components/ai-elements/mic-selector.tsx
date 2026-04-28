@@ -1,16 +1,16 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Command,
   CommandEmpty,
   CommandInput,
   CommandItem,
   CommandList,
-} from "@gitaura/ui/components/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@gitaura/ui/components/popover";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@webaura/ui/components/popover";
+import { cn } from "@webaura/ui/lib/utils";
 import { ChevronsUpDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import {

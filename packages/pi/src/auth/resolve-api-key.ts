@@ -1,12 +1,12 @@
-import { db, getProviderKey, setProviderKey } from "@gitaura/db";
-import { oauthRefresh } from "@gitaura/pi/auth/oauth-refresh";
+import { db, getProviderKey, setProviderKey } from "@webaura/db";
+import { oauthRefresh } from "@webaura/pi/auth/oauth-refresh";
 import {
   isOAuthCredentials,
   parseOAuthCredentials,
   serializeOAuthCredentials,
-} from "@gitaura/pi/auth/oauth-types";
-import { getProxyConfig } from "@gitaura/pi/proxy/settings";
-import type { ProviderId } from "@gitaura/pi/types/models";
+} from "@webaura/pi/auth/oauth-types";
+import { getProxyConfig } from "@webaura/pi/proxy/settings";
+import type { ProviderId } from "@webaura/pi/types/models";
 
 export interface ResolvedProviderAuth {
   apiKey: string;

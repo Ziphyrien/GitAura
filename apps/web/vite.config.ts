@@ -22,11 +22,11 @@ export default defineConfig({
   plugins: [comlink(), nitro(), tailwindcss(), tanstackStart(), viteReact()],
   resolve: {
     alias: {
-      "@gitaura/env/server": fileURLToPath(
+      "@webaura/env/server": fileURLToPath(
         new URL("../../packages/env/src/server.ts", import.meta.url),
       ),
-      "@gitaura/env/web": fileURLToPath(new URL("../../packages/env/src/web.ts", import.meta.url)),
-      "@gitaura/pi/agent/runtime-worker-client": fileURLToPath(
+      "@webaura/env/web": fileURLToPath(new URL("../../packages/env/src/web.ts", import.meta.url)),
+      "@webaura/pi/agent/runtime-worker-client": fileURLToPath(
         new URL("./src/agent/runtime-worker-client.ts", import.meta.url),
       ),
     },

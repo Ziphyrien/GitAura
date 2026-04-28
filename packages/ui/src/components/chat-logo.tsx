@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 
 type ChatLogoProps = ComponentPropsWithoutRef<"div"> & {
   /** Larger wordmark for landing / hero layouts */
@@ -17,7 +17,7 @@ export function ChatLogo({
 }: ChatLogoProps) {
   const wordmark = (
     <>
-      <span className="text-muted-foreground">Git</span>
+      <span className="text-muted-foreground">Web</span>
       <span className="text-foreground">Aura</span>
     </>
   );

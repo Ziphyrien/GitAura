@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { isReservedRootOwnerSegment } from "@gitaura/pi/repo/path-parser";
-import { OrgRepoPicker } from "@gitaura/ui/components/org-repo-picker";
+import { isReservedRootOwnerSegment } from "@webaura/pi/repo/path-parser";
+import { OrgRepoPicker } from "@webaura/ui/components/org-repo-picker";
 
 export const Route = createFileRoute("/$owner/")({
   beforeLoad: ({ params }) => {

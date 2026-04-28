@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
 import type { Message } from "@mariozechner/pi-ai";
-import { deleteAllLocalData, getSession, getSessionMessages, getSessionRuntime } from "@gitaura/db";
+import { deleteAllLocalData, getSession, getSessionMessages, getSessionRuntime } from "@webaura/db";
 import type { AssistantMessage } from "@/types/chat";
 import type { SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";

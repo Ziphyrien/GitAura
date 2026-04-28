@@ -1,15 +1,15 @@
-import { normalizeSessionRuntime } from "@gitaura/db/session-runtime-normalization";
-import { linkToolResults } from "@gitaura/pi/agent/tool-result-linker";
-import { StreamInterruptedRuntimeError } from "@gitaura/pi/agent/runtime-command-errors";
-import { getCanonicalProvider, getDefaultProviderGroup } from "@gitaura/pi/models/catalog";
+import { normalizeSessionRuntime } from "@webaura/db/session-runtime-normalization";
+import { linkToolResults } from "@webaura/pi/agent/tool-result-linker";
+import { StreamInterruptedRuntimeError } from "@webaura/pi/agent/runtime-command-errors";
+import { getCanonicalProvider, getDefaultProviderGroup } from "@webaura/pi/models/catalog";
 import {
   buildPreview,
   generateTitle,
   hasPersistableExchange,
-} from "@gitaura/pi/sessions/session-metadata";
-import { createEmptyUsage, type Usage } from "@gitaura/pi/types/models";
-import type { AssistantMessage, ChatMessage } from "@gitaura/pi/types/chat";
-import type { MessageRow, SessionData, SessionRuntimeRow } from "@gitaura/db";
+} from "@webaura/pi/sessions/session-metadata";
+import { createEmptyUsage, type Usage } from "@webaura/pi/types/models";
+import type { AssistantMessage, ChatMessage } from "@webaura/pi/types/chat";
+import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
 
 function mergeUsage(left: Usage, right: Usage): Usage {
   return {

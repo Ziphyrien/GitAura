@@ -1,10 +1,10 @@
-import { GitHubApiError } from "@gitaura/pi/repo/github-errors";
-import type { SystemMessage } from "@gitaura/pi/types/chat";
+import { GitHubApiError } from "@webaura/pi/repo/github-errors";
+import type { SystemMessage } from "@webaura/pi/types/chat";
 import {
   BusyRuntimeError,
   MissingSessionRuntimeError,
   StreamInterruptedRuntimeError,
-} from "@gitaura/pi/agent/runtime-command-errors";
+} from "@webaura/pi/agent/runtime-command-errors";
 
 export type RuntimeErrorKind =
   | "missing_session"

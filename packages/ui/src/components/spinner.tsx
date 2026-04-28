@@ -1,4 +1,4 @@
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import { SpinnerIcon } from "@phosphor-icons/react";
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {

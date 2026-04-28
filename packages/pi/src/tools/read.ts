@@ -1,18 +1,18 @@
 import { Type, type Static } from "typebox";
-import type { ResolvedRepoSource } from "@gitaura/db";
+import type { ResolvedRepoSource } from "@webaura/db";
 import {
   GitHubApiError,
   readGitHubErrorMessage,
   toGitHubApiError,
-} from "@gitaura/pi/repo/github-errors";
-import { githubApiFetch } from "@gitaura/pi/repo/github-fetch";
+} from "@webaura/pi/repo/github-errors";
+import { githubApiFetch } from "@webaura/pi/repo/github-fetch";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
   truncateHead,
   type TruncationResult,
-} from "@gitaura/pi/tools/truncate";
-import type { AppToolDefinition } from "@gitaura/pi/tools/types";
+} from "@webaura/pi/tools/truncate";
+import type { AppToolDefinition } from "@webaura/pi/tools/types";
 
 const MAX_SUPPORTED_FILE_BYTES = 1_000_000;
 
@@ -122,7 +122,7 @@ function unsupportedFileError(path: string, size: number): GitHubApiError {
     githubMessage: `File size: ${size} bytes`,
     isRetryable: false,
     kind: "unsupported",
-    message: `File is too large for GitAura (${size} bytes): ${path}`,
+    message: `File is too large for WebAura (${size} bytes): ${path}`,
     path,
   });
 }

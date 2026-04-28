@@ -5,48 +5,48 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { event as trackEvent } from "onedollarstats";
 import { toast } from "sonner";
-import { getFoldedToolResultIds } from "@gitaura/pi/lib/chat-adapter";
+import { getFoldedToolResultIds } from "@webaura/pi/lib/chat-adapter";
 import { ChatComposer } from "./chat-composer";
 import { SessionUtilityActions } from "./session-utility-actions";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatMessage as ChatMessageBlock } from "./chat-message";
 import { RepoCombobox } from "./repo-combobox";
 import type { RepoComboboxHandle } from "./repo-combobox";
-import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
-import type { AssistantMessage, DisplayChatMessage } from "@gitaura/pi/types/chat";
-import type { ResolvedRepoSource } from "@gitaura/db";
+import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
+import type { AssistantMessage, DisplayChatMessage } from "@webaura/pi/types/chat";
+import type { ResolvedRepoSource } from "@webaura/db";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
-} from "@gitaura/ui/components/ai-elements/conversation";
-import { StatusShimmer } from "@gitaura/ui/components/ai-elements/shimmer";
-import { ProgressiveBlur } from "@gitaura/ui/components/progressive-blur";
-import { copySessionToClipboard } from "@gitaura/pi/lib/copy-session-markdown";
-import { createSessionGistShare, SessionGistShareError } from "@gitaura/pi/lib/session-gist-share";
-import { db, touchRepository } from "@gitaura/db";
-import { runtimeClient } from "@gitaura/pi/agent/runtime-client";
-import { getRuntimeCommandErrorMessage } from "@gitaura/pi/agent/runtime-command-errors";
-import { useRuntimeSession } from "@gitaura/pi/hooks/use-runtime-session";
-import { useSessionOwnership } from "@gitaura/pi/hooks/use-session-ownership";
+} from "@webaura/ui/components/ai-elements/conversation";
+import { StatusShimmer } from "@webaura/ui/components/ai-elements/shimmer";
+import { ProgressiveBlur } from "@webaura/ui/components/progressive-blur";
+import { copySessionToClipboard } from "@webaura/pi/lib/copy-session-markdown";
+import { createSessionGistShare, SessionGistShareError } from "@webaura/pi/lib/session-gist-share";
+import { db, touchRepository } from "@webaura/db";
+import { runtimeClient } from "@webaura/pi/agent/runtime-client";
+import { getRuntimeCommandErrorMessage } from "@webaura/pi/agent/runtime-command-errors";
+import { useRuntimeSession } from "@webaura/pi/hooks/use-runtime-session";
+import { useSessionOwnership } from "@webaura/pi/hooks/use-session-ownership";
 import {
   getCanonicalProvider,
   getConnectedProviders,
   getDefaultModelForGroup,
   getDefaultProviderGroup,
   getVisibleProviderGroups,
-} from "@gitaura/pi/models/catalog";
-import { showGithubSystemNoticeToast } from "@gitaura/pi/repo/github-fetch";
+} from "@webaura/pi/models/catalog";
+import { showGithubSystemNoticeToast } from "@webaura/pi/repo/github-fetch";
 import {
   persistLastUsedSessionSettings,
   resolveProviderDefaults,
-} from "@gitaura/pi/sessions/session-actions";
-import { reconcileInterruptedSession } from "@gitaura/pi/sessions/session-notices";
+} from "@webaura/pi/sessions/session-actions";
+import { reconcileInterruptedSession } from "@webaura/pi/sessions/session-notices";
 import {
   loadSessionViewModel,
   type SessionViewModel,
-} from "@gitaura/pi/sessions/session-view-model";
+} from "@webaura/pi/sessions/session-view-model";
 import {
   deriveActiveSessionViewState,
   deriveBannerState,
@@ -54,8 +54,8 @@ import {
   deriveRecoveryIntent,
   deriveResumeAction,
   shouldDisplayConversationStreaming,
-} from "@gitaura/pi/sessions/session-view-state";
-import { useConversationStarter } from "@gitaura/ui/hooks/use-conversation-starter";
+} from "@webaura/pi/sessions/session-view-state";
+import { useConversationStarter } from "@webaura/ui/hooks/use-conversation-starter";
 
 type EmptyChatDraft = {
   model: string;
@@ -385,14 +385,14 @@ export function Chat(props: ChatProps) {
         });
 
         if (outcome.kind === "reconciled") {
-          console.info("[gitaura:runtime] interrupted_session_reconciled", {
+          console.info("[webaura:runtime] interrupted_session_reconciled", {
             lastProgressAt: outcome.lastProgressAt,
             sessionId: activeSession.id,
             trigger,
           });
         }
       } catch (error) {
-        console.error("[gitaura:runtime] stale_stream_reconcile_failed", {
+        console.error("[webaura:runtime] stale_stream_reconcile_failed", {
           error,
           sessionId: activeSession.id,
           trigger,
@@ -459,7 +459,7 @@ export function Chat(props: ChatProps) {
   const reportRuntimeFailure = React.useCallback(
     (error: Error) => {
       toast.error(getRuntimeCommandErrorMessage(error));
-      console.error("[gitaura:runtime] command_failed", {
+      console.error("[webaura:runtime] command_failed", {
         message: error.message,
         sessionId: activeSession?.id,
       });

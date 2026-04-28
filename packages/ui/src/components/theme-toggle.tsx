@@ -2,9 +2,9 @@
 
 import { useTheme } from "next-themes";
 
-import { Button } from "@gitaura/ui/components/button";
-import { Icons } from "@gitaura/ui/components/icons";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
+import { Button } from "@webaura/ui/components/button";
+import { Icons } from "@webaura/ui/components/icons";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
 
 type ThemePreference = "light" | "dark" | "system";
 

@@ -1,6 +1,6 @@
-import type { JsonValue } from "@gitaura/pi/types/common";
-import { buildProxiedUrl } from "@gitaura/pi/proxy/url";
-import type { OAuthProviderId } from "@gitaura/pi/auth/oauth-types";
+import type { JsonValue } from "@webaura/pi/types/common";
+import { buildProxiedUrl } from "@webaura/pi/proxy/url";
+import type { OAuthProviderId } from "@webaura/pi/auth/oauth-types";
 
 export interface ManualOAuthRedirectRequest {
   authUrl: string;

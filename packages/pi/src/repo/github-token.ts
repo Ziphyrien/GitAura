@@ -1,13 +1,13 @@
-import { deleteSetting, getSetting, setSetting } from "@gitaura/db";
+import { deleteSetting, getSetting, setSetting } from "@webaura/db";
 
 const GITHUB_PAT_KEY = "github.pat";
 
 /**
- * Default GitHub token generator for GitAura.
+ * Default GitHub token generator for WebAura.
  * Uses a fine-grained PAT template with repository contents read access and account-level gist access.
  */
 export const GITHUB_CREATE_PAT_URL =
-  "https://github.com/settings/personal-access-tokens/new?name=GitAura&description=Private%20repos%20and%20gist%20sharing&expires_in=none&contents=read&gists=write";
+  "https://github.com/settings/personal-access-tokens/new?name=WebAura&description=Private%20repos%20and%20gist%20sharing&expires_in=none&contents=read&gists=write";
 
 export type GithubTokenValidation = { ok: true; login: string } | { ok: false; message: string };
 

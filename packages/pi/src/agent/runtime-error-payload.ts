@@ -1,4 +1,4 @@
-import { GitHubApiError } from "@gitaura/pi/repo/github-errors";
+import { GitHubApiError } from "@webaura/pi/repo/github-errors";
 
 export type RuntimeErrorPayload =
   | {

@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { loadSessionLeaseState } from "@gitaura/db/session-leases";
+import { loadSessionLeaseState } from "@webaura/db/session-leases";
 
 export function useSessionOwnership(sessionId: string | undefined) {
   const leaseState = useLiveQuery(

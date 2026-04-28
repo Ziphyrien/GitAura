@@ -1,8 +1,8 @@
 "use client";
 
-import { Alert, AlertDescription } from "@gitaura/ui/components/alert";
-import { Button } from "@gitaura/ui/components/button";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Alert, AlertDescription } from "@webaura/ui/components/alert";
+import { Button } from "@webaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
 import type { ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useContext, useMemo } from "react";

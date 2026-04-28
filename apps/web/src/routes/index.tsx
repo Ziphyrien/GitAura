@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LandingPage } from "@gitaura/ui/components/landing-page";
+import { LandingPage } from "@webaura/ui/components/landing-page";
 import { parseLandingTab } from "@/navigation/search-state";
 
 export const Route = createFileRoute("/")({

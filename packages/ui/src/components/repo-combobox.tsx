@@ -2,15 +2,15 @@ import * as React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
-import type { ResolvedRepoSource } from "@gitaura/db";
-import { listRepositories } from "@gitaura/db";
-import { handleGithubError } from "@gitaura/pi/repo/github-fetch";
-import { parseRepoInput } from "@gitaura/pi/repo/path-parser";
-import { resolveRepoIntent } from "@gitaura/pi/repo/ref-resolver";
-import { SUGGESTED_REPOS } from "@gitaura/pi/repo/suggested-repos";
-import { githubOwnerAvatarUrl, repoSourceToPath } from "@gitaura/pi/repo/url";
-import { Icons } from "@gitaura/ui/components/icons";
-import { cn } from "@gitaura/ui/lib/utils";
+import type { ResolvedRepoSource } from "@webaura/db";
+import { listRepositories } from "@webaura/db";
+import { handleGithubError } from "@webaura/pi/repo/github-fetch";
+import { parseRepoInput } from "@webaura/pi/repo/path-parser";
+import { resolveRepoIntent } from "@webaura/pi/repo/ref-resolver";
+import { SUGGESTED_REPOS } from "@webaura/pi/repo/suggested-repos";
+import { githubOwnerAvatarUrl, repoSourceToPath } from "@webaura/pi/repo/url";
+import { Icons } from "@webaura/ui/components/icons";
+import { cn } from "@webaura/ui/lib/utils";
 
 export type RepoComboboxHandle = {
   focusAndClear: () => void;

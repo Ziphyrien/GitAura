@@ -17,18 +17,18 @@ vi.mock("@tanstack/react-router", () => ({
     React.createElement("a", props, children),
 }));
 
-vi.mock("@gitaura/ui/components/icons", () => ({
+vi.mock("@webaura/ui/components/icons", () => ({
   Icons: {
     gitHub: () => React.createElement("span", undefined, "GitHub"),
   },
 }));
 
-vi.mock("@gitaura/ui/components/button", () => ({
+vi.mock("@webaura/ui/components/button", () => ({
   Button: ({ children }: { children: React.ReactNode }) =>
     React.createElement("button", { type: "button" }, children),
 }));
 
-vi.mock("@gitaura/ui/components/tooltip", () => ({
+vi.mock("@webaura/ui/components/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", undefined, children),
   TooltipContent: ({ children }: { children: React.ReactNode }) =>
@@ -37,13 +37,13 @@ vi.mock("@gitaura/ui/components/tooltip", () => ({
     React.createElement("div", undefined, children),
 }));
 
-vi.mock("@gitaura/pi/repo/github-fetch", () => ({
+vi.mock("@webaura/pi/repo/github-fetch", () => ({
   githubApiFetch: githubApiFetchMock,
   handleGithubError: vi.fn(async () => false),
   openGithubTokenSettings: vi.fn(),
 }));
 
-vi.mock("@gitaura/pi/repo/github-token", () => ({
+vi.mock("@webaura/pi/repo/github-token", () => ({
   getGithubPersonalAccessToken: vi.fn(async () => "token"),
 }));
 

@@ -1,10 +1,10 @@
 import * as React from "react";
-import { githubApiFetch } from "@gitaura/pi/repo/github-fetch";
+import { githubApiFetch } from "@webaura/pi/repo/github-fetch";
 
 /** Public app repo linked from the header and mobile menu (stars from GitHub API). */
 export const GITHUB_APP_REPO = {
   owner: "Ziphyrien",
-  repo: "GitAura",
+  repo: "WebAura",
 } as const;
 
 export function useGitHubRepoStargazers(owner: string, repo: string) {

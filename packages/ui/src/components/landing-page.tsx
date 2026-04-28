@@ -2,24 +2,24 @@ import * as React from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowRightIcon } from "@phosphor-icons/react";
-import { listRepositories } from "@gitaura/db";
-import { handleGithubError } from "@gitaura/pi/repo/github-fetch";
-import { parseRepoInput } from "@gitaura/pi/repo/path-parser";
-import { resolveRepoIntent } from "@gitaura/pi/repo/ref-resolver";
-import { SUGGESTED_REPOS } from "@gitaura/pi/repo/suggested-repos";
-import { repoSourceToPath } from "@gitaura/pi/repo/url";
-import { ChatLogo } from "@gitaura/ui/components/chat-logo";
-import { GithubRepo } from "@gitaura/ui/components/github-repo";
-import { Icons } from "@gitaura/ui/components/icons";
+import { listRepositories } from "@webaura/db";
+import { handleGithubError } from "@webaura/pi/repo/github-fetch";
+import { parseRepoInput } from "@webaura/pi/repo/path-parser";
+import { resolveRepoIntent } from "@webaura/pi/repo/ref-resolver";
+import { SUGGESTED_REPOS } from "@webaura/pi/repo/suggested-repos";
+import { repoSourceToPath } from "@webaura/pi/repo/url";
+import { ChatLogo } from "@webaura/ui/components/chat-logo";
+import { GithubRepo } from "@webaura/ui/components/github-repo";
+import { Icons } from "@webaura/ui/components/icons";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
-} from "@gitaura/ui/components/input-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@gitaura/ui/components/tabs";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/input-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@webaura/ui/components/tabs";
+import { cn } from "@webaura/ui/lib/utils";
 
 function useSuggestedRepos(count: number) {
   return React.useMemo(() => {
@@ -43,22 +43,22 @@ export function LandingPage() {
     <div className="flex h-full min-h-0 w-full flex-col items-center overflow-auto p-6 pt-[12vh] lg:justify-between lg:overflow-hidden lg:pt-6 lg:pb-5">
       <div className="w-full max-w-xl flex-1 space-y-8 lg:flex lg:min-h-0 lg:flex-col lg:justify-center lg:space-y-5">
         <div className="space-y-6 text-center lg:space-y-4">
-          <h1 className="sr-only">GitAura</h1>
+          <h1 className="sr-only">WebAura</h1>
           <ChatLogo
             aria-hidden
             className="[&_.font-geist-pixel-square]:lg:text-7xl [&_.font-geist-pixel-square]:xl:text-8xl"
             size="hero"
           />
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
-            GitAura is a local-first AI coding agent for reading GitHub repositories directly from
-            your browser.
+            Local-first AI tools, running in your browser. Start with the GitHub module.
           </p>
         </div>
 
         <div className="space-y-2 lg:space-y-1.5">
           <LandingRepoForm />
           <p className="text-center text-[11px] text-muted-foreground/60">
-            Paste any GitHub URL or <code>owner/repo</code> to jump into the workspace.
+            GitHub module: paste any GitHub URL or <code>owner/repo</code> to jump into the
+            workspace.
           </p>
         </div>
 

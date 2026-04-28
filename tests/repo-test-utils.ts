@@ -3,7 +3,7 @@ import type { ResolvedRepoSource } from "@/types/storage";
 
 const mockFileContent = {
   "README.md": {
-    content: btoa("# GitAura\nA local agent.\n"),
+    content: btoa("# WebAura\nA local agent.\n"),
     download_url: "https://raw.githubusercontent.com/test-owner/test-repo/main/README.md",
     encoding: "base64",
     name: "README.md",

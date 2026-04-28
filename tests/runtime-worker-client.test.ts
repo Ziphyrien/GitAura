@@ -31,7 +31,7 @@ describe("runtime worker client", () => {
     expect(constructorMock).toHaveBeenCalledWith(
       expect.any(URL),
       expect.objectContaining({
-        name: "gitaura-runtime-worker",
+        name: "webaura-runtime-worker",
         type: "module",
       }),
     );

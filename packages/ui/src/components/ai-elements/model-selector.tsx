@@ -8,9 +8,9 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "@gitaura/ui/components/command";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@gitaura/ui/components/dialog";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/command";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@webaura/ui/components/dialog";
+import { cn } from "@webaura/ui/lib/utils";
 import type { ComponentProps, ReactNode } from "react";
 
 export type ModelSelectorProps = ComponentProps<typeof Dialog>;

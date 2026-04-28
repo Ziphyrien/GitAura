@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Chat } from "@gitaura/ui/components/chat";
+import { Chat } from "@webaura/ui/components/chat";
 
 export const Route = createFileRoute("/chat/")({
   component: ChatIndexRoute,

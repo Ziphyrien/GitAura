@@ -1,11 +1,11 @@
 import { getProviders as getRegistryProviders } from "@mariozechner/pi-ai";
-import { isOAuthProviderId, type OAuthProviderId } from "@gitaura/pi/auth/oauth-types";
+import { isOAuthProviderId, type OAuthProviderId } from "@webaura/pi/auth/oauth-types";
 import type {
   KnownProvider,
   ProviderGroupDefinition,
   ProviderGroupId,
   ProviderId,
-} from "@gitaura/pi/types/models";
+} from "@webaura/pi/types/models";
 
 const OPENAI_GPT_5_4_SELECTOR_MODEL_IDS = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"] as const;
 const UNORDERED = 10_000;

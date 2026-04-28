@@ -34,7 +34,7 @@ vi.mock("dexie-react-hooks", () => ({
   useLiveQuery: (query: () => unknown) => query(),
 }));
 
-vi.mock("@gitaura/db", () => ({
+vi.mock("@webaura/db", () => ({
   db: {
     providerKeys: {
       toArray: () => state.providerKeys,
@@ -49,7 +49,7 @@ vi.mock("@gitaura/db", () => ({
   },
 }));
 
-vi.mock("@gitaura/pi/models/provider-registry", () => ({
+vi.mock("@webaura/pi/models/provider-registry", () => ({
   getOAuthProvidersForSettings: () => [
     "anthropic",
     "github-copilot",
@@ -71,7 +71,7 @@ vi.mock("@gitaura/pi/models/provider-registry", () => ({
   getSortedApiKeyProvidersForSettings: () => [] as string[],
 }));
 
-vi.mock("@gitaura/pi/proxy/settings", () => ({
+vi.mock("@webaura/pi/proxy/settings", () => ({
   DEFAULT_PROXY_URL: "https://proxy.example/proxy",
   PROXY_ENABLED_KEY: "proxy-enabled",
   PROXY_URL_KEY: "proxy-url",
@@ -81,11 +81,11 @@ vi.mock("@gitaura/pi/proxy/settings", () => ({
   }),
 }));
 
-vi.mock("@gitaura/pi/auth/oauth-types", () => ({
+vi.mock("@webaura/pi/auth/oauth-types", () => ({
   isOAuthCredentials: (value: string) => value.trim().startsWith("{"),
 }));
 
-vi.mock("@gitaura/pi/auth/auth-service", () => ({
+vi.mock("@webaura/pi/auth/auth-service", () => ({
   disconnectProvider: async (provider: string) => {
     state.providerKeys = state.providerKeys.filter((record) => record.provider !== provider);
   },
@@ -171,7 +171,7 @@ vi.mock("@gitaura/pi/auth/auth-service", () => ({
   setProviderApiKey,
 }));
 
-vi.mock("@gitaura/ui/components/button", () => ({
+vi.mock("@webaura/ui/components/button", () => ({
   Button: ({
     children,
     disabled,
@@ -194,12 +194,12 @@ vi.mock("@gitaura/ui/components/button", () => ({
     ),
 }));
 
-vi.mock("@gitaura/ui/components/input", () => ({
+vi.mock("@webaura/ui/components/input", () => ({
   Input: ({ value, onChange, placeholder, type }: React.ComponentProps<"input">) =>
     React.createElement("input", { onChange, placeholder, type, value }),
 }));
 
-vi.mock("@gitaura/ui/components/item", () => {
+vi.mock("@webaura/ui/components/item", () => {
   const Passthrough = ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", undefined, children);
 

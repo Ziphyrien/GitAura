@@ -13,12 +13,12 @@ import { Analytics as OneDollarStats } from "@/components/analytics";
 import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { RootGuard } from "@/components/root-guard";
-import { parseSettingsSection } from "@gitaura/ui/lib/search-state";
-import { SidebarInset, SidebarProvider } from "@gitaura/ui/components/sidebar";
-import { AppSettingsDialog } from "@gitaura/ui/components/settings-dialog";
-import { ThemeProvider } from "@gitaura/ui/components/theme-provider";
-import { Toaster } from "@gitaura/ui/components/sonner";
-import { TooltipProvider } from "@gitaura/ui/components/tooltip";
+import { parseSettingsSection } from "@webaura/ui/lib/search-state";
+import { SidebarInset, SidebarProvider } from "@webaura/ui/components/sidebar";
+import { AppSettingsDialog } from "@webaura/ui/components/settings-dialog";
+import { ThemeProvider } from "@webaura/ui/components/theme-provider";
+import { Toaster } from "@webaura/ui/components/sonner";
+import { TooltipProvider } from "@webaura/ui/components/tooltip";
 import appCss from "../styles.css?url";
 
 type RootSearchInput = {
@@ -49,15 +49,15 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "GitAura",
+        title: "WebAura",
       },
       {
         name: "description",
-        content: "Chat with any GitHub repo",
+        content: "Local-first AI tools, running in your browser.",
       },
       {
         name: "apple-mobile-web-app-title",
-        content: "GitAura",
+        content: "WebAura",
       },
     ],
     links: [

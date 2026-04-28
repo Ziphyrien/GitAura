@@ -2,10 +2,10 @@ import * as React from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
-import { Input } from "@gitaura/ui/components/input";
-import { Textarea } from "@gitaura/ui/components/textarea";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { Input } from "@webaura/ui/components/input";
+import { Textarea } from "@webaura/ui/components/textarea";
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (

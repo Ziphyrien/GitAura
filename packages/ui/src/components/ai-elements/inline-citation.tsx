@@ -1,10 +1,10 @@
 "use client";
 
-import { Badge } from "@gitaura/ui/components/badge";
-import type { CarouselApi } from "@gitaura/ui/components/carousel";
-import { Carousel, CarouselContent, CarouselItem } from "@gitaura/ui/components/carousel";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@gitaura/ui/components/hover-card";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Badge } from "@webaura/ui/components/badge";
+import type { CarouselApi } from "@webaura/ui/components/carousel";
+import { Carousel, CarouselContent, CarouselItem } from "@webaura/ui/components/carousel";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@webaura/ui/components/hover-card";
+import { cn } from "@webaura/ui/lib/utils";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";

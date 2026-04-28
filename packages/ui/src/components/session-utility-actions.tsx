@@ -1,12 +1,12 @@
 import { MoreHorizontal } from "lucide-react";
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@gitaura/ui/components/dropdown-menu";
-import { Icons } from "@gitaura/ui/components/icons";
+} from "@webaura/ui/components/dropdown-menu";
+import { Icons } from "@webaura/ui/components/icons";
 
 type SessionUtilityActionProps = {
   disabled?: boolean;

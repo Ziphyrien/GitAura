@@ -1,10 +1,10 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { DEFAULT_PROXY_URL, getProxyConfig, setProxyConfig } from "@gitaura/pi/proxy/settings";
-import { Button } from "@gitaura/ui/components/button";
-import { Input } from "@gitaura/ui/components/input";
-import { Label } from "@gitaura/ui/components/label";
-import { Switch } from "@gitaura/ui/components/switch";
+import { DEFAULT_PROXY_URL, getProxyConfig, setProxyConfig } from "@webaura/pi/proxy/settings";
+import { Button } from "@webaura/ui/components/button";
+import { Input } from "@webaura/ui/components/input";
+import { Label } from "@webaura/ui/components/label";
+import { Switch } from "@webaura/ui/components/switch";
 
 export function ProxySettings(props: { disabled?: boolean }) {
   const [enabled, setEnabled] = React.useState(false);

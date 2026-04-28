@@ -1,6 +1,6 @@
-import type { TurnEnvelope } from "@gitaura/pi/agent/turn-event-store";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
-import type { SessionData } from "@gitaura/db";
+import type { TurnEnvelope } from "@webaura/pi/agent/turn-event-store";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
+import type { SessionData } from "@webaura/db";
 
 export type TurnCompletionStatus = "aborted" | "completed" | "error" | "interrupted";
 

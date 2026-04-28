@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@gitaura/ui/components/hover-card";
-import { Progress } from "@gitaura/ui/components/progress";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@webaura/ui/components/hover-card";
+import { Progress } from "@webaura/ui/components/progress";
+import { cn } from "@webaura/ui/lib/utils";
 import type { LanguageModelUsage } from "ai";
 import type { ComponentProps } from "react";
 import { createContext, useContext, useMemo } from "react";

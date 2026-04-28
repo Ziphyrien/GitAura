@@ -1,24 +1,24 @@
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ResolvedRepoSource } from "@gitaura/db";
-import { useSelectedSessionSummary } from "@gitaura/pi/hooks/use-selected-session-summary";
-import { githubOwnerAvatarUrl } from "@gitaura/pi/repo/url";
+import type { ResolvedRepoSource } from "@webaura/db";
+import { useSelectedSessionSummary } from "@webaura/pi/hooks/use-selected-session-summary";
+import { githubOwnerAvatarUrl } from "@webaura/pi/repo/url";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
-} from "@gitaura/ui/components/breadcrumb";
-import { Button } from "@gitaura/ui/components/button";
-import { ChatLogo } from "@gitaura/ui/components/chat-logo";
-import { GitHubLink } from "@gitaura/ui/components/github-link";
-import { Icons } from "@gitaura/ui/components/icons";
-import { Separator } from "@gitaura/ui/components/separator";
-import { SidebarTrigger } from "@gitaura/ui/components/sidebar";
-import { ThemeToggle } from "@gitaura/ui/components/theme-toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/breadcrumb";
+import { Button } from "@webaura/ui/components/button";
+import { ChatLogo } from "@webaura/ui/components/chat-logo";
+import { GitHubLink } from "@webaura/ui/components/github-link";
+import { Icons } from "@webaura/ui/components/icons";
+import { Separator } from "@webaura/ui/components/separator";
+import { SidebarTrigger } from "@webaura/ui/components/sidebar";
+import { ThemeToggle } from "@webaura/ui/components/theme-toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
+import { cn } from "@webaura/ui/lib/utils";
 
 type HeaderRepoSource = Pick<ResolvedRepoSource, "owner" | "repo"> & {
   ref?: string;

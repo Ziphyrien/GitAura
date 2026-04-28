@@ -1,15 +1,15 @@
 import * as React from "react";
 import { Command as CommandPrimitive } from "cmdk";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@gitaura/ui/components/dialog";
-import { InputGroup, InputGroupAddon } from "@gitaura/ui/components/input-group";
+} from "@webaura/ui/components/dialog";
+import { InputGroup, InputGroupAddon } from "@webaura/ui/components/input-group";
 import { MagnifyingGlassIcon, CheckIcon } from "@phosphor-icons/react";
 
 function Command({ className, ...props }: React.ComponentProps<typeof CommandPrimitive>) {

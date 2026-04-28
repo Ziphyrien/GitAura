@@ -1,18 +1,18 @@
-import { BusyRuntimeError } from "@gitaura/pi/agent/runtime-command-errors";
-import { getCurrentTabId } from "@gitaura/pi/agent/tab-id";
-import { getRuntimeWorker } from "@gitaura/pi/agent/runtime-worker-client";
-import type { SessionRunner } from "@gitaura/pi/agent/session-runner";
-import type { TurnEnvelope } from "@gitaura/pi/agent/turn-event-store";
-import { createId } from "@gitaura/pi/lib/ids";
-import { clampThinkingLevel } from "@gitaura/pi/agent/thinking-levels";
+import { BusyRuntimeError } from "@webaura/pi/agent/runtime-command-errors";
+import { getCurrentTabId } from "@webaura/pi/agent/tab-id";
+import { getRuntimeWorker } from "@webaura/pi/agent/runtime-worker-client";
+import type { SessionRunner } from "@webaura/pi/agent/session-runner";
+import type { TurnEnvelope } from "@webaura/pi/agent/turn-event-store";
+import { createId } from "@webaura/pi/lib/ids";
+import { clampThinkingLevel } from "@webaura/pi/agent/thinking-levels";
 import {
   createUserMessageFromTurnInput,
   hasUserTurnInputContent,
   type UserTurnInput,
-} from "@gitaura/pi/agent/user-turn-input";
-import { getCanonicalProvider, getModel } from "@gitaura/pi/models/catalog";
-import type { SessionData } from "@gitaura/db";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
+} from "@webaura/pi/agent/user-turn-input";
+import { getCanonicalProvider, getModel } from "@webaura/pi/models/catalog";
+import type { SessionData } from "@webaura/db";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
 
 type HostState = "idle" | "starting" | "running" | "disposing" | "disposed";
 

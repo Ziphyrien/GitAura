@@ -2,17 +2,17 @@ import * as React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { event as trackEvent } from "onedollarstats";
 import { toast } from "sonner";
-import type { ResolvedRepoSource } from "@gitaura/db";
-import { runtimeClient } from "@gitaura/pi/agent/runtime-client";
-import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
-import { getRuntimeCommandErrorMessage } from "@gitaura/pi/agent/runtime-command-errors";
+import type { ResolvedRepoSource } from "@webaura/db";
+import { runtimeClient } from "@webaura/pi/agent/runtime-client";
+import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
+import { getRuntimeCommandErrorMessage } from "@webaura/pi/agent/runtime-command-errors";
 import {
   createSessionForChat,
   createSessionForRepo,
   persistLastUsedSessionSettings,
-} from "@gitaura/pi/sessions/session-actions";
-import { getCanonicalProvider } from "@gitaura/pi/models/catalog";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
+} from "@webaura/pi/sessions/session-actions";
+import { getCanonicalProvider } from "@webaura/pi/models/catalog";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
 
 export function useConversationStarter() {
   const navigate = useNavigate();
@@ -72,7 +72,7 @@ export function useConversationStarter() {
       } catch (error) {
         const runtimeError = error instanceof Error ? error : new Error(String(error));
         toast.error(getRuntimeCommandErrorMessage(runtimeError));
-        console.error("[gitaura:runtime] command_failed", {
+        console.error("[webaura:runtime] command_failed", {
           message: runtimeError.message,
         });
         throw runtimeError;

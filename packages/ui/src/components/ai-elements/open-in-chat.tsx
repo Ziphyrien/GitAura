@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +8,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@gitaura/ui/components/dropdown-menu";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/dropdown-menu";
+import { cn } from "@webaura/ui/lib/utils";
 import { ChevronDownIcon, ExternalLinkIcon, MessageCircleIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, useContext, useMemo } from "react";

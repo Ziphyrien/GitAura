@@ -1,6 +1,6 @@
-import type { JsonValue } from "@gitaura/pi/types/common";
-import type { AssistantMessage, ChatMessage } from "@gitaura/pi/types/chat";
-import type { ProviderGroupId, ProviderId, ThinkingLevel, Usage } from "@gitaura/pi/types/models";
+import type { JsonValue } from "@webaura/pi/types/common";
+import type { AssistantMessage, ChatMessage } from "@webaura/pi/types/chat";
+import type { ProviderGroupId, ProviderId, ThinkingLevel, Usage } from "@webaura/pi/types/models";
 
 export type RepoRefOrigin = "default" | "explicit";
 

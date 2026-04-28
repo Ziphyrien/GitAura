@@ -1,6 +1,6 @@
-import { getMessageText } from "@gitaura/pi/lib/preview";
-import { truncateText } from "@gitaura/pi/lib/title";
-import type { ChatMessage } from "@gitaura/pi/types/chat";
+import { getMessageText } from "@webaura/pi/lib/preview";
+import { truncateText } from "@webaura/pi/lib/title";
+import type { ChatMessage } from "@webaura/pi/types/chat";
 
 export function generateTitle(messages: ChatMessage[]): string {
   const firstUser = messages.find((message) => message.role === "user");

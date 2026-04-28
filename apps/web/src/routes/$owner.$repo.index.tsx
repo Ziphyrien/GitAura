@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { resolveRepoIntent } from "@gitaura/pi/repo/ref-resolver";
-import { Chat } from "@gitaura/ui/components/chat";
-import { toResolvedRepoSource } from "@gitaura/pi/repo/path-intent";
-import { githubRepoUrl } from "@gitaura/pi/repo/url";
+import { resolveRepoIntent } from "@webaura/pi/repo/ref-resolver";
+import { Chat } from "@webaura/ui/components/chat";
+import { toResolvedRepoSource } from "@webaura/pi/repo/path-intent";
+import { githubRepoUrl } from "@webaura/pi/repo/url";
 
 type RepoSearch = {
   q?: string;

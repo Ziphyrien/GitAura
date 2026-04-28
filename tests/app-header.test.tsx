@@ -32,7 +32,7 @@ vi.mock("@tanstack/react-router", () => ({
     }),
 }));
 
-vi.mock("@gitaura/pi/hooks/use-selected-session-summary", () => ({
+vi.mock("@webaura/pi/hooks/use-selected-session-summary", () => ({
   useSelectedSessionSummary: () => ({
     repoSource: {
       owner: "acme",
@@ -42,32 +42,32 @@ vi.mock("@gitaura/pi/hooks/use-selected-session-summary", () => ({
   }),
 }));
 
-vi.mock("@gitaura/ui/components/button", () => ({
+vi.mock("@webaura/ui/components/button", () => ({
   Button: ({ children, asChild }: { children: React.ReactNode; asChild?: boolean }) =>
     asChild ? children : React.createElement("button", undefined, children),
 }));
 
-vi.mock("@gitaura/ui/components/separator", () => ({
+vi.mock("@webaura/ui/components/separator", () => ({
   Separator: () => null,
 }));
 
-vi.mock("@gitaura/ui/components/sidebar", () => ({
+vi.mock("@webaura/ui/components/sidebar", () => ({
   SidebarTrigger: () => React.createElement("button", { type: "button" }, "Sidebar"),
 }));
 
-vi.mock("@gitaura/ui/components/chat-logo", () => ({
-  ChatLogo: () => React.createElement("div", undefined, "GitAura"),
+vi.mock("@webaura/ui/components/chat-logo", () => ({
+  ChatLogo: () => React.createElement("div", undefined, "WebAura"),
 }));
 
-vi.mock("@gitaura/ui/components/github-link", () => ({
+vi.mock("@webaura/ui/components/github-link", () => ({
   GitHubLink: () => React.createElement("div", undefined, "GitHub"),
 }));
 
-vi.mock("@gitaura/ui/components/theme-toggle", () => ({
+vi.mock("@webaura/ui/components/theme-toggle", () => ({
   ThemeToggle: () => React.createElement("button", { type: "button" }, "Theme"),
 }));
 
-vi.mock("@gitaura/ui/components/icons", () => ({
+vi.mock("@webaura/ui/components/icons", () => ({
   Icons: {
     cog: () => React.createElement("span", undefined, "Cog"),
     comment: () => React.createElement("span", undefined, "Comment"),
@@ -76,7 +76,7 @@ vi.mock("@gitaura/ui/components/icons", () => ({
   },
 }));
 
-vi.mock("@gitaura/ui/components/tooltip", () => ({
+vi.mock("@webaura/ui/components/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", undefined, children),
   TooltipContent: ({ children }: { children: React.ReactNode }) =>
@@ -85,7 +85,7 @@ vi.mock("@gitaura/ui/components/tooltip", () => ({
     React.createElement("div", undefined, children),
 }));
 
-vi.mock("@gitaura/ui/components/breadcrumb", () => {
+vi.mock("@webaura/ui/components/breadcrumb", () => {
   const Passthrough = ({ children }: { children: React.ReactNode }) =>
     React.createElement("div", undefined, children);
 

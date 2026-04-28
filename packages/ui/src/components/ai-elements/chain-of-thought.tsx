@@ -1,13 +1,13 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { Badge } from "@gitaura/ui/components/badge";
+import { Badge } from "@webaura/ui/components/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { cn } from "@webaura/ui/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { BrainIcon, ChevronDownIcon, DotIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";

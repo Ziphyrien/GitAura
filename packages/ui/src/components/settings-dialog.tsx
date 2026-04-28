@@ -1,22 +1,22 @@
 import * as React from "react";
 import { Link, useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router";
-import type { SettingsSection } from "@gitaura/ui/lib/search-state";
-import { Icons } from "@gitaura/ui/components/icons";
-import { CostsPanel } from "@gitaura/ui/components/costs-panel";
-import { DataSettings } from "@gitaura/ui/components/data-settings";
-import { GithubTokenSettings } from "@gitaura/ui/components/github-token-settings";
-import { ProviderSettings } from "@gitaura/ui/components/provider-settings";
-import { ProxySettings } from "@gitaura/ui/components/proxy-settings";
-import { Button } from "@gitaura/ui/components/button";
-import { Dialog, DialogContent, DialogTitle } from "@gitaura/ui/components/dialog";
+import type { SettingsSection } from "@webaura/ui/lib/search-state";
+import { Icons } from "@webaura/ui/components/icons";
+import { CostsPanel } from "@webaura/ui/components/costs-panel";
+import { DataSettings } from "@webaura/ui/components/data-settings";
+import { GithubTokenSettings } from "@webaura/ui/components/github-token-settings";
+import { ProviderSettings } from "@webaura/ui/components/provider-settings";
+import { ProxySettings } from "@webaura/ui/components/proxy-settings";
+import { Button } from "@webaura/ui/components/button";
+import { Dialog, DialogContent, DialogTitle } from "@webaura/ui/components/dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@gitaura/ui/components/breadcrumb";
-import { Tabs, TabsList, TabsTrigger } from "@gitaura/ui/components/tabs";
+} from "@webaura/ui/components/breadcrumb";
+import { Tabs, TabsList, TabsTrigger } from "@webaura/ui/components/tabs";
 import {
   Sidebar,
   SidebarContent,
@@ -26,9 +26,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-} from "@gitaura/ui/components/sidebar";
-import { isSettingsSection } from "@gitaura/ui/lib/search-state";
-import { useSelectedSessionSummary } from "@gitaura/pi/hooks/use-selected-session-summary";
+} from "@webaura/ui/components/sidebar";
+import { isSettingsSection } from "@webaura/ui/lib/search-state";
+import { useSelectedSessionSummary } from "@webaura/pi/hooks/use-selected-session-summary";
 
 type SettingsSectionItem = {
   description: string;
@@ -69,7 +69,7 @@ const SETTINGS_SECTIONS: Array<SettingsSectionItem> = [
     label: "Data",
   },
   {
-    description: "What GitAura is and how it works",
+    description: "How WebAura runs browser-native AI modules locally",
     icon: Icons.faceThinking,
     id: "about",
     label: "About",
@@ -232,16 +232,16 @@ export function AppSettingsDialog(props: {
   );
 }
 
-const ABOUT_SOURCE_REPO_URL = "https://github.com/Ziphyrien/GitAura";
+const ABOUT_SOURCE_REPO_URL = "https://github.com/Ziphyrien/WebAura";
 
 function AboutPanel() {
   return (
     <div className="space-y-5">
       <div className="space-y-5 text-sm leading-relaxed">
         <p className="text-foreground">
-          Ask questions about any GitHub repository from your browser, without cloning. GitAura is a
-          local-first interface for exploring code, running the agent, and keeping your own
-          credentials in your own browser.
+          WebAura is a local-first AI workspace that runs in your browser. GitHub repo chat is the
+          current built-in module; the product surface is designed to grow into switchable
+          browser-native modules while keeping your own credentials in your own browser.
         </p>
 
         <div>
@@ -254,8 +254,9 @@ function AboutPanel() {
               sessions, settings, provider keys, GitHub tokens, and usage data stay in this browser.
             </p>
             <p>
-              <span className="font-medium text-foreground">Network:</span> GitHub is queried from
-              your browser for repository data. Model requests go directly to the providers you
+              <span className="font-medium text-foreground">Network:</span> Modules call the
+              services they are built for. The current GitHub module queries GitHub from your
+              browser for repository data. Model requests go directly to the providers you
               configure, unless you explicitly enable your own proxy in settings.
             </p>
           </div>
@@ -263,7 +264,7 @@ function AboutPanel() {
 
         <div>
           <div className="mb-2 text-xs font-medium tracking-[0.18em] text-muted-foreground uppercase">
-            Models and GitHub
+            Models and modules
           </div>
           <div className="overflow-x-auto rounded-none border border-border/80 text-xs">
             <table className="w-full border-collapse text-left">
@@ -283,8 +284,8 @@ function AboutPanel() {
                 <tr>
                   <td className="px-3 py-2 font-medium text-foreground">GitHub</td>
                   <td className="px-3 py-2">
-                    Optional PAT stored only here for higher GitHub API limits and private
-                    repository access.
+                    Optional PAT for the GitHub module, stored only here for higher API limits,
+                    private repository access, and gist sharing.
                   </td>
                 </tr>
               </tbody>

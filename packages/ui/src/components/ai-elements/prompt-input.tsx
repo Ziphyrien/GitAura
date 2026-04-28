@@ -8,30 +8,30 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@gitaura/ui/components/command";
+} from "@webaura/ui/components/command";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@gitaura/ui/components/dropdown-menu";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@gitaura/ui/components/hover-card";
+} from "@webaura/ui/components/dropdown-menu";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@webaura/ui/components/hover-card";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-} from "@gitaura/ui/components/input-group";
+} from "@webaura/ui/components/input-group";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@gitaura/ui/components/select";
-import { Spinner } from "@gitaura/ui/components/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/select";
+import { Spinner } from "@webaura/ui/components/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
+import { cn } from "@webaura/ui/lib/utils";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import { CornerDownLeftIcon, PaperclipIcon, SquareIcon, XIcon } from "lucide-react";
 import { nanoid } from "nanoid";

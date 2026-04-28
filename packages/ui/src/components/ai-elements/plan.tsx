@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Card,
   CardAction,
@@ -9,13 +9,13 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@gitaura/ui/components/card";
+} from "@webaura/ui/components/card";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { cn } from "@webaura/ui/lib/utils";
 import { ChevronsUpDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, useContext, useMemo } from "react";

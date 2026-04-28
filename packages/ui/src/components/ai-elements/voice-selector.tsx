@@ -1,7 +1,7 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Command,
   CommandDialog,
@@ -12,10 +12,10 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from "@gitaura/ui/components/command";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@gitaura/ui/components/dialog";
-import { Spinner } from "@gitaura/ui/components/spinner";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/command";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@webaura/ui/components/dialog";
+import { Spinner } from "@webaura/ui/components/spinner";
+import { cn } from "@webaura/ui/lib/utils";
 import {
   CircleSmallIcon,
   MarsIcon,

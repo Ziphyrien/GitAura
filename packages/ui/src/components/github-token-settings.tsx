@@ -5,12 +5,12 @@ import {
   getGithubPersonalAccessToken,
   setGithubPersonalAccessToken,
   validateGithubPersonalAccessToken,
-} from "@gitaura/pi/repo/github-token";
+} from "@webaura/pi/repo/github-token";
 import { toast } from "sonner";
-import { Button } from "@gitaura/ui/components/button";
-import { Input } from "@gitaura/ui/components/input";
-import { Label } from "@gitaura/ui/components/label";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { Input } from "@webaura/ui/components/input";
+import { Label } from "@webaura/ui/components/label";
+import { cn } from "@webaura/ui/lib/utils";
 
 export function GithubTokenSettings(props: {
   disabled?: boolean;

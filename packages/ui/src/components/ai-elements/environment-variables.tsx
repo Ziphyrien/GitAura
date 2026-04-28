@@ -1,9 +1,9 @@
 "use client";
 
-import { Badge } from "@gitaura/ui/components/badge";
-import { Button } from "@gitaura/ui/components/button";
-import { Switch } from "@gitaura/ui/components/switch";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Badge } from "@webaura/ui/components/badge";
+import { Button } from "@webaura/ui/components/button";
+import { Switch } from "@webaura/ui/components/switch";
+import { cn } from "@webaura/ui/lib/utils";
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";
 import {

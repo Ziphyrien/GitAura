@@ -5,8 +5,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { cn } from "@webaura/ui/lib/utils";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import { math } from "@streamdown/math";

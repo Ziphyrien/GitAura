@@ -1,14 +1,14 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@gitaura/ui/components/select";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/select";
+import { cn } from "@webaura/ui/lib/utils";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, CSSProperties, HTMLAttributes } from "react";
 import {

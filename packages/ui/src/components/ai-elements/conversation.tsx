@@ -5,8 +5,8 @@ import { useCallback } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import type { ComponentProps } from "react";
 import type { UIMessage } from "ai";
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>;
 

@@ -1,12 +1,12 @@
-import { normalizeSessionRuntime } from "@gitaura/db/session-runtime";
-import { linkToolResults } from "@gitaura/pi/agent/tool-result-linker";
-import { loadSessionWithMessages } from "@gitaura/pi/sessions/session-service";
-import type { MessageRow, SessionData, SessionRuntimeRow } from "@gitaura/db";
+import { normalizeSessionRuntime } from "@webaura/db/session-runtime";
+import { linkToolResults } from "@webaura/pi/agent/tool-result-linker";
+import { loadSessionWithMessages } from "@webaura/pi/sessions/session-service";
+import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
 import type {
   AssistantMessage,
   DisplayAssistantMessage,
   DisplayChatMessage,
-} from "@gitaura/pi/types/chat";
+} from "@webaura/pi/types/chat";
 
 export interface SessionViewModel {
   displayMessages: DisplayChatMessage[];

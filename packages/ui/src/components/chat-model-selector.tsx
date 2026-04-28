@@ -2,8 +2,8 @@ import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useNavigate } from "@tanstack/react-router";
 import { CheckIcon, Plus } from "lucide-react";
-import { db } from "@gitaura/db";
-import type { ProviderGroupId } from "@gitaura/pi/types/models";
+import { db } from "@webaura/db";
+import type { ProviderGroupId } from "@webaura/pi/types/models";
 import {
   ModelSelector,
   ModelSelectorContent,
@@ -15,8 +15,8 @@ import {
   ModelSelectorName,
   ModelSelectorTrigger,
   ModelSelectorSeparator,
-} from "@gitaura/ui/components/ai-elements/model-selector";
-import { PromptInputButton } from "@gitaura/ui/components/ai-elements/prompt-input";
+} from "@webaura/ui/components/ai-elements/model-selector";
+import { PromptInputButton } from "@webaura/ui/components/ai-elements/prompt-input";
 import {
   getConnectedProviders,
   getDefaultModelForGroup,
@@ -24,8 +24,8 @@ import {
   getModelsForGroup,
   getProviderGroupMetadata,
   getVisibleProviderGroups,
-} from "@gitaura/pi/models/catalog";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/pi/models/catalog";
+import { cn } from "@webaura/ui/lib/utils";
 
 export function ChatModelSelector(props: {
   disabled?: boolean;

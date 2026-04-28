@@ -2,10 +2,10 @@ import {
   generatePKCE,
   parseAuthorizationInput,
   postTokenRequest,
-} from "@gitaura/pi/auth/oauth-utils";
-import { openPopup } from "@gitaura/pi/auth/popup-flow";
-import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
-import type { OAuthRequestOptions, ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
+} from "@webaura/pi/auth/oauth-utils";
+import { openPopup } from "@webaura/pi/auth/popup-flow";
+import type { OAuthCredentials } from "@webaura/pi/auth/oauth-types";
+import type { OAuthRequestOptions, ProxyRequestOptions } from "@webaura/pi/auth/oauth-utils";
 
 const decode = (value: string) => atob(value);
 const CLIENT_ID = decode("OWQxYzI1MGEtZTYxYi00NGQ5LTg4ZWQtNTk0NGQxOTYyZjVl");

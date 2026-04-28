@@ -54,7 +54,7 @@ vi.mock("@/sessions/session-actions", () => ({
   })),
 }));
 
-vi.mock("@gitaura/db", () => ({
+vi.mock("@webaura/db", () => ({
   touchRepository: vi.fn(async () => {}),
 }));
 

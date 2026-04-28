@@ -1,9 +1,9 @@
-import { refreshAnthropic } from "@gitaura/pi/auth/providers/anthropic";
-import { refreshGitHubCopilot } from "@gitaura/pi/auth/providers/github-copilot";
-import { refreshGeminiCli } from "@gitaura/pi/auth/providers/google-gemini-cli";
-import { refreshOpenAICodex } from "@gitaura/pi/auth/providers/openai-codex";
-import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
-import type { ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
+import { refreshAnthropic } from "@webaura/pi/auth/providers/anthropic";
+import { refreshGitHubCopilot } from "@webaura/pi/auth/providers/github-copilot";
+import { refreshGeminiCli } from "@webaura/pi/auth/providers/google-gemini-cli";
+import { refreshOpenAICodex } from "@webaura/pi/auth/providers/openai-codex";
+import type { OAuthCredentials } from "@webaura/pi/auth/oauth-types";
+import type { ProxyRequestOptions } from "@webaura/pi/auth/oauth-utils";
 
 export async function oauthRefresh(
   credentials: OAuthCredentials,

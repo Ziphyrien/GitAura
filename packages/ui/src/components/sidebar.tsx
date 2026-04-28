@@ -2,21 +2,21 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 
-import { useIsMobile } from "@gitaura/ui/hooks/use-mobile";
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
-import { Input } from "@gitaura/ui/components/input";
-import { Separator } from "@gitaura/ui/components/separator";
+import { useIsMobile } from "@webaura/ui/hooks/use-mobile";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { Input } from "@webaura/ui/components/input";
+import { Separator } from "@webaura/ui/components/separator";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@gitaura/ui/components/sheet";
-import { Skeleton } from "@gitaura/ui/components/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
-import { Icons } from "@gitaura/ui/components/icons";
+} from "@webaura/ui/components/sheet";
+import { Skeleton } from "@webaura/ui/components/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
+import { Icons } from "@webaura/ui/components/icons";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";

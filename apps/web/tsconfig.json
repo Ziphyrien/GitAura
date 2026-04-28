@@ -23,12 +23,12 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@gitaura/ui/*": ["../../packages/ui/src/*"],
-      "@gitaura/pi/*": ["../../packages/pi/src/*"],
-      "@gitaura/db": ["../../packages/db/src/index.ts"],
-      "@gitaura/db/session-leases": ["../../packages/db/src/session-leases.ts"],
-      "@gitaura/db/session-runtime": ["../../packages/db/src/session-runtime.ts"],
-      "@gitaura/env/*": ["../../packages/env/src/*"]
+      "@webaura/ui/*": ["../../packages/ui/src/*"],
+      "@webaura/pi/*": ["../../packages/pi/src/*"],
+      "@webaura/db": ["../../packages/db/src/index.ts"],
+      "@webaura/db/session-leases": ["../../packages/db/src/session-leases.ts"],
+      "@webaura/db/session-runtime": ["../../packages/db/src/session-runtime.ts"],
+      "@webaura/env/*": ["../../packages/env/src/*"]
     }
   }
 }

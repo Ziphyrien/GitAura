@@ -1,5 +1,5 @@
-import type { SessionLeaseState } from "@gitaura/db/session-leases";
-import type { RuntimePhase, SessionRuntimeStatus } from "@gitaura/db";
+import type { SessionLeaseState } from "@webaura/db/session-leases";
+import type { RuntimePhase, SessionRuntimeStatus } from "@webaura/db";
 
 export type ActiveSessionViewState =
   | { kind: "ready" }

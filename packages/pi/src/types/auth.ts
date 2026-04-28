@@ -1,4 +1,4 @@
-import type { ProviderId } from "@gitaura/pi/types/models";
+import type { ProviderId } from "@webaura/pi/types/models";
 
 export type ProviderAuthKind = "api-key" | "none" | "oauth";
 

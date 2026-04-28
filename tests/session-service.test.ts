@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vite-plus/test";
-import { db } from "@gitaura/db";
+import { db } from "@webaura/db";
 import { createEmptyUsage } from "@/types/models";
 import type { SessionData } from "@/types/storage";
 

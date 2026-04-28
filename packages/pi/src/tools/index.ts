@@ -1,6 +1,6 @@
-import type { ResolvedRepoSource } from "@gitaura/db";
-import { createReadTool } from "@gitaura/pi/tools/read";
-import { toAgentTool, toProviderToolDefinition } from "@gitaura/pi/tools/types";
+import type { ResolvedRepoSource } from "@webaura/db";
+import { createReadTool } from "@webaura/pi/tools/read";
+import { toAgentTool, toProviderToolDefinition } from "@webaura/pi/tools/types";
 
 export function createRepoTools(
   source: ResolvedRepoSource,

@@ -1,5 +1,5 @@
 import type { Remote } from "comlink";
-import { createRuntimeWorkerClient } from "@gitaura/pi/agent/runtime-worker-client-shared";
+import { createRuntimeWorkerClient } from "@webaura/pi/agent/runtime-worker-client-shared";
 
 declare const ComlinkWorker: new <TModule>(
   scriptURL: URL,
@@ -10,7 +10,7 @@ function createRuntimeWorker() {
   return new ComlinkWorker<typeof import("./runtime-worker")>(
     new URL("./runtime-worker", import.meta.url),
     {
-      name: "gitaura-runtime-worker",
+      name: "webaura-runtime-worker",
       type: "module",
     },
   );

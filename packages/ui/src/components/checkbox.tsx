@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react";
 
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {

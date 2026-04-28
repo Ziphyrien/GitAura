@@ -2,9 +2,9 @@ import type { MouseEvent } from "react";
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { subDays, startOfDay } from "date-fns";
-import type { SessionData } from "@gitaura/db";
-import { Icons } from "@gitaura/ui/components/icons";
-import { Button } from "@gitaura/ui/components/button";
+import type { SessionData } from "@webaura/db";
+import { Icons } from "@webaura/ui/components/icons";
+import { Button } from "@webaura/ui/components/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@gitaura/ui/components/alert-dialog";
+} from "@webaura/ui/components/alert-dialog";
 import {
   SidebarContent,
   SidebarGroup,
@@ -25,9 +25,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from "@gitaura/ui/components/sidebar";
+} from "@webaura/ui/components/sidebar";
 import { Trash2, X } from "lucide-react";
-import type { SettingsSection } from "@gitaura/ui/lib/search-state";
+import type { SettingsSection } from "@webaura/ui/lib/search-state";
 
 type SessionRouteSearch = {
   q: string | undefined;

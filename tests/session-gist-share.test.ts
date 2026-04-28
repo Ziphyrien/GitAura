@@ -104,14 +104,14 @@ describe("createSessionGistShare", () => {
     };
 
     expect(body.public).toBe(false);
-    expect(body.description).toBe("GitAura chat about acme/demo@main");
+    expect(body.description).toBe("WebAura chat about acme/demo@main");
     expect(Object.keys(body.files)).toEqual([
-      "gitaura-acme-demo-main.md",
-      "gitaura-acme-demo-main.metadata.json",
+      "webaura-acme-demo-main.md",
+      "webaura-acme-demo-main.metadata.json",
     ]);
-    expect(body.files["gitaura-acme-demo-main.md"]?.content).toContain("# Chat about acme/demo");
-    expect(body.files["gitaura-acme-demo-main.metadata.json"]?.content).toContain(
-      '"format": "gitaura-session-gist"',
+    expect(body.files["webaura-acme-demo-main.md"]?.content).toContain("# Chat about acme/demo");
+    expect(body.files["webaura-acme-demo-main.metadata.json"]?.content).toContain(
+      '"format": "webaura-session-gist"',
     );
   });
 

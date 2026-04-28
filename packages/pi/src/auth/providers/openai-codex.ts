@@ -3,10 +3,10 @@ import {
   generateState,
   parseAuthorizationInput,
   postTokenRequest,
-} from "@gitaura/pi/auth/oauth-utils";
-import { openPopup } from "@gitaura/pi/auth/popup-flow";
-import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
-import type { OAuthRequestOptions, ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
+} from "@webaura/pi/auth/oauth-utils";
+import { openPopup } from "@webaura/pi/auth/popup-flow";
+import type { OAuthCredentials } from "@webaura/pi/auth/oauth-types";
+import type { OAuthRequestOptions, ProxyRequestOptions } from "@webaura/pi/auth/oauth-utils";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";

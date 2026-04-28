@@ -3,16 +3,16 @@ import {
   mergeDailyCostAggregate,
   putSessionRuntime,
   runConversationTransaction,
-} from "@gitaura/db";
-import { normalizeSessionRuntime } from "@gitaura/db/session-runtime";
-import { toMessageRow } from "@gitaura/pi/agent/session-adapter";
-import { buildSystemMessage, classifyRuntimeError } from "@gitaura/pi/agent/runtime-errors";
-import { getDateKey, getIsoNow } from "@gitaura/pi/lib/dates";
-import { createId } from "@gitaura/pi/lib/ids";
-import { buildPersistedSession } from "@gitaura/pi/sessions/session-service";
-import type { MessageRow, SessionData, SessionRuntimeRow } from "@gitaura/db";
-import type { AssistantMessage, ToolResultMessage, UserMessage } from "@gitaura/pi/types/chat";
-import type { ProviderId } from "@gitaura/pi/types/models";
+} from "@webaura/db";
+import { normalizeSessionRuntime } from "@webaura/db/session-runtime";
+import { toMessageRow } from "@webaura/pi/agent/session-adapter";
+import { buildSystemMessage, classifyRuntimeError } from "@webaura/pi/agent/runtime-errors";
+import { getDateKey, getIsoNow } from "@webaura/pi/lib/dates";
+import { createId } from "@webaura/pi/lib/ids";
+import { buildPersistedSession } from "@webaura/pi/sessions/session-service";
+import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
+import type { AssistantMessage, ToolResultMessage, UserMessage } from "@webaura/pi/types/chat";
+import type { ProviderId } from "@webaura/pi/types/models";
 
 export type TurnEnvelope = {
   turnId: string;

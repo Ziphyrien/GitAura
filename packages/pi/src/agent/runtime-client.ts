@@ -1,13 +1,13 @@
-import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
-import type { ProviderGroupId, ThinkingLevel } from "@gitaura/pi/types/models";
-import type { SessionData } from "@gitaura/db";
+import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
+import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
+import type { SessionData } from "@webaura/db";
 import {
   BusyRuntimeError,
   MissingSessionRuntimeError,
-} from "@gitaura/pi/agent/runtime-command-errors";
-import { getRuntimeWorker } from "@gitaura/pi/agent/runtime-worker-client";
-import type { SessionRunner } from "@gitaura/pi/agent/session-runner";
-import { WorkerBackedAgentHost } from "@gitaura/pi/agent/worker-backed-agent-host";
+} from "@webaura/pi/agent/runtime-command-errors";
+import { getRuntimeWorker } from "@webaura/pi/agent/runtime-worker-client";
+import type { SessionRunner } from "@webaura/pi/agent/session-runner";
+import { WorkerBackedAgentHost } from "@webaura/pi/agent/worker-backed-agent-host";
 import {
   claimSessionLease,
   LEASE_HEARTBEAT_MS,
@@ -15,15 +15,15 @@ import {
   releaseOwnedSessionLeases,
   releaseSessionLease,
   renewSessionLease,
-} from "@gitaura/db/session-leases";
-import { loadSession } from "@gitaura/pi/sessions/session-service";
-import { reconcileInterruptedSession } from "@gitaura/pi/sessions/session-notices";
-import { loadSessionViewModel } from "@gitaura/pi/sessions/session-view-model";
+} from "@webaura/db/session-leases";
+import { loadSession } from "@webaura/pi/sessions/session-service";
+import { reconcileInterruptedSession } from "@webaura/pi/sessions/session-notices";
+import { loadSessionViewModel } from "@webaura/pi/sessions/session-view-model";
 import {
   type ActiveSessionViewState,
   deriveActiveSessionViewState,
   deriveRecoveryIntent,
-} from "@gitaura/pi/sessions/session-view-state";
+} from "@webaura/pi/sessions/session-view-state";
 
 export type InterruptedResumeMode = "continue" | "retry";
 
@@ -123,7 +123,7 @@ export class RuntimeClient {
       .waitForTurn()
       .catch((error) => {
         if (error instanceof Error && !isSessionLockedMessage(error)) {
-          console.error("[gitaura:runtime] turn_watch_failed", {
+          console.error("[webaura:runtime] turn_watch_failed", {
             error,
             sessionId,
           });

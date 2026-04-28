@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@gitaura/env/server", () => ({
+vi.mock("@webaura/env/server", () => ({
   env: state.env,
 }));
 
@@ -33,7 +33,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const response = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/repos/acme/demo"),
+      request: new Request("https://webaura.test/api/github/repos/acme/demo"),
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -59,7 +59,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const response = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/repos/acme/demo/contents/README.md"),
+      request: new Request("https://webaura.test/api/github/repos/acme/demo/contents/README.md"),
     });
 
     expect(response.status).toBe(403);
@@ -72,7 +72,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const response = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/repos/acme/demo", {
+      request: new Request("https://webaura.test/api/github/repos/acme/demo", {
         method: "POST",
       }),
     });
@@ -87,7 +87,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const response = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/repos/acme/demo"),
+      request: new Request("https://webaura.test/api/github/repos/acme/demo"),
     });
 
     expect(response.status).toBe(503);
@@ -109,7 +109,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const orgRes = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/orgs/acme/repos?per_page=10"),
+      request: new Request("https://webaura.test/api/github/orgs/acme/repos?per_page=10"),
     });
     expect(orgRes.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -118,7 +118,7 @@ describe("/api/github/$ route", () => {
     );
 
     const userReposRes = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/users/acme/repos"),
+      request: new Request("https://webaura.test/api/github/users/acme/repos"),
     });
     expect(userReposRes.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -127,7 +127,7 @@ describe("/api/github/$ route", () => {
     );
 
     const userProfileRes = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/users/acme"),
+      request: new Request("https://webaura.test/api/github/users/acme"),
     });
     expect(userProfileRes.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -153,7 +153,7 @@ describe("/api/github/$ route", () => {
     const { Route } = await import("@/routes/api/github/$");
 
     const response = await Route.options.server.handlers.ANY({
-      request: new Request("https://gitaura.test/api/github/repos/acme/demo/languages"),
+      request: new Request("https://webaura.test/api/github/repos/acme/demo/languages"),
     });
 
     expect(response.headers.get("cache-control")).toContain("stale-while-revalidate=3600");

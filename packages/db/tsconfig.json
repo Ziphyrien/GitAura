@@ -1,11 +1,11 @@
 {
-  "extends": "@gitaura/config/tsconfig.base.json",
+  "extends": "@webaura/config/tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "paths": {
-      "@gitaura/pi/*": ["../pi/src/*"]
+      "@webaura/pi/*": ["../pi/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

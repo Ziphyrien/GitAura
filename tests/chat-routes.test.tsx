@@ -5,7 +5,7 @@ const parseRepoRoutePathMock = vi.fn();
 const resolveRepoIntentMock = vi.fn();
 const toResolvedRepoSourceMock = vi.fn();
 
-vi.mock("@gitaura/ui/components/chat", () => ({
+vi.mock("@webaura/ui/components/chat", () => ({
   Chat: (props: {
     repoSource?: { owner: string; ref?: string; repo: string };
     sessionId?: string;
@@ -20,15 +20,15 @@ vi.mock("@gitaura/ui/components/chat", () => ({
   ),
 }));
 
-vi.mock("@gitaura/pi/repo/path-parser", () => ({
+vi.mock("@webaura/pi/repo/path-parser", () => ({
   parseRepoRoutePath: (path: string) => parseRepoRoutePathMock(path),
 }));
 
-vi.mock("@gitaura/pi/repo/ref-resolver", () => ({
+vi.mock("@webaura/pi/repo/ref-resolver", () => ({
   resolveRepoIntent: (intent: unknown) => resolveRepoIntentMock(intent),
 }));
 
-vi.mock("@gitaura/pi/repo/path-intent", () => ({
+vi.mock("@webaura/pi/repo/path-intent", () => ({
   toResolvedRepoSource: (location: unknown) => toResolvedRepoSourceMock(location),
 }));
 

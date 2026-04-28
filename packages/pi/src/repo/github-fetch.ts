@@ -1,20 +1,20 @@
 import { toast } from "sonner";
-import { env as webEnv } from "@gitaura/env/web";
+import { env as webEnv } from "@webaura/env/web";
 import {
   parseGitHubRateLimitInfo,
   readGitHubErrorMessage,
   shouldRetryUnauthenticated,
   stripAuthorization,
   type GitHubRateLimitKind,
-} from "@gitaura/pi/repo/github-errors";
-import { classifyRuntimeError } from "@gitaura/pi/agent/runtime-errors";
+} from "@webaura/pi/repo/github-errors";
+import { classifyRuntimeError } from "@webaura/pi/agent/runtime-errors";
 import {
   resolveRegisteredGitHubRequestAuth,
   type GitHubRequestAccess,
   type GitHubResolvedRequestAuth,
-} from "@gitaura/pi/repo/github-access";
-import { appendSessionNotice } from "@gitaura/pi/sessions/session-notices";
-import type { SystemMessage } from "@gitaura/pi/types/chat";
+} from "@webaura/pi/repo/github-access";
+import { appendSessionNotice } from "@webaura/pi/sessions/session-notices";
+import type { SystemMessage } from "@webaura/pi/types/chat";
 
 const CACHE_NAME = "github-api";
 const FRESH_MS = 2 * 60 * 1000;

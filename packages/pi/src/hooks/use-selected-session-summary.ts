@@ -1,5 +1,5 @@
 import { useLiveQuery } from "dexie-react-hooks";
-import { loadSession } from "@gitaura/pi/sessions/session-service";
+import { loadSession } from "@webaura/pi/sessions/session-service";
 
 export function useSelectedSessionSummary(sessionId: string | undefined) {
   return useLiveQuery(async () => {

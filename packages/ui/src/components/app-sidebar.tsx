@@ -2,18 +2,18 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Link, useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import type { MouseEvent } from "react";
 
-import { Sidebar, SidebarFooter, SidebarHeader, SidebarRail } from "@gitaura/ui/components/sidebar";
-import { ChatFooter } from "@gitaura/ui/components/chat-footer";
-import { ChatLogo } from "@gitaura/ui/components/chat-logo";
-import { ChatSessionList } from "@gitaura/ui/components/chat-session-list";
-import { listSessionLeases, listSessions } from "@gitaura/db";
-import { getCurrentTabId } from "@gitaura/pi/agent/tab-id";
-import { isSessionLeaseStale } from "@gitaura/db/session-leases";
+import { Sidebar, SidebarFooter, SidebarHeader, SidebarRail } from "@webaura/ui/components/sidebar";
+import { ChatFooter } from "@webaura/ui/components/chat-footer";
+import { ChatLogo } from "@webaura/ui/components/chat-logo";
+import { ChatSessionList } from "@webaura/ui/components/chat-session-list";
+import { listSessionLeases, listSessions } from "@webaura/db";
+import { getCurrentTabId } from "@webaura/pi/agent/tab-id";
+import { isSessionLeaseStale } from "@webaura/db/session-leases";
 import {
   buildSessionHref,
   deleteSessionAndResolveNext,
   persistLastUsedSessionSettings,
-} from "@gitaura/pi/sessions/session-actions";
+} from "@webaura/pi/sessions/session-actions";
 
 export function AppSidebar({ showGetPro = true }: { showGetPro?: boolean } = {}) {
   const navigate = useNavigate();

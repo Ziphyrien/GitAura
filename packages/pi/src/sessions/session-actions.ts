@@ -1,7 +1,7 @@
-import type { ProviderGroupId, ProviderId } from "@gitaura/pi/types/models";
-import type { ResolvedRepoSource, SessionData } from "@gitaura/db";
-import { deleteSession, getSetting, listProviderKeys, setSetting } from "@gitaura/db";
-import { runtimeClient } from "@gitaura/pi/agent/runtime-client";
+import type { ProviderGroupId, ProviderId } from "@webaura/pi/types/models";
+import type { ResolvedRepoSource, SessionData } from "@webaura/db";
+import { deleteSession, getSetting, listProviderKeys, setSetting } from "@webaura/db";
+import { runtimeClient } from "@webaura/pi/agent/runtime-client";
 import {
   getCanonicalProvider,
   getConnectedProviders,
@@ -12,8 +12,8 @@ import {
   getVisibleProviderGroups,
   hasModelForGroup,
   isProviderGroupId,
-} from "@gitaura/pi/models/catalog";
-import { createSession, persistSessionSnapshot } from "@gitaura/pi/sessions/session-service";
+} from "@webaura/pi/models/catalog";
+import { createSession, persistSessionSnapshot } from "@webaura/pi/sessions/session-service";
 
 function isProviderId(value: string): value is ProviderId {
   return getProviderGroups().includes(value as ProviderGroupId);

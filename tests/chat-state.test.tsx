@@ -1,7 +1,7 @@
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { render, screen, waitFor } from "@testing-library/react";
-import { db, deleteAllLocalData, putSession } from "@gitaura/db";
+import { db, deleteAllLocalData, putSession } from "@webaura/db";
 import type { MessageRow, SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
 
@@ -117,8 +117,8 @@ vi.mock("@/sessions/session-actions", () => ({
   })),
 }));
 
-vi.mock("@gitaura/db", async () => {
-  const actual = await vi.importActual<typeof import("@gitaura/db")>("@gitaura/db");
+vi.mock("@webaura/db", async () => {
+  const actual = await vi.importActual<typeof import("@webaura/db")>("@webaura/db");
 
   return {
     ...actual,

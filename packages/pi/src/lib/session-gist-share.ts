@@ -1,7 +1,7 @@
-import { getGithubPersonalAccessToken } from "@gitaura/pi/repo/github-token";
-import { messagesToMarkdown } from "@gitaura/pi/lib/copy-session-markdown";
-import type { SessionData } from "@gitaura/db";
-import type { DisplayChatMessage } from "@gitaura/pi/types/chat";
+import { getGithubPersonalAccessToken } from "@webaura/pi/repo/github-token";
+import { messagesToMarkdown } from "@webaura/pi/lib/copy-session-markdown";
+import type { SessionData } from "@webaura/db";
+import type { DisplayChatMessage } from "@webaura/pi/types/chat";
 
 const GITHUB_GISTS_API_URL = "https://api.github.com/gists";
 
@@ -37,9 +37,9 @@ type SessionGistShareInput = {
 };
 
 type SessionGistShareMetadata = {
-  app: "GitAura";
+  app: "WebAura";
   exportedAt: string;
-  format: "gitaura-session-gist";
+  format: "webaura-session-gist";
   session: {
     createdAt: string;
     messageCount: number;
@@ -86,14 +86,14 @@ function buildFileStem(session: SessionData): string {
 
 function buildGistDescription(session: SessionData): string {
   if (session.repoSource) {
-    return `GitAura chat about ${session.repoSource.owner}/${session.repoSource.repo}@${session.repoSource.ref}`;
+    return `WebAura chat about ${session.repoSource.owner}/${session.repoSource.repo}@${session.repoSource.ref}`;
   }
 
   if (session.title && session.title !== "New chat") {
-    return `GitAura chat: ${session.title}`;
+    return `WebAura chat: ${session.title}`;
   }
 
-  return "GitAura chat share";
+  return "WebAura chat share";
 }
 
 function buildMetadata(
@@ -101,9 +101,9 @@ function buildMetadata(
   sourceUrl: string | undefined,
 ): SessionGistShareMetadata {
   return {
-    app: "GitAura",
+    app: "WebAura",
     exportedAt: new Date().toISOString(),
-    format: "gitaura-session-gist",
+    format: "webaura-session-gist",
     session: {
       createdAt: session.createdAt,
       messageCount: session.messageCount,
@@ -130,8 +130,8 @@ function buildGistFiles(input: SessionGistShareInput): Record<string, { content:
   const metadata = `${JSON.stringify(buildMetadata(input.session, sourceUrl), null, 2)}\n`;
 
   return {
-    [`gitaura-${stem}.md`]: { content: markdown },
-    [`gitaura-${stem}.metadata.json`]: { content: metadata },
+    [`webaura-${stem}.md`]: { content: markdown },
+    [`webaura-${stem}.metadata.json`]: { content: metadata },
   };
 }
 

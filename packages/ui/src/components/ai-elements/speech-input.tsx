@@ -1,8 +1,8 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
-import { Spinner } from "@gitaura/ui/components/spinner";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { Spinner } from "@webaura/ui/components/spinner";
+import { cn } from "@webaura/ui/lib/utils";
 import { MicIcon, SquareIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";

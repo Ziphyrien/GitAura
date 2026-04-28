@@ -3,8 +3,8 @@
 import * as React from "react";
 import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from "react-day-picker";
 
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button, buttonVariants } from "@gitaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button, buttonVariants } from "@webaura/ui/components/button";
 import { CaretLeftIcon, CaretRightIcon, CaretDownIcon } from "@phosphor-icons/react";
 
 function Calendar({

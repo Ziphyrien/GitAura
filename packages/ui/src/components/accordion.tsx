@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
 
 function Accordion({ className, ...props }: React.ComponentProps<typeof AccordionPrimitive.Root>) {

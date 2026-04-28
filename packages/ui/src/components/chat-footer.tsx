@@ -1,7 +1,7 @@
 import { Link, useSearch } from "@tanstack/react-router";
-import { Icons } from "@gitaura/ui/components/icons";
-import { SidebarMobileActions } from "@gitaura/ui/components/sidebar-mobile-actions";
-import { parseSettingsSection } from "@gitaura/ui/lib/search-state";
+import { Icons } from "@webaura/ui/components/icons";
+import { SidebarMobileActions } from "@webaura/ui/components/sidebar-mobile-actions";
+import { parseSettingsSection } from "@webaura/ui/lib/search-state";
 
 export function ChatFooter(_props: { showGetPro?: boolean } = {}) {
   const search = useSearch({ strict: false });

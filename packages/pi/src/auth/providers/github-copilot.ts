@@ -1,7 +1,7 @@
-import { openPopup } from "@gitaura/pi/auth/popup-flow";
-import { buildProxiedUrl } from "@gitaura/pi/proxy/url";
-import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
-import type { ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
+import { openPopup } from "@webaura/pi/auth/popup-flow";
+import { buildProxiedUrl } from "@webaura/pi/proxy/url";
+import type { OAuthCredentials } from "@webaura/pi/auth/oauth-types";
+import type { ProxyRequestOptions } from "@webaura/pi/auth/oauth-utils";
 
 const decode = (value: string) => atob(value);
 const CLIENT_ID = decode("SXYxLmI1MDdhMDhjODdlY2ZlOTg=");

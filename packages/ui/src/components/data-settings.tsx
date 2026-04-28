@@ -4,9 +4,9 @@ import * as React from "react";
 import { useNavigate, useRouterState, useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Download, Trash2 } from "lucide-react";
-import { runtimeClient } from "@gitaura/pi/agent/runtime-client";
-import { deleteAllLocalData, exportAllChatData } from "@gitaura/db";
-import { Button } from "@gitaura/ui/components/button";
+import { runtimeClient } from "@webaura/pi/agent/runtime-client";
+import { deleteAllLocalData, exportAllChatData } from "@webaura/db";
+import { Button } from "@webaura/ui/components/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,14 +17,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@gitaura/ui/components/alert-dialog";
+} from "@webaura/ui/components/alert-dialog";
 import {
   Item,
   ItemActions,
   ItemContent,
   ItemDescription,
   ItemTitle,
-} from "@gitaura/ui/components/item";
+} from "@webaura/ui/components/item";
 
 function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -90,7 +90,7 @@ export function DataSettings(_props: { canRequestSync?: boolean; syncEnabled?: b
     try {
       const payload = await exportAllChatData();
       const day = payload.exportedAt.slice(0, 10);
-      downloadJson(`gitaura-chat-export-${day}.json`, payload);
+      downloadJson(`webaura-chat-export-${day}.json`, payload);
       toast.success("Chat data exported");
     } catch (error) {
       console.error(error);

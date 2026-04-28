@@ -6,8 +6,8 @@ import {
   getUserText,
   isSystemMessage,
   isToolResultMessage,
-} from "@gitaura/pi/lib/chat-adapter";
-import type { DisplayChatMessage } from "@gitaura/pi/types/chat";
+} from "@webaura/pi/lib/chat-adapter";
+import type { DisplayChatMessage } from "@webaura/pi/types/chat";
 import {
   Message,
   MessageBranch,
@@ -18,27 +18,27 @@ import {
   MessageBranchSelector,
   MessageContent,
   MessageResponse,
-} from "@gitaura/ui/components/ai-elements/message";
+} from "@webaura/ui/components/ai-elements/message";
 import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
-} from "@gitaura/ui/components/ai-elements/reasoning";
-import { StatusShimmer } from "@gitaura/ui/components/ai-elements/shimmer";
+} from "@webaura/ui/components/ai-elements/reasoning";
+import { StatusShimmer } from "@webaura/ui/components/ai-elements/shimmer";
 import {
   Source,
   Sources,
   SourcesContent,
   SourcesTrigger,
-} from "@gitaura/ui/components/ai-elements/sources";
-import { ToolExecution } from "@gitaura/ui/components/tool-execution";
-import { ToolResultBubble } from "@gitaura/ui/components/tool-result-bubble";
+} from "@webaura/ui/components/ai-elements/sources";
+import { ToolExecution } from "@webaura/ui/components/tool-execution";
+import { ToolResultBubble } from "@webaura/ui/components/tool-result-bubble";
 import {
   Attachment,
   AttachmentInfo,
   AttachmentPreview,
   Attachments,
-} from "@gitaura/ui/components/ai-elements/attachments";
+} from "@webaura/ui/components/ai-elements/attachments";
 import {
   Item,
   ItemActions,
@@ -46,14 +46,14 @@ import {
   ItemDescription,
   ItemMedia,
   ItemTitle,
-} from "@gitaura/ui/components/item";
-import { Button } from "@gitaura/ui/components/button";
+} from "@webaura/ui/components/item";
+import { Button } from "@webaura/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { cn } from "@webaura/ui/lib/utils";
 
 function getAttachmentUrl(
   message: Extract<DisplayChatMessage, { role: "user" }>,

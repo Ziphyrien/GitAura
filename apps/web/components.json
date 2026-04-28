@@ -15,8 +15,8 @@
     "components": "@/components",
     "hooks": "@/hooks",
     "lib": "@/lib",
-    "utils": "@gitaura/ui/lib/utils",
-    "ui": "@gitaura/ui/components"
+    "utils": "@webaura/ui/lib/utils",
+    "ui": "@webaura/ui/components"
   },
   "menuColor": "default-translucent",
   "menuAccent": "subtle",

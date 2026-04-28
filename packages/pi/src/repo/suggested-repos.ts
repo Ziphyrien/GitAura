@@ -1,4 +1,4 @@
-import type { RepositoryRow } from "@gitaura/db";
+import type { RepositoryRow } from "@webaura/db";
 
 /** Curated repos for suggested pickers (landing, combobox when no recents). */
 export const SUGGESTED_REPOS: ReadonlyArray<
@@ -6,7 +6,7 @@ export const SUGGESTED_REPOS: ReadonlyArray<
 > = [
   { owner: "imputnet", repo: "helium", ref: "main", refOrigin: "default" },
   { owner: "pierrecomputer", repo: "pierre", ref: "main", refOrigin: "default" },
-  { owner: "Ziphyrien", repo: "GitAura", ref: "main", refOrigin: "default" },
+  { owner: "Ziphyrien", repo: "WebAura", ref: "main", refOrigin: "default" },
   { owner: "alibaba", repo: "OpenSandbox", ref: "main", refOrigin: "default" },
   { owner: "coderamp-labs", repo: "gitingest", ref: "main", refOrigin: "default" },
   { owner: "twentyhq", repo: "twenty", ref: "main", refOrigin: "default" },

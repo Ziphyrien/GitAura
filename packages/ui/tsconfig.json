@@ -1,5 +1,5 @@
 {
-  "extends": "@gitaura/config/tsconfig.base.json",
+  "extends": "@webaura/config/tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "jsx": "react-jsx",
@@ -8,11 +8,11 @@
     "noImplicitAny": false,
     "noUncheckedIndexedAccess": false,
     "paths": {
-      "@gitaura/ui/*": ["./src/*"],
-      "@gitaura/pi/*": ["../pi/src/*"],
-      "@gitaura/db": ["../db/src/index.ts"],
-      "@gitaura/db/session-leases": ["../db/src/session-leases.ts"],
-      "@gitaura/db/session-runtime": ["../db/src/session-runtime.ts"],
+      "@webaura/ui/*": ["./src/*"],
+      "@webaura/pi/*": ["../pi/src/*"],
+      "@webaura/db": ["../db/src/index.ts"],
+      "@webaura/db/session-leases": ["../db/src/session-leases.ts"],
+      "@webaura/db/session-runtime": ["../db/src/session-runtime.ts"],
       "@/navigation/*": ["../../apps/web/src/navigation/*"]
     }
   },

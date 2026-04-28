@@ -1,6 +1,6 @@
-import { getUserText } from "@gitaura/pi/lib/chat-adapter";
-import type { DisplayChatMessage } from "@gitaura/pi/types/chat";
-import type { ResolvedRepoSource } from "@gitaura/db";
+import { getUserText } from "@webaura/pi/lib/chat-adapter";
+import type { DisplayChatMessage } from "@webaura/pi/types/chat";
+import type { ResolvedRepoSource } from "@webaura/db";
 
 function formatMessageContent(message: DisplayChatMessage): string {
   if (message.role === "user") {

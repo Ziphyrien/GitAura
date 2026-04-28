@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { resolveRepoIntent } from "@gitaura/pi/repo/ref-resolver";
-import { Chat } from "@gitaura/ui/components/chat";
-import { parseRepoRoutePath } from "@gitaura/pi/repo/path-parser";
-import { toResolvedRepoSource } from "@gitaura/pi/repo/path-intent";
-import { githubRepoPathUrl } from "@gitaura/pi/repo/url";
+import { resolveRepoIntent } from "@webaura/pi/repo/ref-resolver";
+import { Chat } from "@webaura/ui/components/chat";
+import { parseRepoRoutePath } from "@webaura/pi/repo/path-parser";
+import { toResolvedRepoSource } from "@webaura/pi/repo/path-intent";
+import { githubRepoPathUrl } from "@webaura/pi/repo/url";
 
 type RepoSplatSearch = {
   q?: string;

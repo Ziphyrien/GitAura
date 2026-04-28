@@ -1,5 +1,5 @@
 {
-  "name": "gitaura",
+  "name": "webaura",
   "private": true,
   "workspaces": {
     "packages": [
@@ -37,14 +37,14 @@
     "test": "vp test run"
   },
   "dependencies": {
-    "@gitaura/env": "workspace:*",
+    "@webaura/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
-    "@gitaura/config": "workspace:*",
     "@types/node": "catalog:",
+    "@webaura/config": "workspace:*",
     "fake-indexeddb": "^6.2.5",
     "turbo": "^2.8.12",
     "typescript": "^5",

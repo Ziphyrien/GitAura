@@ -1,4 +1,4 @@
-import type { ResolvedRepoRef, ResolvedRepoSource } from "@gitaura/db";
+import type { ResolvedRepoRef, ResolvedRepoSource } from "@webaura/db";
 
 const FULL_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 

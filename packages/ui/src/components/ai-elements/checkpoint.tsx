@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
-import { Separator } from "@gitaura/ui/components/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
-import { cn } from "@gitaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
+import { Separator } from "@webaura/ui/components/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
+import { cn } from "@webaura/ui/lib/utils";
 import type { LucideProps } from "lucide-react";
 import { BookmarkIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";

@@ -1,22 +1,22 @@
-import { getIsoNow } from "@gitaura/pi/lib/dates";
-import { deleteProviderKey, getProviderKey, setProviderKey } from "@gitaura/db";
-import { loginAnthropic } from "@gitaura/pi/auth/providers/anthropic";
-import { loginGitHubCopilot } from "@gitaura/pi/auth/providers/github-copilot";
-import { loginGeminiCli } from "@gitaura/pi/auth/providers/google-gemini-cli";
-import { loginOpenAICodex } from "@gitaura/pi/auth/providers/openai-codex";
+import { getIsoNow } from "@webaura/pi/lib/dates";
+import { deleteProviderKey, getProviderKey, setProviderKey } from "@webaura/db";
+import { loginAnthropic } from "@webaura/pi/auth/providers/anthropic";
+import { loginGitHubCopilot } from "@webaura/pi/auth/providers/github-copilot";
+import { loginGeminiCli } from "@webaura/pi/auth/providers/google-gemini-cli";
+import { loginOpenAICodex } from "@webaura/pi/auth/providers/openai-codex";
 import {
   isOAuthProviderId,
   serializeOAuthCredentials,
   type OAuthCredentials,
   type OAuthProviderId,
-} from "@gitaura/pi/auth/oauth-types";
-import type { OAuthRequestOptions } from "@gitaura/pi/auth/oauth-utils";
-import type { ProviderAuthKind, ProviderAuthState } from "@gitaura/pi/types/auth";
-import type { ProviderId } from "@gitaura/pi/types/models";
-import { getOAuthProviderLabel } from "@gitaura/pi/models/provider-registry";
+} from "@webaura/pi/auth/oauth-types";
+import type { OAuthRequestOptions } from "@webaura/pi/auth/oauth-utils";
+import type { ProviderAuthKind, ProviderAuthState } from "@webaura/pi/types/auth";
+import type { ProviderId } from "@webaura/pi/types/models";
+import { getOAuthProviderLabel } from "@webaura/pi/models/provider-registry";
 
-export { oauthRefresh } from "@gitaura/pi/auth/oauth-refresh";
-export type { OAuthProviderId } from "@gitaura/pi/auth/oauth-types";
+export { oauthRefresh } from "@webaura/pi/auth/oauth-refresh";
+export type { OAuthProviderId } from "@webaura/pi/auth/oauth-types";
 
 export function isOAuthProvider(provider: string): provider is OAuthProviderId {
   return isOAuthProviderId(provider);

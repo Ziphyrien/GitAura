@@ -1,4 +1,4 @@
-import type { ResolvedRepoRef } from "@gitaura/db";
+import type { ResolvedRepoRef } from "@webaura/db";
 
 export function createBranchRepoRef(name: string): ResolvedRepoRef {
   return {

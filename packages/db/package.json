@@ -1,5 +1,5 @@
 {
-  "name": "@gitaura/db",
+  "name": "@webaura/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "dexie-cloud-addon": "^4.4.10"
   },
   "devDependencies": {
-    "@gitaura/config": "workspace:*",
+    "@webaura/config": "workspace:*",
     "typescript": "^5"
   }
 }

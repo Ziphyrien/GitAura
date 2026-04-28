@@ -1,5 +1,5 @@
 {
-  "name": "@gitaura/env",
+  "name": "@webaura/env",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@gitaura/config": "workspace:*",
     "@types/node": "catalog:",
+    "@webaura/config": "workspace:*",
     "typescript": "^5"
   }
 }

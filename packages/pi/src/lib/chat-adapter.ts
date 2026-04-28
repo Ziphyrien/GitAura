@@ -1,4 +1,4 @@
-import { linkToolResults } from "@gitaura/pi/agent/tool-result-linker";
+import { linkToolResults } from "@webaura/pi/agent/tool-result-linker";
 import type {
   AssistantMessage,
   ChatAttachment,
@@ -8,7 +8,7 @@ import type {
   ToolCall,
   ToolResultMessage,
   UserMessage,
-} from "@gitaura/pi/types/chat";
+} from "@webaura/pi/types/chat";
 
 export function getUserText(message: UserMessage): string {
   if (typeof message.displayText === "string") {

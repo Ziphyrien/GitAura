@@ -5,9 +5,9 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@gitaura/ui/components/accordion";
-import { Badge } from "@gitaura/ui/components/badge";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/accordion";
+import { Badge } from "@webaura/ui/components/badge";
+import { cn } from "@webaura/ui/lib/utils";
 import type { Tool } from "ai";
 import { BotIcon } from "lucide-react";
 import type { ComponentProps } from "react";

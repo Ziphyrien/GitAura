@@ -1,18 +1,18 @@
-import { deleteSessionLease } from "@gitaura/db";
-import { loadSessionLeaseState } from "@gitaura/db/session-leases";
+import { deleteSessionLease } from "@webaura/db";
+import { loadSessionLeaseState } from "@webaura/db/session-leases";
 import {
   getRuntimeWorker,
   getRuntimeWorkerIfAvailable,
-} from "@gitaura/pi/agent/runtime-worker-client";
-import { StreamInterruptedRuntimeError } from "@gitaura/pi/agent/runtime-command-errors";
-import { TurnEventStore } from "@gitaura/pi/agent/turn-event-store";
-import { loadSessionWithMessages } from "@gitaura/pi/sessions/session-service";
-import { loadSessionViewModel } from "@gitaura/pi/sessions/session-view-model";
+} from "@webaura/pi/agent/runtime-worker-client";
+import { StreamInterruptedRuntimeError } from "@webaura/pi/agent/runtime-command-errors";
+import { TurnEventStore } from "@webaura/pi/agent/turn-event-store";
+import { loadSessionWithMessages } from "@webaura/pi/sessions/session-service";
+import { loadSessionViewModel } from "@webaura/pi/sessions/session-view-model";
 import {
   deriveActiveSessionViewState,
   deriveRecoveryIntent,
   deriveRecoverySkipReason,
-} from "@gitaura/pi/sessions/session-view-state";
+} from "@webaura/pi/sessions/session-view-state";
 
 export type InterruptedRecoveryResult =
   | {

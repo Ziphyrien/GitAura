@@ -16,7 +16,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@gitaura/env/web", () => ({
+vi.mock("@webaura/env/web", () => ({
   env: state.env,
 }));
 

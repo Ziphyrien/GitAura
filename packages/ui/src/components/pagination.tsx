@@ -1,7 +1,7 @@
 import * as React from "react";
 
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
 import { CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from "@phosphor-icons/react";
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {

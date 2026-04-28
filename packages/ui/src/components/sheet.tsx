@@ -1,8 +1,8 @@
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
 import { XIcon } from "@phosphor-icons/react";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {

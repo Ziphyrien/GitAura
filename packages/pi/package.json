@@ -1,5 +1,5 @@
 {
-  "name": "@gitaura/pi",
+  "name": "@webaura/pi",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,10 +13,10 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@gitaura/db": "workspace:*",
-    "@gitaura/env": "workspace:*",
     "@mariozechner/pi-agent-core": "0.70.2",
     "@mariozechner/pi-ai": "0.70.2",
+    "@webaura/db": "workspace:*",
+    "@webaura/env": "workspace:*",
     "comlink": "^4.4.2",
     "dexie-react-hooks": "^4.2.0",
     "docx-preview": "^0.3.7",
@@ -28,8 +28,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@gitaura/config": "workspace:*",
     "@types/react": "catalog:",
+    "@webaura/config": "workspace:*",
     "typescript": "^5"
   }
 }

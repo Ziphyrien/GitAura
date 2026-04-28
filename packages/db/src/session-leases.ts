@@ -1,6 +1,6 @@
-import { getCurrentTabId, getCurrentTabIdIfAvailable } from "@gitaura/pi/agent/tab-id";
-import { getIsoNow } from "@gitaura/pi/lib/dates";
-import { createId } from "@gitaura/pi/lib/ids";
+import { getCurrentTabId, getCurrentTabIdIfAvailable } from "@webaura/pi/agent/tab-id";
+import { getIsoNow } from "@webaura/pi/lib/dates";
+import { createId } from "@webaura/pi/lib/ids";
 import { db } from "./db";
 import { deleteSessionLease, getSessionLease } from "./sessions";
 import type { SessionLeaseRow } from "./types";

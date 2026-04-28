@@ -1,6 +1,6 @@
-import { createId } from "@gitaura/pi/lib/ids";
+import { createId } from "@webaura/pi/lib/ids";
 
-const TAB_ID_STORAGE_KEY = "gitaura-tab-id";
+const TAB_ID_STORAGE_KEY = "webaura-tab-id";
 
 let cachedTabId: string | undefined;
 

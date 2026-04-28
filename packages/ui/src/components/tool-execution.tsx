@@ -6,9 +6,9 @@ import {
   ToolHeader,
   ToolInput,
   ToolOutput,
-} from "@gitaura/ui/components/ai-elements/tool";
-import { isUserAbortError, USER_ABORT_NOTICE_MESSAGE } from "@gitaura/pi/agent/runtime-errors";
-import type { ToolCall, ToolResultMessage } from "@gitaura/pi/types/chat";
+} from "@webaura/ui/components/ai-elements/tool";
+import { isUserAbortError, USER_ABORT_NOTICE_MESSAGE } from "@webaura/pi/agent/runtime-errors";
+import type { ToolCall, ToolResultMessage } from "@webaura/pi/types/chat";
 
 interface ReadDetails {
   path: string;

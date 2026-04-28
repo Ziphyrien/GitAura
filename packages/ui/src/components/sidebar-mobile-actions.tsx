@@ -2,9 +2,9 @@
 
 import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { Icons } from "@gitaura/ui/components/icons";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@gitaura/ui/components/sidebar";
-import { GITHUB_APP_REPO } from "@gitaura/pi/hooks/use-github-repo-stargazers";
+import { Icons } from "@webaura/ui/components/icons";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@webaura/ui/components/sidebar";
+import { GITHUB_APP_REPO } from "@webaura/pi/hooks/use-github-repo-stargazers";
 
 type ThemePreference = "light" | "dark" | "system";
 

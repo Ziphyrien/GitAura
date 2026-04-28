@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Menubar as MenubarPrimitive } from "radix-ui";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import { CheckIcon, CaretRightIcon } from "@phosphor-icons/react";
 
 function Menubar({ className, ...props }: React.ComponentProps<typeof MenubarPrimitive.Root>) {

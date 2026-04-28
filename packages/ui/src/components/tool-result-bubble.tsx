@@ -1,5 +1,5 @@
-import type { ToolResultMessage } from "@gitaura/pi/types/chat";
-import { Badge } from "@gitaura/ui/components/badge";
+import type { ToolResultMessage } from "@webaura/pi/types/chat";
+import { Badge } from "@webaura/ui/components/badge";
 
 interface ReadDetails {
   path: string;

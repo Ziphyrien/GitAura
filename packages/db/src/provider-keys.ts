@@ -1,5 +1,5 @@
-import { getIsoNow } from "@gitaura/pi/lib/dates";
-import type { ProviderId } from "@gitaura/pi/types/models";
+import { getIsoNow } from "@webaura/pi/lib/dates";
+import type { ProviderId } from "@webaura/pi/types/models";
 import { db } from "./db";
 import type { ProviderKeyRecord } from "./types";
 

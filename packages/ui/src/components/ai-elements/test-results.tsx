@@ -1,12 +1,12 @@
 "use client";
 
-import { Badge } from "@gitaura/ui/components/badge";
+import { Badge } from "@webaura/ui/components/badge";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { cn } from "@webaura/ui/lib/utils";
 import {
   CheckCircle2Icon,
   ChevronRightIcon,

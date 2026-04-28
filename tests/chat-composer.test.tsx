@@ -5,7 +5,7 @@ import { renderWithProviders } from "@/test/render-with-providers";
 import {
   SUPPORTED_ATTACHMENT_ACCEPT,
   SUPPORTED_ATTACHMENT_PICKER_TYPES,
-} from "@gitaura/pi/agent/user-turn-input";
+} from "@webaura/pi/agent/user-turn-input";
 
 vi.mock("@/components/chat-model-selector", () => ({
   ChatModelSelector: () => <span data-testid="model-selector">Model</span>,

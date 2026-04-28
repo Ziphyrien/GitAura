@@ -1,37 +1,37 @@
 import * as React from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
-import type { ProviderGroupId, ProviderId } from "@gitaura/pi/types/models";
+import type { ProviderGroupId, ProviderId } from "@webaura/pi/types/models";
 import {
   disconnectProvider,
   getOAuthProviderName,
   loginAndStoreOAuthProvider,
   setProviderApiKey,
   type OAuthProviderId,
-} from "@gitaura/pi/auth/auth-service";
-import { isOAuthCredentials } from "@gitaura/pi/auth/oauth-types";
-import type { ManualOAuthRedirectRequest, OAuthRequestOptions } from "@gitaura/pi/auth/oauth-utils";
-import { db } from "@gitaura/db";
+} from "@webaura/pi/auth/auth-service";
+import { isOAuthCredentials } from "@webaura/pi/auth/oauth-types";
+import type { ManualOAuthRedirectRequest, OAuthRequestOptions } from "@webaura/pi/auth/oauth-utils";
+import { db } from "@webaura/db";
 import {
   getOAuthProvidersForSettings,
   getProviderGroupMetadata,
   getSortedApiKeyProvidersForSettings,
-} from "@gitaura/pi/models/provider-registry";
+} from "@webaura/pi/models/provider-registry";
 import {
   DEFAULT_PROXY_URL,
   PROXY_ENABLED_KEY,
   PROXY_URL_KEY,
   proxyConfigFromSettingsRows,
-} from "@gitaura/pi/proxy/settings";
-import { Button } from "@gitaura/ui/components/button";
-import { Input } from "@gitaura/ui/components/input";
+} from "@webaura/pi/proxy/settings";
+import { Button } from "@webaura/ui/components/button";
+import { Input } from "@webaura/ui/components/input";
 import {
   Item,
   ItemActions,
   ItemContent,
   ItemDescription,
   ItemTitle,
-} from "@gitaura/ui/components/item";
+} from "@webaura/ui/components/item";
 
 type DeviceCodePrompt = {
   userCode: string;

@@ -1,1 +1,1 @@
-export * from "@gitaura/pi/agent/runtime-worker";
+export * from "@webaura/pi/agent/runtime-worker";

@@ -1,10 +1,10 @@
 import * as React from "react";
 
-import { GithubRepo } from "@gitaura/ui/components/github-repo";
-import { LetsInspectHeading } from "@gitaura/ui/components/chat-empty-state";
-import { StatusShimmer } from "@gitaura/ui/components/ai-elements/shimmer";
-import { fetchPublicReposForLogin } from "@gitaura/pi/repo/github-owner-repos";
-import { cn } from "@gitaura/ui/lib/utils";
+import { GithubRepo } from "@webaura/ui/components/github-repo";
+import { LetsInspectHeading } from "@webaura/ui/components/chat-empty-state";
+import { StatusShimmer } from "@webaura/ui/components/ai-elements/shimmer";
+import { fetchPublicReposForLogin } from "@webaura/pi/repo/github-owner-repos";
+import { cn } from "@webaura/ui/lib/utils";
 
 type OrgRepoPickerProps = {
   ownerLogin: string;

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Select as SelectPrimitive } from "radix-ui";
 
-import { cn } from "@gitaura/ui/lib/utils";
+import { cn } from "@webaura/ui/lib/utils";
 import { CaretDownIcon, CheckIcon, CaretUpIcon } from "@phosphor-icons/react";
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {

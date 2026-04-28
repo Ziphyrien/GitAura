@@ -1,6 +1,6 @@
 import type { Api, Model, SimpleStreamOptions } from "@mariozechner/pi-ai";
-import { getProxyConfig } from "@gitaura/pi/proxy/settings";
-import { buildProxiedUrl } from "@gitaura/pi/proxy/url";
+import { getProxyConfig } from "@webaura/pi/proxy/settings";
+import { buildProxiedUrl } from "@webaura/pi/proxy/url";
 
 type StreamSimple = (typeof import("@mariozechner/pi-ai"))["streamSimple"];
 

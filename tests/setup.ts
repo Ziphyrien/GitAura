@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach } from "vite-plus/test";
-import { db } from "@gitaura/db";
+import { db } from "@webaura/db";
 
 Object.defineProperty(window, "matchMedia", {
   configurable: true,

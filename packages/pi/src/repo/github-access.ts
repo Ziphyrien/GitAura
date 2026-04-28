@@ -49,7 +49,7 @@ export async function resolveRegisteredGitHubAccess(
   options?: ResolveGitHubAccessOptions,
 ): Promise<GitHubAccess> {
   if (!resolver) {
-    const { getGithubPersonalAccessToken } = await import("@gitaura/pi/repo/github-token");
+    const { getGithubPersonalAccessToken } = await import("@webaura/pi/repo/github-token");
     const token = await getGithubPersonalAccessToken();
 
     if (token) {

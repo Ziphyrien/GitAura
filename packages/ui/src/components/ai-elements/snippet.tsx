@@ -6,8 +6,8 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
-} from "@gitaura/ui/components/input-group";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/input-group";
+import { cn } from "@webaura/ui/lib/utils";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import {

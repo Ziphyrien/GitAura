@@ -1,17 +1,17 @@
 {
-  "extends": "@gitaura/config/tsconfig.base.json",
+  "extends": "@webaura/config/tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
     "paths": {
-      "@gitaura/pi/*": ["./src/*"],
-      "@gitaura/db": ["../db/src/index.ts"],
-      "@gitaura/db/session-leases": ["../db/src/session-leases.ts"],
-      "@gitaura/db/session-runtime": ["../db/src/session-runtime.ts"],
-      "@gitaura/env/*": ["../env/src/*"],
-      "@gitaura/ui/*": ["../ui/src/*"]
+      "@webaura/pi/*": ["./src/*"],
+      "@webaura/db": ["../db/src/index.ts"],
+      "@webaura/db/session-leases": ["../db/src/session-leases.ts"],
+      "@webaura/db/session-runtime": ["../db/src/session-runtime.ts"],
+      "@webaura/env/*": ["../env/src/*"],
+      "@webaura/ui/*": ["../ui/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

@@ -1,4 +1,4 @@
-import type { RepoRefOrigin, ResolvedRepoRef, ResolvedRepoSource } from "@gitaura/db";
+import type { RepoRefOrigin, ResolvedRepoRef, ResolvedRepoSource } from "@webaura/db";
 
 export type RepoPathIntent =
   | {

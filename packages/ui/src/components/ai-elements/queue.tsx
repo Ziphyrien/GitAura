@@ -1,13 +1,13 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { ScrollArea } from "@gitaura/ui/components/scroll-area";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/collapsible";
+import { ScrollArea } from "@webaura/ui/components/scroll-area";
+import { cn } from "@webaura/ui/lib/utils";
 import { ChevronDownIcon, PaperclipIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 

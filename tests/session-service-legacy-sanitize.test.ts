@@ -6,7 +6,7 @@ import {
   getSessionMessages,
   getSessionRuntime,
   putSession,
-} from "@gitaura/db";
+} from "@webaura/db";
 import type { MessageRow, SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
 

@@ -1,8 +1,8 @@
 import * as React from "react";
 import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-react";
 
-import { cn } from "@gitaura/ui/lib/utils";
-import { Button } from "@gitaura/ui/components/button";
+import { cn } from "@webaura/ui/lib/utils";
+import { Button } from "@webaura/ui/components/button";
 import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react";
 
 type CarouselApi = UseEmblaCarouselType[1];

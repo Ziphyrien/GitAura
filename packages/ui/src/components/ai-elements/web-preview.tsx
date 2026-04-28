@@ -1,19 +1,19 @@
 "use client";
 
-import { Button } from "@gitaura/ui/components/button";
+import { Button } from "@webaura/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@gitaura/ui/components/collapsible";
-import { Input } from "@gitaura/ui/components/input";
+} from "@webaura/ui/components/collapsible";
+import { Input } from "@webaura/ui/components/input";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@gitaura/ui/components/tooltip";
-import { cn } from "@gitaura/ui/lib/utils";
+} from "@webaura/ui/components/tooltip";
+import { cn } from "@webaura/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";

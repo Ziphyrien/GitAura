@@ -4,7 +4,7 @@ const setProviderKey = vi.fn();
 const oauthRefresh = vi.fn();
 const getProxyConfig = vi.fn();
 
-vi.mock("@gitaura/db", () => ({
+vi.mock("@webaura/db", () => ({
   db: {
     providerKeys: {},
     transaction: async (
@@ -174,7 +174,7 @@ describe("resolveStoredApiKey", () => {
 
   it("returns undefined when no provider key is stored", async () => {
     const { resolveApiKeyForProvider } = await import("@/auth/resolve-api-key");
-    const { getProviderKey } = await import("@gitaura/db");
+    const { getProviderKey } = await import("@webaura/db");
 
     vi.mocked(getProviderKey).mockResolvedValue(undefined);
 

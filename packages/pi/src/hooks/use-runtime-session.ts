@@ -1,6 +1,6 @@
 import * as React from "react";
-import { runtimeClient, type InterruptedResumeMode } from "@gitaura/pi/agent/runtime-client";
-import type { UserTurnInput } from "@gitaura/pi/agent/user-turn-input";
+import { runtimeClient, type InterruptedResumeMode } from "@webaura/pi/agent/runtime-client";
+import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
 
 export function useRuntimeSession(sessionId: string | undefined) {
   const runMutation = React.useEffectEvent(

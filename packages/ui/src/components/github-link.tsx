@@ -1,12 +1,12 @@
-import { Icons } from "@gitaura/ui/components/icons";
-import { Button } from "@gitaura/ui/components/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@gitaura/ui/components/tooltip";
-import { Skeleton } from "@gitaura/ui/components/skeleton";
+import { Icons } from "@webaura/ui/components/icons";
+import { Button } from "@webaura/ui/components/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@webaura/ui/components/tooltip";
+import { Skeleton } from "@webaura/ui/components/skeleton";
 import {
   GITHUB_APP_REPO,
   useGitHubRepoStargazers,
-} from "@gitaura/pi/hooks/use-github-repo-stargazers";
-import { formatGitHubStarCount } from "@gitaura/pi/lib/format-github-stars";
+} from "@webaura/pi/hooks/use-github-repo-stargazers";
+import { formatGitHubStarCount } from "@webaura/pi/lib/format-github-stars";
 
 export function GitHubLink() {
   return (
