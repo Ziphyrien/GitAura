@@ -10,6 +10,7 @@ import {
   type OAuthProviderId,
 } from "@gitaura/pi/auth/auth-service";
 import { isOAuthCredentials } from "@gitaura/pi/auth/oauth-types";
+import type { ManualOAuthRedirectRequest, OAuthRequestOptions } from "@gitaura/pi/auth/oauth-utils";
 import { db } from "@gitaura/db";
 import {
   getOAuthProvidersForSettings,
@@ -35,6 +36,10 @@ import {
 type DeviceCodePrompt = {
   userCode: string;
   verificationUri: string;
+};
+
+type ManualRedirectPrompt = ManualOAuthRedirectRequest & {
+  value: string;
 };
 
 function isOAuthConnected(value: string | undefined): boolean {
@@ -80,6 +85,18 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
     {},
   );
   const [loggingInProvider, setLoggingInProvider] = React.useState<OAuthProviderId | undefined>();
+  const [googleProjectId, setGoogleProjectId] = React.useState("");
+  const [manualRedirectPrompt, setManualRedirectPrompt] = React.useState<
+    ManualRedirectPrompt | undefined
+  >();
+  const [showGoogleProjectId, setShowGoogleProjectId] = React.useState(false);
+  const manualRedirectPromiseRef = React.useRef<
+    | {
+        reject: (error: Error) => void;
+        resolve: (input: string) => void;
+      }
+    | undefined
+  >(undefined);
 
   React.useEffect(() => {
     setDraftValues(
@@ -108,6 +125,25 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
     }));
 
     try {
+      const oauthOptions: OAuthRequestOptions = {
+        ...(proxyConfig.enabled ? { proxyUrl: proxyConfig.url } : {}),
+        ...(provider === "google-gemini-cli" && googleProjectId.trim()
+          ? { googleProjectId: googleProjectId.trim() }
+          : {}),
+        ...(provider === "anthropic" || provider === "openai-codex"
+          ? {
+              onManualRedirect: (request: ManualOAuthRedirectRequest) =>
+                new Promise<string>((resolve, reject) => {
+                  manualRedirectPromiseRef.current = { reject, resolve };
+                  setManualRedirectPrompt({
+                    ...request,
+                    value: "",
+                  });
+                }),
+            }
+          : {}),
+      };
+
       await loginAndStoreOAuthProvider(
         provider,
         new URL("/auth/callback", window.location.origin).toString(),
@@ -117,21 +153,48 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
             [provider]: info,
           }));
         },
-        provider === "anthropic" && proxyConfig.enabled ? { proxyUrl: proxyConfig.url } : undefined,
+        Object.keys(oauthOptions).length > 0 ? oauthOptions : undefined,
       );
       setDevicePrompts((current) => ({
         ...current,
         [provider]: undefined,
       }));
+      setManualRedirectPrompt(undefined);
+      manualRedirectPromiseRef.current = undefined;
+      if (provider === "google-gemini-cli") {
+        setShowGoogleProjectId(false);
+        setGoogleProjectId("");
+      }
       toast.success(`Connected to ${getOAuthProviderName(provider)}`);
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not complete sign-in";
+      if (provider === "google-gemini-cli" && message.includes("Google Cloud project ID")) {
+        setShowGoogleProjectId(true);
+      }
       setLoginErrors((current) => ({
         ...current,
-        [provider]: error instanceof Error ? error.message : "Could not complete sign-in",
+        [provider]: message,
       }));
     } finally {
       setLoggingInProvider(undefined);
     }
+  };
+
+  const resolveManualRedirect = () => {
+    const value = manualRedirectPrompt?.value.trim();
+    if (!value) {
+      return;
+    }
+
+    manualRedirectPromiseRef.current?.resolve(value);
+    manualRedirectPromiseRef.current = undefined;
+    setManualRedirectPrompt(undefined);
+  };
+
+  const cancelManualRedirect = () => {
+    manualRedirectPromiseRef.current?.reject(new Error("OAuth login cancelled"));
+    manualRedirectPromiseRef.current = undefined;
+    setManualRedirectPrompt(undefined);
   };
 
   return (
@@ -147,9 +210,9 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
 
         <div className="text-xs text-muted-foreground">
           <p>
-            Anthropic token exchanges use{" "}
+            Browser OAuth requests use{" "}
             <span className="font-medium text-foreground">{proxyConfig.url}</span> when proxying is
-            enabled. An untrusted proxy can see those credentials.{" "}
+            enabled. An untrusted proxy can see provider OAuth credentials.{" "}
             {props.onNavigateToProxy ? (
               <button
                 className="font-medium text-foreground underline underline-offset-4 hover:text-foreground"
@@ -179,11 +242,20 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
                     <ItemTitle className="text-sm font-medium text-foreground">
                       {getOAuthProviderName(provider)}
                     </ItemTitle>
-                    <ItemDescription>
-                      {connected
-                        ? "Connected"
-                        : "Open a provider sign-in window and store the token locally."}
-                    </ItemDescription>
+                    <ItemDescription>{connected ? "Connected" : "Not connected"}</ItemDescription>
+                    {provider === "google-gemini-cli" && !connected && showGoogleProjectId ? (
+                      <div className="mt-3 max-w-md space-y-1.5">
+                        <Input
+                          autoComplete="off"
+                          onChange={(event) => setGoogleProjectId(event.target.value)}
+                          placeholder="Optional Google Cloud project ID"
+                          value={googleProjectId}
+                        />
+                        <div className="text-[11px] text-muted-foreground">
+                          Required for Workspace or policy-managed Google accounts.
+                        </div>
+                      </div>
+                    ) : null}
                   </ItemContent>
                   <ItemActions className="ml-auto shrink-0">
                     {connected ? (
@@ -236,6 +308,55 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
                         </a>
                         .
                       </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                ) : null}
+
+                {!connected && manualRedirectPrompt?.provider === provider ? (
+                  <Item className="items-start" variant="muted">
+                    <ItemContent className="min-w-0 space-y-3">
+                      <div className="space-y-1">
+                        <ItemTitle className="text-sm font-medium text-foreground">
+                          Complete browser sign-in
+                        </ItemTitle>
+                        <ItemDescription>{manualRedirectPrompt.instructions}</ItemDescription>
+                      </div>
+                      <Input
+                        autoComplete="off"
+                        onChange={(event) =>
+                          setManualRedirectPrompt((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  value: event.target.value,
+                                }
+                              : current,
+                          )
+                        }
+                        placeholder={manualRedirectPrompt.placeholder}
+                        value={manualRedirectPrompt.value}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          disabled={!manualRedirectPrompt.value.trim()}
+                          onClick={resolveManualRedirect}
+                          size="sm"
+                          variant="secondary"
+                        >
+                          Continue
+                        </Button>
+                        <Button onClick={cancelManualRedirect} size="sm" variant="outline">
+                          Cancel
+                        </Button>
+                        <a
+                          className="text-xs font-medium text-foreground underline underline-offset-4"
+                          href={manualRedirectPrompt.authUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          Reopen sign-in window
+                        </a>
+                      </div>
                     </ItemContent>
                   </Item>
                 ) : null}

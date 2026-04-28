@@ -153,7 +153,7 @@ describe("auth service", () => {
     );
   });
 
-  it("keeps direct oauth providers direct", async () => {
+  it("forwards proxy options to OpenAI OAuth login and refresh", async () => {
     loginOpenAICodex.mockResolvedValue({
       access: "access",
       expires: Date.now() + 60_000,
@@ -181,12 +181,15 @@ describe("auth service", () => {
       proxyOptions,
     );
 
-    expect(loginOpenAICodex).toHaveBeenCalledWith("https://example.com/callback");
-    expect(refreshOpenAICodex).toHaveBeenCalledWith({
-      access: "access",
-      expires: expect.any(Number),
-      providerId: "openai-codex",
-      refresh: "refresh",
-    });
+    expect(loginOpenAICodex).toHaveBeenCalledWith("https://example.com/callback", proxyOptions);
+    expect(refreshOpenAICodex).toHaveBeenCalledWith(
+      {
+        access: "access",
+        expires: expect.any(Number),
+        providerId: "openai-codex",
+        refresh: "refresh",
+      },
+      proxyOptions,
+    );
   });
 });

@@ -70,6 +70,9 @@ describe("resolveStoredApiKey", () => {
         providerId: "openai-codex",
         refresh: "old-refresh",
       }),
+      {
+        proxyUrl: "https://proxy.example/proxy",
+      },
     );
     expect(setProviderKey).toHaveBeenCalledTimes(1);
     expect(setProviderKey.mock.calls[0]?.[0]).toBe("openai-codex");
@@ -82,7 +85,7 @@ describe("resolveStoredApiKey", () => {
     });
   });
 
-  it("passes a proxy url when anthropic oauth refresh is enabled", async () => {
+  it("passes a proxy url when oauth refresh is enabled", async () => {
     const { resolveStoredApiKey } = await import("@/auth/resolve-api-key");
     getProxyConfig.mockResolvedValue({
       enabled: true,

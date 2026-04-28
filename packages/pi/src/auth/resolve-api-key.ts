@@ -36,10 +36,9 @@ async function resolveStoredProviderAuth(
 
   if (credentialsExpireSoon(credentials.expires)) {
     const proxy = await getProxyConfig();
-    credentials =
-      provider === "anthropic" && proxy.enabled
-        ? await oauthRefresh(credentials, { proxyUrl: proxy.url })
-        : await oauthRefresh(credentials);
+    credentials = proxy.enabled
+      ? await oauthRefresh(credentials, { proxyUrl: proxy.url })
+      : await oauthRefresh(credentials);
     await db.transaction("rw", db.providerKeys, async () => {
       await setProviderKey(provider, serializeOAuthCredentials(credentials));
     });

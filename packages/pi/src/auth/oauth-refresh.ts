@@ -13,10 +13,10 @@ export async function oauthRefresh(
     case "anthropic":
       return await refreshAnthropic(credentials, options);
     case "github-copilot":
-      return await refreshGitHubCopilot(credentials);
+      return await refreshGitHubCopilot(credentials, options);
     case "google-gemini-cli":
-      return await refreshGeminiCli(credentials);
+      return await refreshGeminiCli(credentials, options);
     case "openai-codex":
-      return await refreshOpenAICodex(credentials);
+      return await refreshOpenAICodex(credentials, options);
   }
 }

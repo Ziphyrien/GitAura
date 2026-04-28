@@ -31,20 +31,19 @@ describe("popup oauth flow", () => {
 
     const { runPopupOAuthFlow } = await import("@/auth/popup-flow");
     const promise = runPopupOAuthFlow("https://example.com/oauth");
+    const callbackUrl = `${window.location.origin}/auth/callback?code=code-1&state=state-1`;
 
     window.dispatchEvent(
       new MessageEvent("message", {
         data: {
           type: "oauth-callback",
-          url: "http://localhost/auth/callback?code=code-1&state=state-1",
+          url: callbackUrl,
         },
         origin: window.location.origin,
       }),
     );
 
-    await expect(promise).resolves.toEqual(
-      new URL("http://localhost/auth/callback?code=code-1&state=state-1"),
-    );
+    await expect(promise).resolves.toEqual(new URL(callbackUrl));
     expect(close).toHaveBeenCalledTimes(1);
   });
 
@@ -65,7 +64,7 @@ describe("popup oauth flow", () => {
     );
     closed = true;
 
-    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(500);
 
     await assertion;
     expect(close).toHaveBeenCalledTimes(1);

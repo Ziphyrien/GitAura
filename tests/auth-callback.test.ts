@@ -46,6 +46,8 @@ describe("auth callback page", () => {
       );
     });
 
-    expect(close).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(close).toHaveBeenCalledTimes(1);
+    });
   });
 });

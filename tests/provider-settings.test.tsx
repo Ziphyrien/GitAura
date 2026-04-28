@@ -15,7 +15,9 @@ const setProviderApiKey = vi.fn();
 
 const state = vi.hoisted(() => ({
   failLogin: false,
+  geminiRequiresProject: false,
   holdLogin: false,
+  requireManualRedirect: false,
   providerKeys: [] as ProviderKeyRecord[],
   settingsRows: [] as Array<{ key: string; value: string }>,
 }));
@@ -105,14 +107,41 @@ vi.mock("@gitaura/pi/auth/auth-service", () => ({
     provider: string,
     redirectUri: string,
     onDeviceCode?: (info: { userCode: string; verificationUri: string }) => void,
+    options?: {
+      googleProjectId?: string;
+      onManualRedirect?: (request: {
+        authUrl: string;
+        instructions: string;
+        placeholder: string;
+        provider: string;
+      }) => Promise<string>;
+      proxyUrl?: string;
+    },
   ) => {
-    loginAndStoreOAuthProvider(provider, redirectUri);
+    loginAndStoreOAuthProvider(provider, redirectUri, options);
 
     if (provider === "github-copilot") {
       onDeviceCode?.({
         userCode: "ABCD-1234",
         verificationUri: "https://github.com/login/device",
       });
+    }
+
+    if (state.requireManualRedirect && (provider === "anthropic" || provider === "openai-codex")) {
+      await options?.onManualRedirect?.({
+        authUrl: "https://provider.example/auth",
+        instructions: "Paste the full redirect URL here.",
+        placeholder: "http://localhost/callback",
+        provider,
+      });
+    }
+
+    if (
+      state.geminiRequiresProject &&
+      provider === "google-gemini-cli" &&
+      !options?.googleProjectId
+    ) {
+      throw new Error("This Google account requires a Google Cloud project ID.");
     }
 
     if (state.failLogin) {
@@ -191,7 +220,9 @@ describe("provider settings", () => {
     loginAndStoreOAuthProvider.mockReset();
     setProviderApiKey.mockReset();
     state.failLogin = false;
+    state.geminiRequiresProject = false;
     state.holdLogin = false;
+    state.requireManualRedirect = false;
     state.providerKeys = [];
     state.settingsRows = [];
   });
@@ -210,12 +241,37 @@ describe("provider settings", () => {
       expect(loginAndStoreOAuthProvider).toHaveBeenCalledWith(
         "anthropic",
         "http://localhost:3000/auth/callback",
+        expect.objectContaining({
+          onManualRedirect: expect.any(Function),
+          proxyUrl: "https://proxy.example/proxy",
+        }),
       );
       expect(toastSuccess).toHaveBeenCalledWith("Connected to Anthropic (Claude Pro/Max)");
     });
 
     rerender(React.createElement(ProviderSettings));
     expect(screen.getAllByText("Connected").length).toBeGreaterThan(0);
+  });
+
+  it("shows the manual redirect prompt for localhost OAuth callbacks", async () => {
+    state.requireManualRedirect = true;
+    const { ProviderSettings } = await import("@/components/provider-settings");
+    render(React.createElement(ProviderSettings));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
+
+    expect(await screen.findByText("Complete browser sign-in")).toBeTruthy();
+    expect(screen.getByText("Paste the full redirect URL here.")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("http://localhost/callback"), {
+      target: {
+        value: "http://localhost/callback?code=code-1&state=state-1",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith("Connected to Anthropic (Claude Pro/Max)");
+    });
   });
 
   it("shows the Copilot device code while login is pending", async () => {
@@ -228,6 +284,37 @@ describe("provider settings", () => {
     expect(await screen.findByText("Complete device sign-in")).toBeTruthy();
     expect(screen.getByText("ABCD-1234")).toBeTruthy();
     expect(screen.getByText("https://github.com/login/device")).toBeTruthy();
+  });
+
+  it("only asks for a Google Cloud project ID after Gemini reports it is required", async () => {
+    state.geminiRequiresProject = true;
+    const { ProviderSettings } = await import("@/components/provider-settings");
+    render(React.createElement(ProviderSettings));
+
+    expect(screen.queryByPlaceholderText("Optional Google Cloud project ID")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[2]);
+
+    expect(
+      await screen.findByText("This Google account requires a Google Cloud project ID."),
+    ).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("Optional Google Cloud project ID"), {
+      target: {
+        value: "project-1",
+      },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[2]);
+
+    await waitFor(() => {
+      expect(loginAndStoreOAuthProvider).toHaveBeenLastCalledWith(
+        "google-gemini-cli",
+        "http://localhost:3000/auth/callback",
+        {
+          googleProjectId: "project-1",
+          proxyUrl: "https://proxy.example/proxy",
+        },
+      );
+    });
   });
 
   it("shows an inline error when browser OAuth fails", async () => {

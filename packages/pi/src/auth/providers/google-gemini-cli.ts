@@ -1,6 +1,8 @@
 import { generatePKCE } from "@gitaura/pi/auth/oauth-utils";
 import { runPopupOAuthFlow } from "@gitaura/pi/auth/popup-flow";
+import { buildProxiedUrl } from "@gitaura/pi/proxy/url";
 import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
+import type { OAuthRequestOptions, ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
 
 const decode = (value: string) => atob(value);
 const CLIENT_ID = decode(
@@ -10,13 +12,106 @@ const CLIENT_SECRET = decode("R09DU1BYLTR1SGdNUG0tMW83U2stZ2VWNkN1NWNsWEZzeGw=")
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+const TIER_FREE = "free-tier";
+const TIER_LEGACY = "legacy-tier";
+const TIER_STANDARD = "standard-tier";
 const SCOPES = [
   "https://www.googleapis.com/auth/cloud-platform",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
 ];
 
-async function discoverProject(accessToken: string): Promise<string> {
+type CloudCodeTier = {
+  id: string;
+  isDefault?: boolean;
+};
+
+type CloudCodeLoadResponse = {
+  allowedTiers?: CloudCodeTier[];
+  cloudaicompanionProject?: string;
+  currentTier?: CloudCodeTier;
+};
+
+type CloudCodeOperation = {
+  done?: boolean;
+  name?: string;
+  response?: {
+    cloudaicompanionProject?: {
+      id?: string;
+    };
+  };
+};
+
+function withProxy(url: string, options?: ProxyRequestOptions): string {
+  return options?.proxyUrl ? buildProxiedUrl(options.proxyUrl, url) : url;
+}
+
+function getDefaultTier(tiers: CloudCodeTier[] | undefined): CloudCodeTier {
+  if (!tiers || tiers.length === 0) {
+    return { id: TIER_LEGACY };
+  }
+
+  return tiers.find((tier) => tier.isDefault) ?? { id: TIER_LEGACY };
+}
+
+function isVpcScAffectedUser(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) {
+    return false;
+  }
+
+  const error = (payload as { error?: { details?: Array<{ reason?: string }> } }).error;
+  return (
+    Array.isArray(error?.details) &&
+    error.details.some((detail) => detail.reason === "SECURITY_POLICY_VIOLATED")
+  );
+}
+
+async function fetchJson<T>(
+  url: string,
+  init: RequestInit,
+  options?: ProxyRequestOptions,
+): Promise<T> {
+  const response = await fetch(withProxy(url, options), init);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`${response.status} ${response.statusText}: ${text}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function pollOperation(
+  operationName: string,
+  headers: Record<string, string>,
+  options?: ProxyRequestOptions,
+): Promise<CloudCodeOperation> {
+  while (true) {
+    await new Promise((resolve) => window.setTimeout(resolve, 5000));
+    const operation = await fetchJson<CloudCodeOperation>(
+      `${CODE_ASSIST_ENDPOINT}/v1internal/${operationName}`,
+      {
+        headers,
+        method: "GET",
+      },
+      options,
+    );
+
+    if (operation.done) {
+      return operation;
+    }
+  }
+}
+
+function requireGoogleProjectIdMessage(): string {
+  return "This Google account requires a Google Cloud project ID. Enter it in the Gemini row and try again.";
+}
+
+async function discoverProject(
+  accessToken: string,
+  options?: OAuthRequestOptions,
+): Promise<string> {
+  const googleProjectId = options?.googleProjectId?.trim();
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",
@@ -24,85 +119,131 @@ async function discoverProject(accessToken: string): Promise<string> {
     "X-Goog-Api-Client": "gl-node/22.17.0",
   };
 
-  const loadResponse = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist`, {
-    body: JSON.stringify({
-      metadata: {
-        ideType: "IDE_UNSPECIFIED",
-        platform: "PLATFORM_UNSPECIFIED",
-        pluginType: "GEMINI",
-      },
-    }),
-    headers,
-    method: "POST",
-  });
+  const loadBody: {
+    cloudaicompanionProject?: string;
+    metadata: {
+      duetProject?: string;
+      ideType: string;
+      platform: string;
+      pluginType: string;
+    };
+  } = {
+    metadata: {
+      ideType: "IDE_UNSPECIFIED",
+      platform: "PLATFORM_UNSPECIFIED",
+      pluginType: "GEMINI",
+    },
+  };
 
-  if (!loadResponse.ok) {
-    const text = await loadResponse.text();
-    throw new Error(`loadCodeAssist failed: ${loadResponse.status} ${text}`);
+  if (googleProjectId) {
+    loadBody.cloudaicompanionProject = googleProjectId;
+    loadBody.metadata.duetProject = googleProjectId;
   }
 
-  const loadData = (await loadResponse.json()) as {
-    allowedTiers?: Array<{ id: string; isDefault?: boolean }>;
-    cloudaicompanionProject?: string;
-  };
+  const loadResponse = await fetch(
+    withProxy(`${CODE_ASSIST_ENDPOINT}/v1internal:loadCodeAssist`, options),
+    {
+      body: JSON.stringify(loadBody),
+      headers,
+      method: "POST",
+    },
+  );
+
+  let loadData: CloudCodeLoadResponse;
+  if (!loadResponse.ok) {
+    let errorPayload: unknown;
+    try {
+      errorPayload = await loadResponse.clone().json();
+    } catch {
+      errorPayload = undefined;
+    }
+
+    if (isVpcScAffectedUser(errorPayload)) {
+      loadData = { currentTier: { id: TIER_STANDARD } };
+    } else {
+      const text = await loadResponse.text();
+      throw new Error(
+        `loadCodeAssist failed: ${loadResponse.status} ${loadResponse.statusText}: ${text}`,
+      );
+    }
+  } else {
+    loadData = (await loadResponse.json()) as CloudCodeLoadResponse;
+  }
+
+  if (loadData.currentTier) {
+    if (loadData.cloudaicompanionProject) {
+      return loadData.cloudaicompanionProject;
+    }
+
+    if (googleProjectId) {
+      return googleProjectId;
+    }
+
+    throw new Error(requireGoogleProjectIdMessage());
+  }
 
   if (typeof loadData.cloudaicompanionProject === "string") {
     return loadData.cloudaicompanionProject;
   }
 
-  const tierId = loadData.allowedTiers?.find((tier) => tier.isDefault)?.id ?? "free-tier";
-  const onboardResponse = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal:onboardUser`, {
-    body: JSON.stringify({
-      metadata: {
-        ideType: "IDE_UNSPECIFIED",
-        platform: "PLATFORM_UNSPECIFIED",
-        pluginType: "GEMINI",
-      },
-      tierId,
-    }),
-    headers,
-    method: "POST",
-  });
-
-  if (!onboardResponse.ok) {
-    const text = await onboardResponse.text();
-    throw new Error(`onboardUser failed: ${onboardResponse.status} ${text}`);
+  const tierId = getDefaultTier(loadData.allowedTiers).id;
+  if (tierId !== TIER_FREE && !googleProjectId) {
+    throw new Error(requireGoogleProjectIdMessage());
   }
 
-  let operation = (await onboardResponse.json()) as {
-    done?: boolean;
-    name?: string;
-    response?: {
-      cloudaicompanionProject?: {
-        id?: string;
-      };
+  const onboardBody: {
+    cloudaicompanionProject?: string;
+    metadata: {
+      duetProject?: string;
+      ideType: string;
+      platform: string;
+      pluginType: string;
     };
+    tierId: string;
+  } = {
+    metadata: {
+      ideType: "IDE_UNSPECIFIED",
+      platform: "PLATFORM_UNSPECIFIED",
+      pluginType: "GEMINI",
+    },
+    tierId,
   };
 
-  while (!operation.done && operation.name) {
-    await new Promise((resolve) => window.setTimeout(resolve, 5000));
-    const response = await fetch(`${CODE_ASSIST_ENDPOINT}/v1internal/${operation.name}`, {
+  if (tierId !== TIER_FREE && googleProjectId) {
+    onboardBody.cloudaicompanionProject = googleProjectId;
+    onboardBody.metadata.duetProject = googleProjectId;
+  }
+
+  let operation = await fetchJson<CloudCodeOperation>(
+    `${CODE_ASSIST_ENDPOINT}/v1internal:onboardUser`,
+    {
+      body: JSON.stringify(onboardBody),
       headers,
-      method: "GET",
-    });
+      method: "POST",
+    },
+    options,
+  );
 
-    if (!response.ok) {
-      throw new Error(`Project onboarding poll failed: ${response.status}`);
-    }
-
-    operation = (await response.json()) as typeof operation;
+  if (!operation.done && operation.name) {
+    operation = await pollOperation(operation.name, headers, options);
   }
 
   const projectId = operation.response?.cloudaicompanionProject?.id;
-
-  if (!projectId) {
-    throw new Error("Could not discover a Google Cloud project for Gemini CLI");
+  if (projectId) {
+    return projectId;
   }
 
-  return projectId;
+  if (googleProjectId) {
+    return googleProjectId;
+  }
+
+  throw new Error("Could not discover or provision a Google Cloud project for Gemini CLI.");
 }
 
-export async function loginGeminiCli(redirectUri: string): Promise<OAuthCredentials> {
+export async function loginGeminiCli(
+  redirectUri: string,
+  options?: OAuthRequestOptions,
+): Promise<OAuthCredentials> {
   const { challenge, verifier } = await generatePKCE();
   const authParams = new URLSearchParams({
     access_type: "offline",
@@ -122,7 +263,7 @@ export async function loginGeminiCli(redirectUri: string): Promise<OAuthCredenti
     throw new Error("OAuth callback validation failed");
   }
 
-  const tokenResponse = await fetch(TOKEN_URL, {
+  const tokenResponse = await fetch(withProxy(TOKEN_URL, options), {
     body: new URLSearchParams({
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
@@ -156,7 +297,7 @@ export async function loginGeminiCli(redirectUri: string): Promise<OAuthCredenti
     throw new Error("Token response missing required fields");
   }
 
-  const projectId = await discoverProject(tokenData.access_token);
+  const projectId = await discoverProject(tokenData.access_token, options);
 
   return {
     access: tokenData.access_token,
@@ -167,8 +308,11 @@ export async function loginGeminiCli(redirectUri: string): Promise<OAuthCredenti
   };
 }
 
-export async function refreshGeminiCli(credentials: OAuthCredentials): Promise<OAuthCredentials> {
-  const response = await fetch(TOKEN_URL, {
+export async function refreshGeminiCli(
+  credentials: OAuthCredentials,
+  options?: ProxyRequestOptions,
+): Promise<OAuthCredentials> {
+  const response = await fetch(withProxy(TOKEN_URL, options), {
     body: new URLSearchParams({
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,

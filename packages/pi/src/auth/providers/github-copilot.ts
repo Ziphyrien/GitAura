@@ -1,5 +1,7 @@
 import { openPopup } from "@gitaura/pi/auth/popup-flow";
+import { buildProxiedUrl } from "@gitaura/pi/proxy/url";
 import type { OAuthCredentials } from "@gitaura/pi/auth/oauth-types";
+import type { ProxyRequestOptions } from "@gitaura/pi/auth/oauth-utils";
 
 const decode = (value: string) => atob(value);
 const CLIENT_ID = decode("SXYxLmI1MDdhMDhjODdlY2ZlOTg=");
@@ -27,11 +29,16 @@ function getUrls(domain: string) {
   };
 }
 
+function withProxy(url: string, options?: ProxyRequestOptions): string {
+  return options?.proxyUrl ? buildProxiedUrl(options.proxyUrl, url) : url;
+}
+
 async function postFormJson(
   url: string,
   body: Record<string, string>,
+  options?: ProxyRequestOptions,
 ): Promise<Record<string, string | number>> {
-  const response = await fetch(url, {
+  const response = await fetch(withProxy(url, options), {
     body: new URLSearchParams(body),
     headers: {
       Accept: "application/json",
@@ -49,11 +56,18 @@ async function postFormJson(
   return (await response.json()) as Record<string, string | number>;
 }
 
-async function startDeviceFlow(domain: string): Promise<DeviceCodeResponse> {
-  const data = await postFormJson(getUrls(domain).deviceCodeUrl, {
-    client_id: CLIENT_ID,
-    scope: "read:user",
-  });
+async function startDeviceFlow(
+  domain: string,
+  options?: ProxyRequestOptions,
+): Promise<DeviceCodeResponse> {
+  const data = await postFormJson(
+    getUrls(domain).deviceCodeUrl,
+    {
+      client_id: CLIENT_ID,
+      scope: "read:user",
+    },
+    options,
+  );
 
   if (
     typeof data.device_code !== "string" ||
@@ -79,6 +93,7 @@ async function pollForAccessToken(
   deviceCode: string,
   intervalSeconds: number,
   expiresIn: number,
+  options?: ProxyRequestOptions,
 ): Promise<string> {
   const deadline = Date.now() + expiresIn * 1000;
   let intervalMs = Math.max(1000, intervalSeconds * 1000);
@@ -86,11 +101,15 @@ async function pollForAccessToken(
   while (Date.now() < deadline) {
     await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
 
-    const data = await postFormJson(getUrls(domain).accessTokenUrl, {
-      client_id: CLIENT_ID,
-      device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-    });
+    const data = await postFormJson(
+      getUrls(domain).accessTokenUrl,
+      {
+        client_id: CLIENT_ID,
+        device_code: deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      },
+      options,
+    );
 
     if (typeof data.access_token === "string") {
       return data.access_token;
@@ -116,8 +135,9 @@ async function pollForAccessToken(
 async function fetchCopilotToken(
   githubAccessToken: string,
   domain: string,
+  options?: ProxyRequestOptions,
 ): Promise<OAuthCredentials> {
-  const response = await fetch(getUrls(domain).copilotTokenUrl, {
+  const response = await fetch(withProxy(getUrls(domain).copilotTokenUrl, options), {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${githubAccessToken}`,
@@ -149,9 +169,10 @@ async function fetchCopilotToken(
 
 export async function loginGitHubCopilot(
   onDeviceCode: (info: { userCode: string; verificationUri: string }) => void,
+  options?: ProxyRequestOptions,
 ): Promise<OAuthCredentials> {
   const domain = "github.com";
-  const device = await startDeviceFlow(domain);
+  const device = await startDeviceFlow(domain, options);
 
   onDeviceCode({
     userCode: device.user_code,
@@ -164,13 +185,15 @@ export async function loginGitHubCopilot(
     device.device_code,
     device.interval,
     device.expires_in,
+    options,
   );
 
-  return await fetchCopilotToken(githubAccessToken, domain);
+  return await fetchCopilotToken(githubAccessToken, domain, options);
 }
 
 export async function refreshGitHubCopilot(
   credentials: OAuthCredentials,
+  options?: ProxyRequestOptions,
 ): Promise<OAuthCredentials> {
-  return await fetchCopilotToken(credentials.refresh, "github.com");
+  return await fetchCopilotToken(credentials.refresh, "github.com", options);
 }

@@ -30,7 +30,7 @@ describe("proxy settings ui", () => {
 
     expect(
       screen.getByText(
-        /When enabled, OpenAI, OpenAI Codex, OpenCode, and OpenCode Go requests use the proxy/i,
+        /When enabled, provider requests that are not browser-CORS-safe use the proxy/i,
       ),
     ).toBeTruthy();
 
