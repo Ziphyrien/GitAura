@@ -54,8 +54,6 @@ function buildSession(id: string, overrides: Partial<SessionData> = {}): Session
     preview: "",
     provider: "openai-codex" as SessionData["provider"],
     providerGroup: "openai-codex" as SessionData["providerGroup"],
-    repoSource: undefined,
-    sourceUrl: undefined,
     thinkingLevel: "medium" as SessionData["thinkingLevel"],
     title: "New chat",
     updatedAt: "2026-03-23T12:00:00.000Z",
@@ -64,21 +62,6 @@ function buildSession(id: string, overrides: Partial<SessionData> = {}): Session
   };
 
   return session;
-}
-
-function buildRepoSource() {
-  return {
-    owner: "acme",
-    ref: "dev",
-    refOrigin: "explicit" as const,
-    repo: "demo",
-    resolvedRef: {
-      apiRef: "heads/dev" as const,
-      fullRef: "refs/heads/dev" as const,
-      kind: "branch" as const,
-      name: "dev",
-    },
-  };
 }
 
 describe("session-actions", () => {
@@ -110,34 +93,9 @@ describe("session-actions", () => {
     expect(createSession).toHaveBeenCalledWith({
       model: "gpt-5.1-codex-mini",
       providerGroup: "openai-codex",
-      repoSource: undefined,
     });
     expect(persistSessionSnapshot).not.toHaveBeenCalled();
     expect(session.id).toBe("session-new");
-  });
-
-  it("creates repo sessions with the current repo context", async () => {
-    const created = buildSession("session-repo", {
-      repoSource: buildRepoSource(),
-    });
-    createSession.mockReturnValue(created);
-    getSetting.mockResolvedValue(undefined);
-    listProviderKeys.mockResolvedValue([]);
-
-    const { createSessionForRepo } = await import("@/sessions/session-actions");
-    const session = await createSessionForRepo({
-      repoSource: buildRepoSource(),
-      sourceUrl: "https://github.com/acme/demo/tree/dev",
-    });
-
-    expect(createSession).toHaveBeenCalledWith({
-      model: "gpt-5.1-codex-mini",
-      providerGroup: "openai-codex",
-      repoSource: buildRepoSource(),
-      sourceUrl: "https://github.com/acme/demo/tree/dev",
-    });
-    expect(persistSessionSnapshot).not.toHaveBeenCalled();
-    expect(session.repoSource?.ref).toBe("dev");
   });
 
   it("persists last-used session settings", async () => {

@@ -1,40 +1,10 @@
-import { GitHubApiError } from "@webaura/pi/repo/github-errors";
-
-export type RuntimeErrorPayload =
-  | {
-      message: string;
-      name: string;
-      type: "error";
-    }
-  | {
-      code: string;
-      githubMessage?: string;
-      isRetryable?: boolean;
-      kind: GitHubApiError["kind"];
-      message: string;
-      path?: string;
-      rateLimitKind?: GitHubApiError["rateLimitKind"];
-      retryAt?: number;
-      status?: number;
-      type: "github";
-    };
+export type RuntimeErrorPayload = {
+  message: string;
+  name: string;
+  type: "error";
+};
 
 export function serializeRuntimeError(error: unknown): RuntimeErrorPayload {
-  if (error instanceof GitHubApiError) {
-    return {
-      code: error.code,
-      githubMessage: error.githubMessage,
-      isRetryable: error.isRetryable,
-      kind: error.kind,
-      message: error.message,
-      path: error.path,
-      rateLimitKind: error.rateLimitKind,
-      retryAt: error.retryAt,
-      status: error.status,
-      type: "github",
-    };
-  }
-
   const normalized = error instanceof Error ? error : new Error(String(error));
 
   return {
@@ -45,20 +15,6 @@ export function serializeRuntimeError(error: unknown): RuntimeErrorPayload {
 }
 
 export function deserializeRuntimeError(payload: RuntimeErrorPayload): Error {
-  if (payload.type === "github") {
-    return new GitHubApiError({
-      code: payload.code,
-      githubMessage: payload.githubMessage,
-      isRetryable: payload.isRetryable,
-      kind: payload.kind,
-      message: payload.message,
-      path: payload.path,
-      rateLimitKind: payload.rateLimitKind,
-      retryAt: payload.retryAt,
-      status: payload.status,
-    });
-  }
-
   const error = new Error(payload.message);
   error.name = payload.name;
   return error;

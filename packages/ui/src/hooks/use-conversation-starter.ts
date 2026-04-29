@@ -2,13 +2,11 @@ import * as React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { event as trackEvent } from "onedollarstats";
 import { toast } from "sonner";
-import type { ResolvedRepoSource } from "@webaura/db";
 import { runtimeClient } from "@webaura/pi/agent/runtime-client";
 import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
 import { getRuntimeCommandErrorMessage } from "@webaura/pi/agent/runtime-command-errors";
 import {
   createSessionForChat,
-  createSessionForRepo,
   persistLastUsedSessionSettings,
 } from "@webaura/pi/sessions/session-actions";
 import { getCanonicalProvider } from "@webaura/pi/models/catalog";
@@ -27,8 +25,6 @@ export function useConversationStarter() {
       model: string;
       providerGroup: ProviderGroupId;
       thinkingLevel: ThinkingLevel;
-      repoSource?: ResolvedRepoSource;
-      sourceUrl?: string;
     }) => {
       if (isStartingSession) {
         return undefined;
@@ -43,13 +39,7 @@ export function useConversationStarter() {
           providerGroup: input.providerGroup,
           thinkingLevel: input.thinkingLevel,
         };
-        const session = input.repoSource
-          ? await createSessionForRepo({
-              base,
-              repoSource: input.repoSource,
-              sourceUrl: input.sourceUrl,
-            })
-          : await createSessionForChat(base);
+        const session = await createSessionForChat(base);
 
         await runtimeClient.startInitialTurn(session, input.initialPrompt);
         void trackEvent("Message sent").catch(() => {

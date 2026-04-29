@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { AlertCircle, AlertTriangle, ChevronDown, Info } from "lucide-react";
 import {
   deriveAssistantView,
@@ -41,13 +40,11 @@ import {
 } from "@webaura/ui/components/ai-elements/attachments";
 import {
   Item,
-  ItemActions,
   ItemContent,
   ItemDescription,
   ItemMedia,
   ItemTitle,
 } from "@webaura/ui/components/item";
-import { Button } from "@webaura/ui/components/button";
 import {
   Collapsible,
   CollapsibleContent,
@@ -138,7 +135,6 @@ export function ChatMessage(props: {
         <Info className="size-4 text-muted-foreground" />
       );
 
-    const showGithubCta = message.action === "open-github-settings";
     const showHtmlDetails = Boolean(message.detailsHtml);
 
     return (
@@ -191,21 +187,6 @@ export function ChatMessage(props: {
               </Collapsible>
             ) : null}
           </ItemContent>
-          {showGithubCta ? (
-            <ItemActions className="shrink-0">
-              <Button asChild size="sm" variant="outline">
-                <Link
-                  search={(prev) => ({
-                    ...prev,
-                    settings: "github",
-                  })}
-                  to="."
-                >
-                  GitHub settings
-                </Link>
-              </Button>
-            </ItemActions>
-          ) : null}
         </Item>
       </div>
     );

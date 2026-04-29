@@ -1,4 +1,3 @@
-import { GitHubApiError } from "@webaura/pi/repo/github-errors";
 import type { SystemMessage } from "@webaura/pi/types/chat";
 import {
   BusyRuntimeError,
@@ -9,14 +8,8 @@ import {
 export type RuntimeErrorKind =
   | "missing_session"
   | "provider_api"
-  | "github_rate_limit"
-  | "github_auth"
-  | "github_not_found"
-  | "github_permission"
-  | "github_api"
   | "runtime_busy"
   | "provider_rate_limit"
-  | "repo_network"
   | "provider_connection"
   | "stream_interrupted"
   | "unknown";
@@ -27,12 +20,10 @@ export interface ClassifiedRuntimeError {
   message: string;
   severity: SystemMessage["severity"];
   source: SystemMessage["source"];
-  action?: SystemMessage["action"];
   detailsContext?: string;
   detailsHtml?: string;
 }
 
-const RATE_LIMIT_SUBSTR = "github api rate limit exceeded";
 const PROVIDER_MARKERS = [
   "anthropic",
   "openai",
@@ -48,15 +39,11 @@ const PROVIDER_MARKERS = [
 ] as const;
 
 function isProviderRateLimitMessage(lower: string): boolean {
-  if (lower.includes("github")) {
-    return false;
-  }
-
   return (
     lower.includes("too many requests") ||
     lower.includes(" 429") ||
     lower.startsWith("429") ||
-    (lower.includes("rate limit") && !lower.includes("github api rate limit exceeded"))
+    lower.includes("rate limit")
   );
 }
 
@@ -68,23 +55,20 @@ function normalizeMessage(error: unknown): string {
   return String(error);
 }
 
-/** Shown when the user stops streaming or a tool hits an abort signal. */
+/** Shown when the user stops streaming or a provider hits an abort signal. */
 export const USER_ABORT_NOTICE_MESSAGE = "User aborted!";
 
 function isUserAbortPlainText(text: string): boolean {
   const m = text.toLowerCase().trim();
   return (
     m.includes("request was aborted") ||
-    m.includes("read aborted") ||
     m.includes("command aborted") ||
     m === "the operation was aborted" ||
     m.includes("bodystreambuffer was aborted")
   );
 }
 
-/**
- * User-initiated cancellation (stop button, AbortSignal), not a provider bug.
- */
+/** User-initiated cancellation (stop button, AbortSignal), not a provider bug. */
 export function isUserAbortError(error: unknown): boolean {
   if (
     (error instanceof Error && error.name === "AbortError") ||
@@ -158,10 +142,6 @@ function extractHtmlErrorDetail(message: string): HtmlErrorDetail | undefined {
 }
 
 function isProviderMessage(lower: string, message: string): boolean {
-  if (lower.includes("github")) {
-    return false;
-  }
-
   if (message.includes(" → https://") || message.includes(" → http://")) {
     return true;
   }
@@ -169,28 +149,8 @@ function isProviderMessage(lower: string, message: string): boolean {
   return PROVIDER_MARKERS.some((marker) => lower.includes(marker));
 }
 
-function fingerprintFor(kind: RuntimeErrorKind, message: string, path?: string): string {
-  const base = `${kind}:${message.slice(0, 160)}`;
-  return path ? `${base}:${path}` : base;
-}
-
-function classifyGitHubApiKind(error: GitHubApiError): GitHubApiError["kind"] {
-  const lower = error.message.toLowerCase();
-
-  if (lower.includes(RATE_LIMIT_SUBSTR) || lower.includes("rate limit exceeded")) {
-    return "rate_limit";
-  }
-
-  if (
-    lower.includes("authentication required") ||
-    lower.includes("requires authentication") ||
-    lower.includes("bad credentials") ||
-    lower.includes("unauthorized")
-  ) {
-    return "auth";
-  }
-
-  return error.kind;
+function fingerprintFor(kind: RuntimeErrorKind, message: string): string {
+  return `${kind}:${message.slice(0, 160)}`;
 }
 
 export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
@@ -248,96 +208,6 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
     };
   }
 
-  if (error instanceof GitHubApiError) {
-    const path = error.path ?? "";
-    const githubKind = classifyGitHubApiKind(error);
-
-    if (githubKind === "rate_limit") {
-      return {
-        action: "open-github-settings",
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("github_rate_limit", message, path),
-        kind: "github_rate_limit",
-        message,
-        severity: "error",
-        source: "github",
-      };
-    }
-
-    if (githubKind === "auth") {
-      return {
-        action: "open-github-settings",
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("github_auth", message, path),
-        kind: "github_auth",
-        message,
-        severity: "error",
-        source: "github",
-      };
-    }
-
-    if (githubKind === "not_found" || error.code === "ENOENT") {
-      return {
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("github_not_found", message, path),
-        kind: "github_not_found",
-        message,
-        severity: "warning",
-        source: "github",
-      };
-    }
-
-    if (githubKind === "permission") {
-      return {
-        action: "open-github-settings",
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("github_permission", message, path),
-        kind: "github_permission",
-        message,
-        severity: "error",
-        source: "github",
-      };
-    }
-
-    if (githubKind === "unsupported" || error.code === "EFBIG" || error.code === "ENOTSUP") {
-      return {
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("github_api", message, path),
-        kind: "github_api",
-        message,
-        severity: "warning",
-        source: "github",
-      };
-    }
-
-    if (githubKind === "network") {
-      return {
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("repo_network", message, path),
-        kind: "repo_network",
-        message,
-        severity: "error",
-        source: "github",
-      };
-    }
-
-    return {
-      detailsContext: htmlDetail?.context,
-      detailsHtml: htmlDetail?.html,
-      fingerprint: fingerprintFor("github_api", message, path),
-      kind: "github_api",
-      message,
-      severity: "error",
-      source: "github",
-    };
-  }
-
   if (
     rawLower.includes("connection error") ||
     rawLower.includes("failed to fetch") ||
@@ -345,33 +215,14 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
     rawLower.includes("load failed") ||
     rawLower.includes("the network connection was lost")
   ) {
-    const isProvider =
-      rawLower.includes("provider") ||
-      rawLower.includes("api.openai") ||
-      rawLower.includes("anthropic") ||
-      rawLower.includes("google") ||
-      rawLower.includes("proxy");
-
-    if (isProvider || rawMessage.includes("Connection error.")) {
-      return {
-        detailsContext: htmlDetail?.context,
-        detailsHtml: htmlDetail?.html,
-        fingerprint: fingerprintFor("provider_connection", message),
-        kind: "provider_connection",
-        message,
-        severity: "error",
-        source: "provider",
-      };
-    }
-
     return {
       detailsContext: htmlDetail?.context,
       detailsHtml: htmlDetail?.html,
-      fingerprint: fingerprintFor("repo_network", message),
-      kind: "repo_network",
+      fingerprint: fingerprintFor("provider_connection", message),
+      kind: "provider_connection",
       message,
       severity: "error",
-      source: "github",
+      source: "provider",
     };
   }
 
@@ -387,7 +238,7 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
     };
   }
 
-  if (isProviderMessage(rawLower, rawMessage)) {
+  if (isProviderMessage(rawLower || lower, rawMessage)) {
     return {
       detailsContext: htmlDetail?.context,
       detailsHtml: htmlDetail?.html,
@@ -396,19 +247,6 @@ export function classifyRuntimeError(error: unknown): ClassifiedRuntimeError {
       message,
       severity: "error",
       source: "provider",
-    };
-  }
-
-  if (lower.includes(RATE_LIMIT_SUBSTR) || lower.includes("rate limit")) {
-    return {
-      action: "open-github-settings",
-      detailsContext: htmlDetail?.context,
-      detailsHtml: htmlDetail?.html,
-      fingerprint: fingerprintFor("github_rate_limit", message),
-      kind: "github_rate_limit",
-      message,
-      severity: "error",
-      source: "github",
     };
   }
 
@@ -429,7 +267,6 @@ export function buildSystemMessage(
   timestamp: number,
 ): SystemMessage {
   return {
-    action: classified.action,
     detailsContext: classified.detailsContext,
     detailsHtml: classified.detailsHtml,
     fingerprint: classified.fingerprint,
@@ -441,16 +278,6 @@ export function buildSystemMessage(
     source: classified.source,
     timestamp,
   };
-}
-
-export function shouldStopStreamingForRuntimeError(error: unknown): boolean {
-  const classified = classifyRuntimeError(error);
-
-  return (
-    classified.source === "github" &&
-    classified.severity === "error" &&
-    classified.action === "open-github-settings"
-  );
 }
 
 type SnapshotWithError = {

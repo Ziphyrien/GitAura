@@ -1,44 +1,9 @@
-import * as React from "react";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useLiveQuery } from "dexie-react-hooks";
+import { Link } from "@tanstack/react-router";
 import { ArrowRightIcon } from "@phosphor-icons/react";
-import { listRepositories } from "@webaura/db";
-import { handleGithubError } from "@webaura/pi/repo/github-fetch";
-import { parseRepoInput } from "@webaura/pi/repo/path-parser";
-import { resolveRepoIntent } from "@webaura/pi/repo/ref-resolver";
-import { SUGGESTED_REPOS } from "@webaura/pi/repo/suggested-repos";
-import { repoSourceToPath } from "@webaura/pi/repo/url";
 import { ChatLogo } from "@webaura/ui/components/chat-logo";
-import { GithubRepo } from "@webaura/ui/components/github-repo";
-import { Icons } from "@webaura/ui/components/icons";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText,
-} from "@webaura/ui/components/input-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@webaura/ui/components/tabs";
-import { cn } from "@webaura/ui/lib/utils";
-
-function useSuggestedRepos(count: number) {
-  return React.useMemo(() => {
-    const shuffled = [...SUGGESTED_REPOS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, count);
-  }, [count]);
-}
+import { Button } from "@webaura/ui/components/button";
 
 export function LandingPage() {
-  const search = useSearch({ from: "/" });
-  const tab = search.tab;
-  const settings = typeof search.settings === "string" ? search.settings : undefined;
-  const sidebar = search.sidebar === "open" ? "open" : undefined;
-  const repositories = useLiveQuery(async () => await listRepositories(), []);
-  const recentRepos = React.useMemo(() => (repositories ?? []).slice(0, 4), [repositories]);
-  const hasRecent = recentRepos.length > 0;
-  const suggestedRepos = useSuggestedRepos(4);
-  const resolvedTab = tab ?? (hasRecent ? "recent" : "suggested");
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col items-center overflow-auto p-6 pt-[12vh] lg:justify-between lg:overflow-hidden lg:pt-6 lg:pb-5">
       <div className="w-full max-w-xl flex-1 space-y-8 lg:flex lg:min-h-0 lg:flex-col lg:justify-center lg:space-y-5">
@@ -50,76 +15,18 @@ export function LandingPage() {
             size="hero"
           />
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
-            Local-first AI tools, running in your browser. Start with the GitHub module.
+            Local-first AI tools, running in your browser. Start with a normal chat.
           </p>
         </div>
 
-        <div className="space-y-2 lg:space-y-1.5">
-          <LandingRepoForm />
-          <p className="text-center text-[11px] text-muted-foreground/60">
-            GitHub module: paste any GitHub URL or <code>owner/repo</code> to jump into the
-            workspace.
-          </p>
+        <div className="flex justify-center">
+          <Button asChild className="rounded-none" size="lg">
+            <Link to="/chat">
+              Start chatting
+              <ArrowRightIcon className="size-4" weight="bold" />
+            </Link>
+          </Button>
         </div>
-
-        <Tabs value={resolvedTab}>
-          <div className="mb-3 flex justify-center lg:mb-2">
-            <TabsList variant="line">
-              <TabsTrigger asChild disabled={!hasRecent} value="recent">
-                <Link replace search={{ settings, sidebar, tab: "recent" }} to="/">
-                  <Icons.clock className="size-3" />
-                  Recent
-                </Link>
-              </TabsTrigger>
-              <TabsTrigger asChild value="suggested">
-                <Link replace search={{ settings, sidebar, tab: "suggested" }} to="/">
-                  <Icons.sparkles className="size-3" />
-                  Suggested
-                </Link>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="recent">
-            <ul className="space-y-1.5">
-              {recentRepos.map((row) => {
-                const to = repoSourceToPath(row);
-                return (
-                  <li key={`${row.owner}/${row.repo}@${row.ref}`}>
-                    <GithubRepo
-                      owner={row.owner}
-                      ref={row.ref}
-                      refOrigin={row.refOrigin}
-                      repo={row.repo}
-                      search={{ settings, sidebar }}
-                      to={to}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </TabsContent>
-
-          <TabsContent value="suggested">
-            <ul className="space-y-1.5">
-              {suggestedRepos.map((row) => {
-                const to = repoSourceToPath(row);
-                return (
-                  <li key={`${row.owner}/${row.repo}`}>
-                    <GithubRepo
-                      owner={row.owner}
-                      ref={row.ref}
-                      refOrigin={row.refOrigin}
-                      repo={row.repo}
-                      search={{ settings, sidebar }}
-                      to={to}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </TabsContent>
-        </Tabs>
       </div>
 
       <footer className="mt-auto w-full max-w-xl shrink-0 pt-16 pb-8 text-center lg:mt-0 lg:pt-4 lg:pb-0">
@@ -129,88 +36,5 @@ export function LandingPage() {
         </p>
       </footer>
     </div>
-  );
-}
-
-function LandingRepoForm() {
-  const navigate = useNavigate();
-  const search = useSearch({ from: "/" });
-  const settings = typeof search.settings === "string" ? search.settings : undefined;
-  const sidebar = search.sidebar === "open" ? "open" : undefined;
-  const [query, setQuery] = React.useState("");
-  const [isValidating, setIsValidating] = React.useState(false);
-
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isValidating) return;
-
-    const intent = parseRepoInput(query);
-    if (intent.type === "invalid") return;
-
-    setIsValidating(true);
-    try {
-      const resolved = await resolveRepoIntent(intent);
-      const path = repoSourceToPath(resolved);
-      void navigate({
-        search: {
-          settings,
-          sidebar,
-        },
-        to: path,
-      });
-    } catch (err) {
-      if (!(await handleGithubError(err))) {
-        const { toast } = await import("sonner");
-        toast.error("Failed to validate repository");
-      }
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  return (
-    <form onSubmit={(e) => void onSubmit(e)}>
-      <InputGroup
-        className={cn(
-          "h-11 min-h-11 w-full min-w-0 rounded-none border border-foreground/20 bg-sidebar shadow-none",
-          "transition-colors focus-within:bg-sidebar-accent hover:bg-sidebar-accent",
-          "has-[[data-slot=input-group-control]:focus-visible]:border-foreground/30",
-          "has-[[data-slot=input-group-control]:focus-visible]:ring-0",
-          "dark:bg-sidebar",
-        )}
-      >
-        <InputGroupAddon align="inline-start" className="pl-3.5">
-          <InputGroupText className="gap-1.5 text-sidebar-foreground">
-            <Icons.gitHub className="size-3" />
-          </InputGroupText>
-        </InputGroupAddon>
-        <InputGroupInput
-          aria-label="GitHub repository URL or owner/repo"
-          autoComplete="off"
-          className="min-w-0 text-sm text-sidebar-foreground placeholder:text-sidebar-foreground/50"
-          disabled={isValidating}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="https://github.com/owner/repo or owner/repo"
-          value={query}
-        />
-        <InputGroupAddon align="inline-end" className="pr-2.5">
-          <span className="flex size-5 items-center justify-center">
-            {isValidating ? (
-              <span className="size-3.5 animate-spin rounded-full border-2 border-sidebar-foreground/30 border-t-sidebar-foreground" />
-            ) : (
-              <InputGroupButton
-                aria-label="Continue to workspace"
-                className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                size="icon-sm"
-                type="submit"
-                variant="ghost"
-              >
-                <ArrowRightIcon className="size-3.5" weight="bold" />
-              </InputGroupButton>
-            )}
-          </span>
-        </InputGroupAddon>
-      </InputGroup>
-    </form>
   );
 }

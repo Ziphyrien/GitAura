@@ -1,22 +1,6 @@
 import * as React from "react";
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
-
-type MatchState = {
-  loaderData?: unknown;
-  params: Record<string, string>;
-  routeId: string;
-};
-
-const state = vi.hoisted<{ match: MatchState }>(() => ({
-  match: {
-    loaderData: undefined,
-    params: {
-      sessionId: "session-1",
-    },
-    routeId: "/chat/$sessionId",
-  },
-}));
+import { describe, expect, it, vi } from "vite-plus/test";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -25,21 +9,6 @@ vi.mock("@tanstack/react-router", () => ({
     to: _to,
     ...props
   }: React.PropsWithChildren<Record<string, unknown>>) => React.createElement("a", props, children),
-  useNavigate: () => vi.fn(),
-  useRouterState: ({ select }: { select: (state: { matches: MatchState[] }) => unknown }) =>
-    select({
-      matches: [state.match],
-    }),
-}));
-
-vi.mock("@webaura/pi/hooks/use-selected-session-summary", () => ({
-  useSelectedSessionSummary: () => ({
-    repoSource: {
-      owner: "acme",
-      ref: "main",
-      repo: "demo",
-    },
-  }),
 }));
 
 vi.mock("@webaura/ui/components/button", () => ({
@@ -59,10 +28,6 @@ vi.mock("@webaura/ui/components/chat-logo", () => ({
   ChatLogo: () => React.createElement("div", undefined, "WebAura"),
 }));
 
-vi.mock("@webaura/ui/components/github-link", () => ({
-  GitHubLink: () => React.createElement("div", undefined, "GitHub"),
-}));
-
 vi.mock("@webaura/ui/components/theme-toggle", () => ({
   ThemeToggle: () => React.createElement("button", { type: "button" }, "Theme"),
 }));
@@ -70,9 +35,6 @@ vi.mock("@webaura/ui/components/theme-toggle", () => ({
 vi.mock("@webaura/ui/components/icons", () => ({
   Icons: {
     cog: () => React.createElement("span", undefined, "Cog"),
-    comment: () => React.createElement("span", undefined, "Comment"),
-    crown: () => React.createElement("span", undefined, "Crown"),
-    x: () => React.createElement("span", undefined, "X"),
   },
 }));
 
@@ -92,54 +54,19 @@ vi.mock("@webaura/ui/components/breadcrumb", () => {
   return {
     Breadcrumb: Passthrough,
     BreadcrumbItem: Passthrough,
-    BreadcrumbLink: ({ children, href }: { children: React.ReactNode; href?: string }) =>
-      React.createElement("a", { href }, children),
     BreadcrumbList: Passthrough,
     BreadcrumbPage: Passthrough,
   };
 });
 
 describe("AppHeader", () => {
-  beforeEach(() => {
-    state.match = {
-      loaderData: undefined,
-      params: {
-        sessionId: "session-1",
-      },
-      routeId: "/chat/$sessionId",
-    };
-  });
-
-  it("shows repo owner, name, and ref for repo-backed session routes", async () => {
+  it("shows the WebAura brand and standard chat actions", async () => {
     const { AppHeader } = await import("@/components/app-header");
 
     render(<AppHeader />);
 
-    expect(screen.getByText("acme")).toBeTruthy();
-    expect(screen.getByText("demo")).toBeTruthy();
-    expect(screen.getByText("[main]")).toBeTruthy();
-    expect(screen.getByText("GitHub")).toBeTruthy();
-  });
-
-  it("uses loader data so splat routes show the resolved ref", async () => {
-    state.match = {
-      loaderData: {
-        owner: "acme",
-        ref: "feature/foo",
-        repo: "demo",
-      },
-      params: {
-        _splat: "tree/feature/foo/src/lib",
-        owner: "acme",
-        repo: "demo",
-      },
-      routeId: "/$owner/$repo/$",
-    };
-
-    const { AppHeader } = await import("@/components/app-header");
-
-    render(<AppHeader />);
-
-    expect(screen.getByText("[feature/foo]")).toBeTruthy();
+    expect(screen.getByText("WebAura")).toBeTruthy();
+    expect(screen.getByText("Theme")).toBeTruthy();
+    expect(screen.getAllByText("Cog").length).toBeGreaterThan(0);
   });
 });

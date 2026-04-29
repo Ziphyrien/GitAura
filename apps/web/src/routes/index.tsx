@@ -1,14 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LandingPage } from "@webaura/ui/components/landing-page";
-import { parseLandingTab } from "@/navigation/search-state";
+import { Chat } from "@webaura/ui/components/chat";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: parseLandingTab(search.tab),
-  }),
 });
 
 function HomePage() {
-  return <LandingPage />;
+  return <Chat />;
 }

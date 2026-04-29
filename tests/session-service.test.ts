@@ -9,7 +9,7 @@ describe("session-service", () => {
     await db.sessions.clear();
   });
 
-  it("loads resolved repo sessions without runtime repair", async () => {
+  it("loads chat sessions without runtime repair", async () => {
     const session: SessionData = {
       cost: 0,
       createdAt: "2026-03-24T12:00:00.000Z",
@@ -21,18 +21,6 @@ describe("session-service", () => {
       preview: "",
       provider: "openai-codex",
       providerGroup: "openai-codex",
-      repoSource: {
-        owner: "acme",
-        ref: "main",
-        refOrigin: "explicit",
-        repo: "demo",
-        resolvedRef: {
-          apiRef: "heads/main",
-          fullRef: "refs/heads/main",
-          kind: "branch",
-          name: "main",
-        },
-      },
       thinkingLevel: "medium",
       title: "Resolved chat",
       updatedAt: "2026-03-24T12:00:00.000Z",

@@ -2,16 +2,13 @@ import { deleteSetting, getSetting, setSetting } from "@webaura/db";
 
 const GITHUB_PAT_KEY = "github.pat";
 
-/**
- * Default GitHub token generator for WebAura.
- * Uses a fine-grained PAT template with repository contents read access and account-level gist access.
- */
+/** Default GitHub token generator for optional future GitHub modules. */
 export const GITHUB_CREATE_PAT_URL =
-  "https://github.com/settings/personal-access-tokens/new?name=WebAura&description=Private%20repos%20and%20gist%20sharing&expires_in=none&contents=read&gists=write";
+  "https://github.com/settings/personal-access-tokens/new?name=WebAura&description=Optional%20token%20for%20WebAura%20GitHub%20modules&expires_in=none";
 
 export type GithubTokenValidation = { ok: true; login: string } | { ok: false; message: string };
 
-/** Confirms the token works by calling the GitHub API (same auth as the app’s repo tools). */
+/** Confirms the token works without enabling any GitHub module behavior. */
 export async function validateGithubPersonalAccessToken(
   token: string,
 ): Promise<GithubTokenValidation> {

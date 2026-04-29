@@ -48,8 +48,6 @@ export type ToolResultMessage = PiToolResultMessage & {
 /** Local-only transcript row: not sent to the LLM (filtered in session-adapter). */
 export type SystemNoticeSeverity = "error" | "warning" | "info";
 
-export type SystemNoticeAction = "open-github-settings";
-
 export interface SystemMessage {
   id: string;
   role: "system";
@@ -57,10 +55,9 @@ export interface SystemMessage {
   /** High-level category for styling and CTAs */
   kind: string;
   severity: SystemNoticeSeverity;
-  source: "github" | "provider" | "runtime";
+  source: "provider" | "runtime";
   message: string;
   fingerprint: string;
-  action?: SystemNoticeAction;
   detailsContext?: string;
   detailsHtml?: string;
 }

@@ -13,7 +13,6 @@ export function ChatFooter(_props: { showGetPro?: boolean } = {}) {
         search={{
           settings: parseSettingsSection(search.settings),
           sidebar: search && search.sidebar === "open" ? "open" : undefined,
-          tab: undefined,
         }}
         to="/"
       >

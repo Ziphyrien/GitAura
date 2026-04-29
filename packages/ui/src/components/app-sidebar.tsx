@@ -142,7 +142,7 @@ export function AppSidebar({ showGetPro = true }: { showGetPro?: boolean } = {})
       <SidebarHeader className="h-14 shrink-0 justify-center border-b border-sidebar-border">
         <Link
           className="-m-1 flex w-full min-w-0 items-center justify-center rounded-md p-1 outline-none ring-offset-background transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring"
-          search={{ settings, sidebar, tab: undefined }}
+          search={{ settings, sidebar }}
           to="/"
         >
           <ChatLogo />

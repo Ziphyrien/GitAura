@@ -11,26 +11,12 @@ import { Icons } from "@webaura/ui/components/icons";
 type SessionUtilityActionProps = {
   disabled?: boolean;
   onCopy: () => void;
-  onShare?: () => void;
 };
 
 export function SessionUtilityActions(props: SessionUtilityActionProps) {
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
-        {props.onShare ? (
-          <Button
-            className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
-            disabled={props.disabled}
-            onClick={props.onShare}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icons.gitHub className="size-3.5" />
-            <span>Share as Gist</span>
-          </Button>
-        ) : null}
         <Button
           className="h-7 gap-1.5 rounded-sm border border-border/50 bg-muted px-2 py-1 text-xs font-medium text-muted-foreground shadow-none transition-colors hover:bg-muted hover:text-foreground"
           disabled={props.disabled}
@@ -59,12 +45,6 @@ export function SessionUtilityActions(props: SessionUtilityActionProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            {props.onShare ? (
-              <DropdownMenuItem onClick={props.onShare}>
-                <Icons.gitHub className="size-4" />
-                <span>Share as Gist</span>
-              </DropdownMenuItem>
-            ) : null}
             <DropdownMenuItem onClick={props.onCopy}>
               <Icons.copy className="size-4" />
               <span>Copy as Markdown</span>

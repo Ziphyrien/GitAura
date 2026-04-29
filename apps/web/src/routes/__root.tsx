@@ -166,7 +166,6 @@ function NotFoundPage() {
       <Link
         className="text-xs underline underline-offset-4 hover:text-foreground"
         search={{
-          tab: undefined,
           settings: undefined,
           sidebar: undefined,
         }}

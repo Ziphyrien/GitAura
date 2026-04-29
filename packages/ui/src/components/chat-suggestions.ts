@@ -1,6 +1,6 @@
 export const CHAT_SUGGESTIONS: readonly string[] = [
-  "What is the project structure?",
-  "How does the main entry point work?",
-  "What are the key abstractions?",
-  "Show me the testing patterns",
+  "Help me outline a plan",
+  "Review this idea for risks",
+  "Draft a concise explanation",
+  "Turn these notes into next steps",
 ];

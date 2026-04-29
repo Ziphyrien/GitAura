@@ -7,7 +7,6 @@ import { DataSettings } from "@webaura/ui/components/data-settings";
 import { GithubTokenSettings } from "@webaura/ui/components/github-token-settings";
 import { ProviderSettings } from "@webaura/ui/components/provider-settings";
 import { ProxySettings } from "@webaura/ui/components/proxy-settings";
-import { Button } from "@webaura/ui/components/button";
 import { Dialog, DialogContent, DialogTitle } from "@webaura/ui/components/dialog";
 import {
   Breadcrumb,
@@ -45,7 +44,7 @@ const SETTINGS_SECTIONS: Array<SettingsSectionItem> = [
     label: "Providers",
   },
   {
-    description: "GitHub token for private repositories and higher API limits",
+    description: "Optional local token storage for future GitHub modules",
     icon: Icons.gitHub,
     id: "github",
     label: "GitHub",
@@ -232,16 +231,14 @@ export function AppSettingsDialog(props: {
   );
 }
 
-const ABOUT_SOURCE_REPO_URL = "https://github.com/Ziphyrien/WebAura";
-
 function AboutPanel() {
   return (
     <div className="space-y-5">
       <div className="space-y-5 text-sm leading-relaxed">
         <p className="text-foreground">
-          WebAura is a local-first AI workspace that runs in your browser. GitHub repo chat is the
-          current built-in module; the product surface is designed to grow into switchable
-          browser-native modules while keeping your own credentials in your own browser.
+          WebAura is a local-first AI workspace that runs in your browser. The default experience is
+          plain AI chat; module-specific capabilities can be added later while keeping your own
+          credentials in your own browser.
         </p>
 
         <div>
@@ -254,10 +251,9 @@ function AboutPanel() {
               sessions, settings, provider keys, GitHub tokens, and usage data stay in this browser.
             </p>
             <p>
-              <span className="font-medium text-foreground">Network:</span> Modules call the
-              services they are built for. The current GitHub module queries GitHub from your
-              browser for repository data. Model requests go directly to the providers you
-              configure, unless you explicitly enable your own proxy in settings.
+              <span className="font-medium text-foreground">Network:</span> Model requests go
+              directly to the providers you configure, unless you explicitly enable your own proxy
+              in settings. Optional modules may call their own services when you enable them.
             </p>
           </div>
         </div>
@@ -284,8 +280,8 @@ function AboutPanel() {
                 <tr>
                   <td className="px-3 py-2 font-medium text-foreground">GitHub</td>
                   <td className="px-3 py-2">
-                    Optional PAT for the GitHub module, stored only here for higher API limits,
-                    private repository access, and gist sharing.
+                    Optional PAT storage for future GitHub modules or extensions. The default chat
+                    experience does not use GitHub access.
                   </td>
                 </tr>
               </tbody>
@@ -309,12 +305,12 @@ function AboutPanel() {
           </div>
           <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
             <li>
-              <span className="font-medium text-foreground">Research agent</span> - Pick a
-              repository and chat in natural language; answers are grounded in the code.
+              <span className="font-medium text-foreground">Assistant</span> - Start a normal AI
+              chat and optionally add attachments for context.
             </li>
             <li>
-              <span className="font-medium text-foreground">Stack</span> - pi-mono with direct
-              GitHub API access for repository content.
+              <span className="font-medium text-foreground">Stack</span> - pi-mono with
+              browser-native state and direct provider access.
             </li>
             <li>
               <span className="font-medium text-foreground">Local first</span> - The agent runs in a
@@ -326,19 +322,7 @@ function AboutPanel() {
             </li>
           </ul>
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Unauthenticated GitHub API requests are limited to 60 per hour; authenticated requests get
-          5,000 per hour. Add a token under GitHub settings to raise limits.
-        </p>
       </div>
-
-      <Button asChild className="gap-2" variant="outline">
-        <a href={ABOUT_SOURCE_REPO_URL} rel="noreferrer" target="_blank">
-          <Icons.gitHub className="size-4" />
-          View source on GitHub
-        </a>
-      </Button>
     </div>
   );
 }

@@ -2,42 +2,6 @@ import type { JsonValue } from "@webaura/pi/types/common";
 import type { AssistantMessage, ChatMessage } from "@webaura/pi/types/chat";
 import type { ProviderGroupId, ProviderId, ThinkingLevel, Usage } from "@webaura/pi/types/models";
 
-export type RepoRefOrigin = "default" | "explicit";
-
-export type ResolvedRepoRef =
-  | {
-      apiRef: `heads/${string}`;
-      fullRef: `refs/heads/${string}`;
-      kind: "branch";
-      name: string;
-    }
-  | {
-      apiRef: `tags/${string}`;
-      fullRef: `refs/tags/${string}`;
-      kind: "tag";
-      name: string;
-    }
-  | {
-      kind: "commit";
-      sha: string;
-    };
-
-export interface ResolvedRepoSource {
-  owner: string;
-  repo: string;
-  ref: string;
-  refOrigin: RepoRefOrigin;
-  resolvedRef: ResolvedRepoRef;
-}
-
-export interface RepositoryRow {
-  lastOpenedAt: string;
-  owner: string;
-  ref: string;
-  refOrigin: RepoRefOrigin;
-  repo: string;
-}
-
 export interface SessionData {
   cost: number;
   createdAt: string;
@@ -49,8 +13,6 @@ export interface SessionData {
   preview: string;
   provider: ProviderId;
   providerGroup?: ProviderGroupId;
-  repoSource?: ResolvedRepoSource;
-  sourceUrl?: string;
   thinkingLevel: ThinkingLevel;
   title: string;
   updatedAt: string;

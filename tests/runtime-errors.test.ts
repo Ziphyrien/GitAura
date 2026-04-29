@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vite-plus/test";
-import { GitHubApiError } from "@/repo/github-errors";
 import {
   BusyRuntimeError,
   MissingSessionRuntimeError,
@@ -37,9 +36,7 @@ describe("classifyRuntimeError", () => {
   });
 
   it("preserves fingerprints in persisted system messages", () => {
-    const classified = classifyRuntimeError(
-      new GitHubApiError("ENOENT", "README.md not found", "/README.md"),
-    );
+    const classified = classifyRuntimeError(new Error("Provider failed"));
     const message = buildSystemMessage(classified, "system-1", 123);
 
     expect(message.fingerprint).toBe(classified.fingerprint);
@@ -73,7 +70,6 @@ describe("classifyRuntimeError", () => {
     expect(abortedFetch.message).toBe(USER_ABORT_NOTICE_MESSAGE);
     expect(abortedFetch.severity).toBe("info");
 
-    expect(classifyRuntimeError(new Error("Read aborted")).message).toBe(USER_ABORT_NOTICE_MESSAGE);
     expect(classifyRuntimeError(new DOMException("Aborted", "AbortError")).kind).toBe(
       "stream_interrupted",
     );

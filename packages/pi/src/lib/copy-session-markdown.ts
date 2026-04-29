@@ -1,4 +1,3 @@
-import type { ResolvedRepoSource } from "@webaura/db";
 import {
   deriveAssistantView,
   getAssistantText,
@@ -6,13 +5,7 @@ import {
   getUserAttachments,
   getUserText,
 } from "@webaura/pi/lib/chat-adapter";
-import { repoSourceToGitHubUrl } from "@webaura/pi/repo/url";
 import type { DisplayChatMessage, ToolCall, ToolResultMessage } from "@webaura/pi/types/chat";
-
-type MarkdownExportOptions = {
-  repoSource?: ResolvedRepoSource;
-  sourceUrl?: string;
-};
 
 function formatExportedAt(date: Date): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -21,20 +14,8 @@ function formatExportedAt(date: Date): string {
   }).format(date);
 }
 
-function buildContextHeader(options: MarkdownExportOptions): string[] {
-  if (!options.repoSource) {
-    return ["# Chat", `- Exported: ${formatExportedAt(new Date())}`];
-  }
-
-  const sourceUrl = options.sourceUrl ?? repoSourceToGitHubUrl(options.repoSource);
-  const lines = [`# Chat about ${options.repoSource.owner}/${options.repoSource.repo}`];
-
-  lines.push(`- Repository: \`${options.repoSource.owner}/${options.repoSource.repo}\``);
-  lines.push(`- Ref: \`${options.repoSource.ref}\``);
-  lines.push(`- Source: ${sourceUrl}`);
-  lines.push(`- Exported: ${formatExportedAt(new Date())}`);
-
-  return lines;
+function buildContextHeader(): string[] {
+  return ["# Chat", `- Exported: ${formatExportedAt(new Date())}`];
 }
 
 function getToolStatusLabel(toolResult?: ToolResultMessage): string {
@@ -60,36 +41,9 @@ function getToolErrorSummary(toolResult?: ToolResultMessage): string | undefined
 }
 
 function formatToolArguments(toolCall: ToolCall, toolResult?: ToolResultMessage): string[] {
-  const args = toolCall.arguments;
-  const lines: string[] = [];
-
-  if (toolCall.name === "read") {
-    if (typeof args.path === "string") {
-      lines.push(`   path: ${args.path}`);
-    }
-
-    if (typeof args.offset === "number") {
-      lines.push(`   offset: ${String(args.offset)}`);
-    }
-
-    if (typeof args.limit === "number") {
-      lines.push(`   limit: ${String(args.limit)}`);
-    }
-
-    const details = toolResult?.details;
-    if (
-      details &&
-      typeof details === "object" &&
-      "resolvedPath" in details &&
-      typeof details.resolvedPath === "string"
-    ) {
-      lines.push(`   resolved: ${details.resolvedPath}`);
-    }
-  } else {
-    lines.push(`   args: ${JSON.stringify(args)}`);
-  }
-
+  const lines = [`   args: ${JSON.stringify(toolCall.arguments)}`];
   const errorSummary = getToolErrorSummary(toolResult);
+
   if (errorSummary) {
     lines.push(`   error: ${errorSummary}`);
   }
@@ -128,11 +82,8 @@ function formatToolExecutions(
   ]);
 }
 
-export function messagesToMarkdown(
-  messages: readonly DisplayChatMessage[],
-  options: MarkdownExportOptions = {},
-): string {
-  const parts: string[] = [buildContextHeader(options).join("\n")];
+export function messagesToMarkdown(messages: readonly DisplayChatMessage[]): string {
+  const parts: string[] = [buildContextHeader().join("\n")];
 
   for (const [index, message] of messages.entries()) {
     switch (message.role) {
@@ -171,8 +122,7 @@ export function messagesToMarkdown(
 
 export async function copySessionToClipboard(
   messages: readonly DisplayChatMessage[],
-  options: MarkdownExportOptions = {},
 ): Promise<void> {
-  const markdown = messagesToMarkdown(messages, options);
+  const markdown = messagesToMarkdown(messages);
   await navigator.clipboard.writeText(markdown);
 }

@@ -1,6 +1,5 @@
 import { getUserText } from "@webaura/pi/lib/chat-adapter";
 import type { DisplayChatMessage } from "@webaura/pi/types/chat";
-import type { ResolvedRepoSource } from "@webaura/db";
 
 function formatMessageContent(message: DisplayChatMessage): string {
   if (message.role === "user") {
@@ -46,20 +45,8 @@ function formatMessageContent(message: DisplayChatMessage): string {
   return "";
 }
 
-export function conversationToMarkdown(
-  messages: DisplayChatMessage[],
-  repoSource?: ResolvedRepoSource,
-): string {
-  const lines: string[] = [];
-
-  if (repoSource) {
-    lines.push(`# ${repoSource.owner}/${repoSource.repo}`);
-    if (repoSource.refOrigin !== "default") {
-      lines.push(`**Branch:** ${repoSource.ref}`);
-    }
-  } else {
-    lines.push("# Chat");
-  }
+export function conversationToMarkdown(messages: DisplayChatMessage[]): string {
+  const lines: string[] = ["# Chat"];
 
   lines.push("");
   lines.push(`*Exported on ${new Date().toLocaleString()}*`);

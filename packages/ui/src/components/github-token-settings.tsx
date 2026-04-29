@@ -48,8 +48,8 @@ export function GithubTokenSettings(props: {
         <div className="space-y-1">
           <div className="text-sm font-medium">Use a GitHub Personal Access Token</div>
           <p className="text-xs text-muted-foreground">
-            Optional. Add a token for higher GitHub API limits, private repository access, and
-            GitHub Gist sharing.
+            Optional. Store a token locally for future GitHub modules or extensions. The default
+            chat experience does not use GitHub access.
           </p>
         </div>
 

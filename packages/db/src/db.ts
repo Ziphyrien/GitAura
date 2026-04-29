@@ -1,10 +1,9 @@
-import Dexie, { type EntityTable, type Table } from "dexie";
+import Dexie, { type EntityTable } from "dexie";
 import dexieCloud, { type DexieCloudTable } from "dexie-cloud-addon";
 import { DB_NAME, registerAppDbSchema } from "./schema";
 import type {
   DailyCostAggregate,
   ProviderKeyRecord,
-  RepositoryRow,
   SessionLeaseRow,
   SessionRuntimeRow,
   SettingsRow,
@@ -16,7 +15,6 @@ export class AppDb extends Dexie {
   dailyCosts!: EntityTable<DailyCostAggregate, "date">;
   messages!: DexieCloudTable<SyncedMessageRow, "id">;
   providerKeys!: EntityTable<ProviderKeyRecord, "provider">;
-  repositories!: Table<RepositoryRow, [string, string, string]>;
   sessionLeases!: EntityTable<SessionLeaseRow, "sessionId">;
   sessionRuntime!: EntityTable<SessionRuntimeRow, "sessionId">;
   sessions!: DexieCloudTable<SyncedSessionRow, "id">;
@@ -30,7 +28,6 @@ export class AppDb extends Dexie {
     this.dailyCosts = this.table("daily_costs");
     this.messages = this.table("messages");
     this.providerKeys = this.table("provider-keys");
-    this.repositories = this.table("repositories");
     this.sessionLeases = this.table("session_leases");
     this.sessionRuntime = this.table("session_runtime");
     this.sessions = this.table("sessions");

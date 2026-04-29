@@ -19,7 +19,7 @@ import {
   type ProviderGroupId,
   type ThinkingLevel,
 } from "@webaura/pi/types/models";
-import type { MessageRow, ResolvedRepoSource, SessionData, SessionRuntimeRow } from "@webaura/db";
+import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
 
 export {
   aggregateSessionUsage,
@@ -31,8 +31,6 @@ export {
 export function createSession(params: {
   model: string;
   providerGroup: ProviderGroupId;
-  repoSource?: ResolvedRepoSource;
-  sourceUrl?: string;
   thinkingLevel?: ThinkingLevel;
 }): SessionData {
   const now = getIsoNow();
@@ -49,8 +47,6 @@ export function createSession(params: {
     preview: "",
     provider,
     providerGroup: params.providerGroup,
-    repoSource: params.repoSource,
-    sourceUrl: params.sourceUrl,
     thinkingLevel: params.thinkingLevel ?? "medium",
     title: "New chat",
     updatedAt: now,

@@ -1,5 +1,5 @@
 import type { ProviderGroupId, ProviderId } from "@webaura/pi/types/models";
-import type { ResolvedRepoSource, SessionData } from "@webaura/db";
+import type { SessionData } from "@webaura/db";
 import { deleteSession, getSetting, listProviderKeys, setSetting } from "@webaura/db";
 import { runtimeClient } from "@webaura/pi/agent/runtime-client";
 import {
@@ -130,7 +130,6 @@ export async function createSessionForChat(base?: SessionCreationBase): Promise<
       createSession({
         model,
         providerGroup,
-        repoSource: undefined,
       }),
       visibleProviderGroups,
     );
@@ -140,33 +139,6 @@ export async function createSessionForChat(base?: SessionCreationBase): Promise<
     model: base.model,
     providerGroup: base.providerGroup ?? getDefaultProviderGroup(base.provider),
     thinkingLevel: base.thinkingLevel,
-  });
-}
-
-export async function createSessionForRepo(params: {
-  base?: SessionCreationBase;
-  repoSource: ResolvedRepoSource;
-  sourceUrl?: string;
-}): Promise<SessionData> {
-  if (!params.base) {
-    const { model, providerGroup, visibleProviderGroups } = await resolveProviderDefaults();
-    return normalizeVisibleSession(
-      createSession({
-        model,
-        providerGroup,
-        repoSource: params.repoSource,
-        sourceUrl: params.sourceUrl,
-      }),
-      visibleProviderGroups,
-    );
-  }
-
-  return createSession({
-    model: params.base.model,
-    providerGroup: params.base.providerGroup ?? getDefaultProviderGroup(params.base.provider),
-    repoSource: params.repoSource,
-    sourceUrl: params.sourceUrl,
-    thinkingLevel: params.base.thinkingLevel,
   });
 }
 

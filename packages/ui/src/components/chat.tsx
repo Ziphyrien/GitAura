@@ -10,12 +10,9 @@ import { ChatComposer } from "./chat-composer";
 import { SessionUtilityActions } from "./session-utility-actions";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatMessage as ChatMessageBlock } from "./chat-message";
-import { RepoCombobox } from "./repo-combobox";
-import type { RepoComboboxHandle } from "./repo-combobox";
 import type { UserTurnInput } from "@webaura/pi/agent/user-turn-input";
 import type { ProviderGroupId, ThinkingLevel } from "@webaura/pi/types/models";
 import type { AssistantMessage, DisplayChatMessage } from "@webaura/pi/types/chat";
-import type { ResolvedRepoSource } from "@webaura/db";
 import {
   Conversation,
   ConversationContent,
@@ -24,8 +21,7 @@ import {
 import { StatusShimmer } from "@webaura/ui/components/ai-elements/shimmer";
 import { ProgressiveBlur } from "@webaura/ui/components/progressive-blur";
 import { copySessionToClipboard } from "@webaura/pi/lib/copy-session-markdown";
-import { createSessionGistShare, SessionGistShareError } from "@webaura/pi/lib/session-gist-share";
-import { db, touchRepository } from "@webaura/db";
+import { db } from "@webaura/db";
 import { runtimeClient } from "@webaura/pi/agent/runtime-client";
 import { getRuntimeCommandErrorMessage } from "@webaura/pi/agent/runtime-command-errors";
 import { useRuntimeSession } from "@webaura/pi/hooks/use-runtime-session";
@@ -37,7 +33,6 @@ import {
   getDefaultProviderGroup,
   getVisibleProviderGroups,
 } from "@webaura/pi/models/catalog";
-import { showGithubSystemNoticeToast } from "@webaura/pi/repo/github-fetch";
 import {
   persistLastUsedSessionSettings,
   resolveProviderDefaults,
@@ -71,9 +66,7 @@ type LoadedSessionState =
 type ChatPanelMode = "empty" | "messages" | "starting" | "streaming_pending";
 
 export interface ChatProps {
-  repoSource?: ResolvedRepoSource;
   sessionId?: string;
-  sourceUrl?: string;
 }
 
 function isSystemNotice(
@@ -191,7 +184,6 @@ export function Chat(props: ChatProps) {
     loadedSessionState?.kind === "active" ? loadedSessionState.viewModel.session.id : undefined,
   );
   const observerRef = React.useRef<ResizeObserver | null>(null);
-  const repoComboboxRef = React.useRef<RepoComboboxHandle>(null);
   const recoveryInFlightRef = React.useRef(false);
   const surfacedSystemNoticeFingerprintsRef = React.useRef(new Set<string>());
   const surfacedSystemNoticeSessionIdRef = React.useRef<string | undefined>(undefined);
@@ -221,19 +213,10 @@ export function Chat(props: ChatProps) {
     loadedSessionState?.kind === "active" ? loadedSessionState.viewModel : undefined;
   const activeSession = sessionViewModel?.session;
   const sessionRuntime = sessionViewModel?.runtime;
-  const displayRepoSource = activeSession?.repoSource ?? props.repoSource;
   const connectedProviders = React.useMemo(
     () => getConnectedProviders(providerKeys),
     [providerKeys],
   );
-
-  React.useEffect(() => {
-    if (!displayRepoSource) {
-      return;
-    }
-
-    void touchRepository(displayRepoSource);
-  }, [displayRepoSource]);
 
   React.useEffect(() => {
     if (!defaults) {
@@ -333,10 +316,6 @@ export function Chat(props: ChatProps) {
 
     for (const message of unseenErrors) {
       seenFingerprints.add(message.fingerprint);
-      if (showGithubSystemNoticeToast(message)) {
-        continue;
-      }
-
       toast.error(getRuntimeCommandErrorMessage(new Error(message.message)));
     }
   }, [activeSession?.id, messages]);
@@ -477,12 +456,10 @@ export function Chat(props: ChatProps) {
         initialPrompt: input,
         model: draft.model,
         providerGroup: draft.providerGroup,
-        repoSource: props.repoSource,
-        sourceUrl: props.sourceUrl,
         thinkingLevel: draft.thinkingLevel,
       });
     },
-    [draft, props.repoSource, props.sourceUrl, startNewConversation],
+    [draft, startNewConversation],
   );
 
   const handleSend = React.useCallback(
@@ -526,60 +503,11 @@ export function Chat(props: ChatProps) {
   }, [reportRuntimeFailure, resumeAction, runtime]);
 
   const handleCopySession = React.useCallback(() => {
-    void copySessionToClipboard(messages, {
-      repoSource: displayRepoSource,
-      sourceUrl: activeSession?.sourceUrl ?? props.sourceUrl,
-    }).then(
+    void copySessionToClipboard(messages).then(
       () => toast.success("Copied session as Markdown"),
       () => toast.error("Failed to copy to clipboard"),
     );
-  }, [activeSession?.sourceUrl, displayRepoSource, messages, props.sourceUrl]);
-
-  const handleShareSession = React.useCallback(() => {
-    if (!activeSession) {
-      return;
-    }
-
-    void createSessionGistShare({
-      messages,
-      session: activeSession,
-      sourceUrl: activeSession.sourceUrl ?? props.sourceUrl,
-    })
-      .then(async ({ url }) => {
-        try {
-          if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(url);
-            toast.success("Secret gist created and copied");
-            return;
-          }
-        } catch {
-          // Fall through to opening the gist directly.
-        }
-
-        window.open(url, "_blank", "noopener,noreferrer");
-        toast.success("Secret gist created");
-      })
-      .catch((error) => {
-        if (
-          error instanceof SessionGistShareError &&
-          (error.code === "insufficient_scope" ||
-            error.code === "invalid_token" ||
-            error.code === "missing_token")
-        ) {
-          void navigate({
-            search: (prev) => ({
-              ...prev,
-              settings: "github",
-            }),
-            to: ".",
-          });
-        }
-
-        toast.error(
-          error instanceof Error ? error.message : "Could not share this session as a gist.",
-        );
-      });
-  }, [activeSession, messages, navigate, props.sourceUrl]);
+  }, [messages]);
 
   if (loadedSessionState === undefined) {
     return <LoadingState label="Loading session..." />;
@@ -602,10 +530,8 @@ export function Chat(props: ChatProps) {
   const currentThinkingLevel = activeSession?.thinkingLevel ?? draft?.thinkingLevel ?? "medium";
   const isStreaming =
     activeSession !== undefined ? (activeComposerState?.isStreaming ?? false) : isStartingSession;
-  const composerDisabled = !displayRepoSource || activeComposerState?.disabled === true;
-  const composerDisabledReason = !displayRepoSource
-    ? "Select a repository to get started"
-    : activeComposerState?.disabledReason;
+  const composerDisabled = activeComposerState?.disabled === true;
+  const composerDisabledReason = activeComposerState?.disabledReason;
   const chatPanelMode = getChatPanelMode({
     hasAssistantMessage,
     isStartingSession,
@@ -644,11 +570,7 @@ export function Chat(props: ChatProps) {
               <StatusShimmer>Assistant is streaming...</StatusShimmer>
             </div>
           ) : chatPanelMode === "empty" ? (
-            <ChatEmptyState
-              onSuggestionClick={(text) => void handleSend({ text })}
-              onSwitchRepo={() => repoComboboxRef.current?.focusAndClear()}
-              repoSource={displayRepoSource}
-            />
+            <ChatEmptyState onSuggestionClick={(text) => void handleSend({ text })} />
           ) : (
             messages.map((message, index) => {
               if (message.role === "toolResult" && foldedToolResultIds.has(message.id)) {
@@ -685,19 +607,8 @@ export function Chat(props: ChatProps) {
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
         <div className="mx-auto w-full max-w-4xl px-4">
-          <div className="pointer-events-auto flex items-center justify-between pb-2">
-            <RepoCombobox
-              ref={repoComboboxRef}
-              autoFocus={!props.sessionId && !displayRepoSource}
-              repoSource={displayRepoSource}
-              sessionId={props.sessionId}
-            />
-            {messages.length > 0 ? (
-              <SessionUtilityActions
-                onCopy={handleCopySession}
-                onShare={activeSession ? handleShareSession : undefined}
-              />
-            ) : null}
+          <div className="pointer-events-auto flex items-center justify-end pb-2">
+            {messages.length > 0 ? <SessionUtilityActions onCopy={handleCopySession} /> : null}
           </div>
         </div>
 

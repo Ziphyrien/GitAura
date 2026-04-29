@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
-import { TEST_REPO_SOURCE } from "./repo-test-utils";
 
 const workerStartTurn = vi.fn(async (_input: unknown): Promise<void> => {});
 const workerWaitForTurn = vi.fn(async (_sessionId: string) => ({
@@ -41,7 +40,6 @@ function createSession(): SessionData {
     preview: "",
     provider: "openai-codex",
     providerGroup: "openai-codex",
-    repoSource: TEST_REPO_SOURCE,
     thinkingLevel: "medium",
     title: "New chat",
     updatedAt: "2026-03-24T12:00:00.000Z",

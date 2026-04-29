@@ -59,7 +59,6 @@ function createSession(): SessionData {
     preview: "",
     provider: "openai-codex",
     providerGroup: "openai-codex",
-    repoSource: undefined,
     thinkingLevel: "medium",
     title: "New chat",
     updatedAt: "2026-03-24T12:00:00.000Z",

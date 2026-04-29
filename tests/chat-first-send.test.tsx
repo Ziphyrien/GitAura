@@ -1,14 +1,13 @@
-import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createEmptyUsage } from "@/types/models";
-import type { ResolvedRepoSource, SessionData } from "@/types/storage";
+import type { SessionData } from "@/types/storage";
 
 const useLiveQueryMock = vi.fn();
 const navigateMock = vi.fn(async () => {});
 const useSearchMock = vi.fn(() => ({}));
 const startInitialTurnMock = vi.fn(async () => {});
-const createSessionForRepoMock = vi.fn();
+const createSessionForChatMock = vi.fn();
 const persistLastUsedSessionSettingsMock = vi.fn(async () => {});
 
 vi.mock("dexie-react-hooks", () => ({
@@ -45,17 +44,12 @@ vi.mock("@/sessions/session-notices", () => ({
 }));
 
 vi.mock("@/sessions/session-actions", () => ({
-  createSessionForChat: vi.fn(),
-  createSessionForRepo: createSessionForRepoMock,
+  createSessionForChat: createSessionForChatMock,
   persistLastUsedSessionSettings: persistLastUsedSessionSettingsMock,
   resolveProviderDefaults: vi.fn(async () => ({
     model: "gpt-5.1-codex-mini",
     providerGroup: "openai-codex",
   })),
-}));
-
-vi.mock("@webaura/db", () => ({
-  touchRepository: vi.fn(async () => {}),
 }));
 
 vi.mock("@/components/chat-empty-state", () => ({
@@ -68,10 +62,6 @@ vi.mock("@/components/chat-composer", () => ({
       Send
     </button>
   ),
-}));
-
-vi.mock("@/components/repo-combobox", () => ({
-  RepoCombobox: React.forwardRef(() => <div data-testid="repo-combobox" />),
 }));
 
 vi.mock("@/components/ai-elements/conversation", () => ({
@@ -108,26 +98,10 @@ function buildSession(): SessionData {
     preview: "",
     provider: "openai-codex",
     providerGroup: "openai-codex",
-    repoSource: buildRepoSource(),
     thinkingLevel: "medium",
     title: "New chat",
     updatedAt: "2026-03-24T12:00:00.000Z",
     usage: createEmptyUsage(),
-  };
-}
-
-function buildRepoSource(): ResolvedRepoSource {
-  return {
-    owner: "acme",
-    ref: "main",
-    refOrigin: "explicit",
-    repo: "demo",
-    resolvedRef: {
-      apiRef: "heads/main",
-      fullRef: "refs/heads/main",
-      kind: "branch",
-      name: "main",
-    },
   };
 }
 
@@ -179,7 +153,7 @@ function mockChatQueries(options: {
 
 describe("Chat first send", () => {
   beforeEach(() => {
-    createSessionForRepoMock.mockReset();
+    createSessionForChatMock.mockReset();
     navigateMock.mockReset();
     persistLastUsedSessionSettingsMock.mockReset();
     startInitialTurnMock.mockReset();
@@ -188,20 +162,19 @@ describe("Chat first send", () => {
 
   it("starts the initial turn before navigating to the new session", async () => {
     const session = buildSession();
-    createSessionForRepoMock.mockResolvedValue(session);
-    const defaults = {
-      model: "gpt-5.1-codex-mini",
-      providerGroup: "openai-codex",
-      thinkingLevel: "medium",
-    };
+    createSessionForChatMock.mockResolvedValue(session);
     mockChatQueries({
-      defaults,
+      defaults: {
+        model: "gpt-5.1-codex-mini",
+        providerGroup: "openai-codex",
+        thinkingLevel: "medium",
+      },
       loadedSessionState: { kind: "none" },
     });
 
     const { Chat } = await import("@/components/chat");
 
-    render(<Chat repoSource={buildRepoSource()} />);
+    render(<Chat />);
 
     await act(async () => {
       fireEvent.click(screen.getByText("Send"));
@@ -227,21 +200,20 @@ describe("Chat first send", () => {
   it("does not block navigation on settings persistence", async () => {
     const session = buildSession();
     const settingsWrite = createDeferred();
-    createSessionForRepoMock.mockResolvedValue(session);
+    createSessionForChatMock.mockResolvedValue(session);
     persistLastUsedSessionSettingsMock.mockImplementation(async () => await settingsWrite.promise);
-    const defaults = {
-      model: "gpt-5.1-codex-mini",
-      providerGroup: "openai-codex",
-      thinkingLevel: "medium",
-    };
     mockChatQueries({
-      defaults,
+      defaults: {
+        model: "gpt-5.1-codex-mini",
+        providerGroup: "openai-codex",
+        thinkingLevel: "medium",
+      },
       loadedSessionState: { kind: "none" },
     });
 
     const { Chat } = await import("@/components/chat");
 
-    render(<Chat repoSource={buildRepoSource()} />);
+    render(<Chat />);
 
     await act(async () => {
       fireEvent.click(screen.getByText("Send"));

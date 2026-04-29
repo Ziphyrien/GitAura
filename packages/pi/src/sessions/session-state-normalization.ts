@@ -164,8 +164,6 @@ export function buildPersistedSession(
     isStreaming: normalizedSession.isStreaming,
     messageCount: chatMessages.length,
     preview: buildPreview(chatMessages),
-    repoSource: normalizedSession.repoSource,
-    sourceUrl: normalizedSession.sourceUrl,
     title: generateTitle(chatMessages),
     updatedAt: normalizedSession.updatedAt,
     usage,

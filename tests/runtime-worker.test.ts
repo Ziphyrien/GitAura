@@ -5,7 +5,6 @@ import { deleteAllLocalData, getSession, getSessionMessages, getSessionRuntime }
 import type { AssistantMessage } from "@/types/chat";
 import type { SessionData } from "@/types/storage";
 import { createEmptyUsage } from "@/types/models";
-import { TEST_REPO_SOURCE } from "./repo-test-utils";
 
 type MockAgentEvent =
   | {
@@ -35,8 +34,6 @@ type Subscriber = (event: MockAgentEvent) => void;
 
 let subscriber: Subscriber | undefined;
 let resolvePrompt: (() => void) | undefined;
-let onRepoError: ((error: unknown) => void | Promise<void>) | undefined;
-
 const agentState: MockAgentState = {
   error: undefined,
   isStreaming: false,
@@ -79,23 +76,6 @@ vi.mock("@mariozechner/pi-agent-core", () => ({
   },
 }));
 
-vi.mock("@/tools", () => ({
-  createRepoTools: vi.fn(
-    (
-      _runtime: unknown,
-      options?: {
-        onRepoError?: (error: unknown) => void | Promise<void>;
-      },
-    ) => {
-      onRepoError = options?.onRepoError;
-
-      return {
-        agentTools: [] as AgentTool[],
-      };
-    },
-  ),
-}));
-
 function createSession(): SessionData {
   return {
     cost: 0,
@@ -108,11 +88,6 @@ function createSession(): SessionData {
     preview: "",
     provider: "openai-codex",
     providerGroup: "openai-codex",
-    repoSource: {
-      ...TEST_REPO_SOURCE,
-      owner: "acme",
-      repo: "demo",
-    },
     thinkingLevel: "medium",
     title: "New chat",
     updatedAt: "2026-03-24T12:00:00.000Z",
@@ -170,7 +145,6 @@ describe("runtime worker", () => {
     setToolsMock.mockClear();
     subscriber = undefined;
     resolvePrompt = undefined;
-    onRepoError = undefined;
     agentState.error = undefined;
     agentState.isStreaming = false;
     agentState.messages = [];
@@ -304,54 +278,6 @@ describe("runtime worker", () => {
         content: [{ text: "Partial", type: "text" }],
       }),
     });
-  });
-
-  it("persists runtime notices for actionable repo errors", async () => {
-    abortMock.mockImplementation(() => {
-      agentState.isStreaming = false;
-      resolvePrompt?.();
-    });
-
-    promptMock.mockImplementation(async () => {
-      agentState.isStreaming = true;
-      const assistant = createAssistantMessage({
-        content: [{ text: "Reading...", type: "text" }],
-        id: "assistant-stream",
-        stopReason: "toolUse",
-      });
-      agentState.streamMessage = assistant;
-      subscriber?.({
-        message: assistant,
-        type: "message_update",
-      });
-
-      await new Promise<void>((resolve) => {
-        resolvePrompt = resolve;
-      });
-    });
-
-    const worker = await import("@/agent/runtime-worker");
-    const repoModule = await import("@/repo/github-errors");
-
-    await worker.startTurn({
-      ownerTabId: "tab-1",
-      session: createSession(),
-      turn: createTurn(),
-    });
-
-    await onRepoError?.(new repoModule.GitHubApiError("EACCES", "Authentication required: /", "/"));
-    await flushMicrotasks();
-
-    expect(abortMock).toHaveBeenCalledTimes(1);
-    expect(await getSessionMessages("session-1")).toEqual(
-      expect.arrayContaining([expect.objectContaining({ role: "system", source: "github" })]),
-    );
-    expect(await getSessionRuntime("session-1")).toMatchObject({
-      phase: "running",
-      status: "streaming",
-    });
-
-    await worker.disposeSession("session-1");
   });
 
   it("routes idle configuration changes through the worker", async () => {

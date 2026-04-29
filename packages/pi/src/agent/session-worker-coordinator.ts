@@ -18,7 +18,6 @@ import {
   type StartTurnInput,
   type TurnCompletionResult,
 } from "@webaura/pi/agent/runtime-worker-types";
-import { shouldStopStreamingForRuntimeError } from "@webaura/pi/agent/runtime-errors";
 import { webMessageTransformer } from "@webaura/pi/agent/message-transformer";
 import { streamChatWithPiAgent } from "@webaura/pi/agent/provider-stream";
 import { clampThinkingLevel } from "@webaura/pi/agent/thinking-levels";
@@ -30,7 +29,6 @@ import {
   loadSessionWithMessages,
   buildPersistedSession,
 } from "@webaura/pi/sessions/session-service";
-import { createRepoTools } from "@webaura/pi/tools/index";
 import type { ProviderId } from "@webaura/pi/types/models";
 import type { AssistantMessage, ToolResultMessage } from "@webaura/pi/types/chat";
 import type { MessageRow, SessionData, SessionRuntimeRow } from "@webaura/db";
@@ -477,29 +475,7 @@ class WorkerAgentRunner {
   }
 
   private getAgentTools(): AgentTool[] {
-    if (!this.store.session.repoSource) {
-      return [];
-    }
-
-    return createRepoTools(this.store.session.repoSource, {
-      onRepoError: async (error) => {
-        const nextError = error instanceof Error ? error : new Error(String(error));
-        await this.store.applyEnvelope({
-          error: nextError,
-          kind: "runtime-error",
-          sessionId: this.sessionId,
-        });
-
-        if (shouldStopStreamingForRuntimeError(nextError)) {
-          this.pendingTerminalResult = {
-            lastError: nextError.message,
-            sessionId: this.sessionId,
-            status: "error",
-          };
-          this.agent.abort();
-        }
-      },
-    }).agentTools;
+    return [];
   }
 
   private isTurnOpenForEvents(): boolean {

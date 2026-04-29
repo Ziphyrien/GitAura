@@ -89,28 +89,4 @@ describe("ChatMessage", () => {
     expect(screen.getByText(/<title>Vercel Security Checkpoint<\/title>/)).toBeTruthy();
     expect(screen.getByTitle("HTML response preview system-1")).toBeTruthy();
   });
-
-  it("renders a GitHub settings CTA for GitHub auth notices", async () => {
-    const { ChatMessage } = await import("@/components/chat-message");
-
-    render(
-      <ChatMessage
-        followingMessages={[]}
-        isStreamingReasoning={false}
-        message={{
-          action: "open-github-settings",
-          fingerprint: "github_auth:1",
-          id: "system-auth-1",
-          kind: "github_auth",
-          message: "GitHub authentication failed.",
-          role: "system",
-          severity: "error",
-          source: "github",
-          timestamp: 1,
-        }}
-      />,
-    );
-
-    expect(screen.getByText("GitHub settings")).toBeTruthy();
-  });
 });

@@ -12,13 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatIndexRouteImport } from './routes/chat.index'
-import { Route as OwnerIndexRouteImport } from './routes/$owner.index'
 import { Route as ChatSessionIdRouteImport } from './routes/chat.$sessionId'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ApiERouteImport } from './routes/api/e'
-import { Route as OwnerRepoIndexRouteImport } from './routes/$owner.$repo.index'
-import { Route as ApiGithubSplatRouteImport } from './routes/api/github/$'
-import { Route as OwnerRepoSplatRouteImport } from './routes/$owner.$repo.$'
 
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
@@ -35,11 +31,6 @@ const ChatIndexRoute = ChatIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ChatRoute,
 } as any)
-const OwnerIndexRoute = OwnerIndexRouteImport.update({
-  id: '/$owner/',
-  path: '/$owner/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ChatSessionIdRoute = ChatSessionIdRouteImport.update({
   id: '/$sessionId',
   path: '/$sessionId',
@@ -55,21 +46,6 @@ const ApiERoute = ApiERouteImport.update({
   path: '/api/e',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OwnerRepoIndexRoute = OwnerRepoIndexRouteImport.update({
-  id: '/$owner/$repo/',
-  path: '/$owner/$repo/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiGithubSplatRoute = ApiGithubSplatRouteImport.update({
-  id: '/api/github/$',
-  path: '/api/github/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OwnerRepoSplatRoute = OwnerRepoSplatRouteImport.update({
-  id: '/$owner/$repo/$',
-  path: '/$owner/$repo/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -77,22 +53,14 @@ export interface FileRoutesByFullPath {
   '/api/e': typeof ApiERoute
   '/auth/callback': typeof AuthCallbackRoute
   '/chat/$sessionId': typeof ChatSessionIdRoute
-  '/$owner/': typeof OwnerIndexRoute
   '/chat/': typeof ChatIndexRoute
-  '/$owner/$repo/$': typeof OwnerRepoSplatRoute
-  '/api/github/$': typeof ApiGithubSplatRoute
-  '/$owner/$repo/': typeof OwnerRepoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/e': typeof ApiERoute
   '/auth/callback': typeof AuthCallbackRoute
   '/chat/$sessionId': typeof ChatSessionIdRoute
-  '/$owner': typeof OwnerIndexRoute
   '/chat': typeof ChatIndexRoute
-  '/$owner/$repo/$': typeof OwnerRepoSplatRoute
-  '/api/github/$': typeof ApiGithubSplatRoute
-  '/$owner/$repo': typeof OwnerRepoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,11 +69,7 @@ export interface FileRoutesById {
   '/api/e': typeof ApiERoute
   '/auth/callback': typeof AuthCallbackRoute
   '/chat/$sessionId': typeof ChatSessionIdRoute
-  '/$owner/': typeof OwnerIndexRoute
   '/chat/': typeof ChatIndexRoute
-  '/$owner/$repo/$': typeof OwnerRepoSplatRoute
-  '/api/github/$': typeof ApiGithubSplatRoute
-  '/$owner/$repo/': typeof OwnerRepoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,22 +79,9 @@ export interface FileRouteTypes {
     | '/api/e'
     | '/auth/callback'
     | '/chat/$sessionId'
-    | '/$owner/'
     | '/chat/'
-    | '/$owner/$repo/$'
-    | '/api/github/$'
-    | '/$owner/$repo/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/api/e'
-    | '/auth/callback'
-    | '/chat/$sessionId'
-    | '/$owner'
-    | '/chat'
-    | '/$owner/$repo/$'
-    | '/api/github/$'
-    | '/$owner/$repo'
+  to: '/' | '/api/e' | '/auth/callback' | '/chat/$sessionId' | '/chat'
   id:
     | '__root__'
     | '/'
@@ -138,11 +89,7 @@ export interface FileRouteTypes {
     | '/api/e'
     | '/auth/callback'
     | '/chat/$sessionId'
-    | '/$owner/'
     | '/chat/'
-    | '/$owner/$repo/$'
-    | '/api/github/$'
-    | '/$owner/$repo/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -150,10 +97,6 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   ApiERoute: typeof ApiERoute
   AuthCallbackRoute: typeof AuthCallbackRoute
-  OwnerIndexRoute: typeof OwnerIndexRoute
-  OwnerRepoSplatRoute: typeof OwnerRepoSplatRoute
-  ApiGithubSplatRoute: typeof ApiGithubSplatRoute
-  OwnerRepoIndexRoute: typeof OwnerRepoIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -179,13 +122,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatIndexRouteImport
       parentRoute: typeof ChatRoute
     }
-    '/$owner/': {
-      id: '/$owner/'
-      path: '/$owner'
-      fullPath: '/$owner/'
-      preLoaderRoute: typeof OwnerIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/chat/$sessionId': {
       id: '/chat/$sessionId'
       path: '/$sessionId'
@@ -205,27 +141,6 @@ declare module '@tanstack/react-router' {
       path: '/api/e'
       fullPath: '/api/e'
       preLoaderRoute: typeof ApiERouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$owner/$repo/': {
-      id: '/$owner/$repo/'
-      path: '/$owner/$repo'
-      fullPath: '/$owner/$repo/'
-      preLoaderRoute: typeof OwnerRepoIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/github/$': {
-      id: '/api/github/$'
-      path: '/api/github/$'
-      fullPath: '/api/github/$'
-      preLoaderRoute: typeof ApiGithubSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/$owner/$repo/$': {
-      id: '/$owner/$repo/$'
-      path: '/$owner/$repo/$'
-      fullPath: '/$owner/$repo/$'
-      preLoaderRoute: typeof OwnerRepoSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -248,10 +163,6 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   ApiERoute: ApiERoute,
   AuthCallbackRoute: AuthCallbackRoute,
-  OwnerIndexRoute: OwnerIndexRoute,
-  OwnerRepoSplatRoute: OwnerRepoSplatRoute,
-  ApiGithubSplatRoute: ApiGithubSplatRoute,
-  OwnerRepoIndexRoute: OwnerRepoIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
