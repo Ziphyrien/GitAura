@@ -84,19 +84,34 @@ function assignMessageOrder(messages: readonly MessageRow[]): {
   };
 }
 
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, nestedValue: unknown) => {
+    if (typeof nestedValue !== "object" || nestedValue === null || Array.isArray(nestedValue)) {
+      return nestedValue;
+    }
+
+    return Object.keys(nestedValue)
+      .sort()
+      .reduce<Record<string, unknown>>((sorted, key) => {
+        sorted[key] = (nestedValue as Record<string, unknown>)[key];
+        return sorted;
+      }, {});
+  });
+}
+
 function areMessagesEqual(left: readonly MessageRow[], right: readonly MessageRow[]): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableStringify(left) === stableStringify(right);
 }
 
 function areRuntimeEqual(
   left: SessionRuntimeRow | undefined,
   right: SessionRuntimeRow | undefined,
 ): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableStringify(left) === stableStringify(right);
 }
 
 function areSessionsEqual(left: SessionData, right: SessionData): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableStringify(left) === stableStringify(right);
 }
 
 function toAssistantDraft(message: Extract<MessageRow, { role: "assistant" }>): AssistantMessage {

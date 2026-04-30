@@ -281,6 +281,37 @@ describe("runtime worker", () => {
     });
   });
 
+  it("shares one coordinator for concurrent first turns in the same session", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    promptMock.mockImplementation(async () => {
+      agentState.isStreaming = true;
+      await new Promise<void>(() => {});
+    });
+    const worker = await import("@/agent/runtime-worker");
+    const session = createSession();
+
+    const first = worker.startTurn({
+      ownerTabId: "tab-1",
+      session,
+      turn: createTurn(),
+    });
+    const second = worker.startTurn({
+      ownerTabId: "tab-1",
+      session,
+      turn: createTurn("turn-2"),
+    });
+
+    await first;
+    await expect(second).rejects.toThrow("Runtime session is busy: session-1");
+    expect(promptMock).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      "SessionWorkerCoordinator queued operation failed",
+      expect.any(Error),
+    );
+    await worker.disposeSession(session.id);
+    consoleError.mockRestore();
+  });
+
   it("evicts stale busy coordinators before loading another session", async () => {
     let now = Date.parse("2026-03-24T12:00:00.000Z");
     vi.spyOn(Date, "now").mockImplementation(() => now);

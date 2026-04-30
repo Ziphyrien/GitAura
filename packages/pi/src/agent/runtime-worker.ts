@@ -41,6 +41,19 @@ function disposeStaleCoordinators(now = Date.now()): void {
   }
 }
 
+function createCoordinatorLoad(params: {
+  sessionId: string;
+  fallbackSession?: SessionData;
+}): Promise<SessionWorkerCoordinator | undefined> {
+  const loadPromise = loadCoordinator(params).finally(() => {
+    if (coordinatorLoads.get(params.sessionId) === loadPromise) {
+      coordinatorLoads.delete(params.sessionId);
+    }
+  });
+  coordinatorLoads.set(params.sessionId, loadPromise);
+  return loadPromise;
+}
+
 async function loadCoordinator(params: {
   sessionId: string;
   fallbackSession?: SessionData;
@@ -68,25 +81,34 @@ async function getOrCreateCoordinator(
     return existing;
   }
 
-  const pending = coordinatorLoads.get(sessionId);
+  let loadPromise = coordinatorLoads.get(sessionId);
 
-  if (pending) {
-    const loaded = await pending;
-
-    if (loaded || !options?.fallbackSession) {
-      return loaded;
-    }
+  if (!loadPromise) {
+    loadPromise = createCoordinatorLoad({
+      fallbackSession: options?.fallbackSession,
+      sessionId,
+    });
   }
 
-  const loadPromise = loadCoordinator({
-    fallbackSession: options?.fallbackSession,
-    sessionId,
-  }).finally(() => {
-    coordinatorLoads.delete(sessionId);
-  });
+  const loaded = await loadPromise;
 
-  coordinatorLoads.set(sessionId, loadPromise);
-  return await loadPromise;
+  if (loaded || !options?.fallbackSession) {
+    return loaded;
+  }
+
+  const loadedAfterWait = coordinators.get(sessionId);
+
+  if (loadedAfterWait) {
+    return loadedAfterWait;
+  }
+
+  const retryPromise =
+    coordinatorLoads.get(sessionId) ??
+    createCoordinatorLoad({
+      fallbackSession: options.fallbackSession,
+      sessionId,
+    });
+  return await retryPromise;
 }
 
 async function getLoadedCoordinator(
