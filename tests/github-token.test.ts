@@ -36,6 +36,23 @@ describe("validateGithubPersonalAccessToken", () => {
     );
   });
 
+  it("rejects 200 responses without a login", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      }),
+    );
+
+    const result = await validateGithubPersonalAccessToken("github_pat_x");
+    expect(result).toEqual({
+      ok: false,
+      message: "GitHub did not return an account login",
+    });
+  });
+
   it("rejects 401", async () => {
     vi.stubGlobal(
       "fetch",

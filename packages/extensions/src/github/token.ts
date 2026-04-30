@@ -33,8 +33,12 @@ export async function validateGithubPersonalAccessToken(
       return { ok: false, message: "Could not verify token with GitHub" };
     }
 
-    const data = (await response.json()) as { login?: string };
-    return { ok: true, login: data.login ?? "user" };
+    const data = (await response.json()) as { login?: unknown };
+    if (typeof data.login !== "string" || !data.login.trim()) {
+      return { ok: false, message: "GitHub did not return an account login" };
+    }
+
+    return { ok: true, login: data.login };
   } catch {
     return { ok: false, message: "Could not reach GitHub — check your connection" };
   }

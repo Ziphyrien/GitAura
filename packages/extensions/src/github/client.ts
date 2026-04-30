@@ -15,6 +15,10 @@ export function stringifyForTool(value: unknown): string {
 }
 
 export function toJsonValue(value: unknown): JsonValue {
+  if (value === undefined) {
+    return null;
+  }
+
   if (
     value === null ||
     typeof value === "string" ||
@@ -30,10 +34,9 @@ export function toJsonValue(value: unknown): JsonValue {
 
   if (typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        key,
-        toJsonValue(entry),
-      ]),
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, toJsonValue(entry)]),
     );
   }
 
@@ -61,7 +64,7 @@ export function encodeRepoPath(path: string | undefined): string {
 
 export function appendQuery(
   path: string,
-  query: Record<string, string | number | undefined>,
+  query: Record<string, boolean | number | string | undefined>,
 ): string {
   const url = new URL(path, GITHUB_API_BASE_URL);
 
@@ -117,38 +120,13 @@ export async function githubRequest(path: string, init: RequestInit = {}): Promi
   return body;
 }
 
-export function decodeBase64Text(content: string): string {
+export function decodeBase64Bytes(content: string): Uint8Array {
   const binary = globalThis.atob(content.replace(/\s/g, ""));
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
-export function parseJsonInput(input: string | undefined, fieldName: string): unknown {
-  if (!input?.trim()) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(input) as unknown;
-  } catch {
-    throw new Error(`${fieldName} must be valid JSON`);
-  }
-}
-
-export function parseQueryJson(
-  input: string | undefined,
-): Record<string, string | number | undefined> | undefined {
-  const parsed = parseJsonInput(input, "queryJson");
-
-  if (parsed === undefined) {
-    return undefined;
-  }
-
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("queryJson must be a JSON object");
-  }
-
-  return parsed as Record<string, string | number | undefined>;
+export function decodeBase64Text(content: string): string {
+  return new TextDecoder().decode(decodeBase64Bytes(content));
 }
 
 export function getSearchEndpoint(type: "code" | "issues" | "prs" | "repos" | "users"): string {
