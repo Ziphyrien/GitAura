@@ -1,0 +1,5 @@
+{"file":".trellis/spec/pi/frontend/index.md","reason":"Verify pi frontend package conventions for share discovery changes."}
+{"file":".trellis/spec/pi/frontend/share-link-contracts.md","reason":"Verify share discovery contract after replacing REST with NIP-66 discovery."}
+{"file":".trellis/tasks/05-01-nostr-watch-proxy/research/nostr-watch-discovery.md","reason":"Check implementation follows live endpoint findings and does not reintroduce old REST endpoints."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check existing WebSocket and parsing helpers are reused where practical."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check discovery-to-publish data flow and failure behavior."}

@@ -1,0 +1,5 @@
+{"file":".trellis/spec/pi/frontend/index.md","reason":"NIP-66 discovery changes live in the pi frontend share module."}
+{"file":".trellis/spec/pi/frontend/share-link-contracts.md","reason":"Share relay discovery contract must stay consistent with no REST fallback, no static relay fallback, and clear failure semantics."}
+{"file":".trellis/tasks/05-01-nostr-watch-proxy/research/nostr-watch-discovery.md","reason":"Live research proves old Nostr.watch REST endpoints are unusable and recommends NIP-66 relay discovery."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse existing WebSocket relay helpers and share discovery pipeline instead of duplicating protocol logic."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"NIP-66 discovery, relay verification, publish selection, and share UI error handling cross protocol/UI boundaries."}
