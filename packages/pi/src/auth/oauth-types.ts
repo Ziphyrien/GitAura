@@ -1,4 +1,4 @@
-export const OAUTH_PROVIDER_IDS = ["anthropic", "github-copilot", "openai-codex"] as const;
+export const OAUTH_PROVIDER_IDS = ["github-copilot", "openai-codex"] as const;
 
 export type OAuthProviderId = (typeof OAUTH_PROVIDER_IDS)[number];
 

@@ -157,24 +157,26 @@ describe("resolveStoredApiKey", () => {
     });
     oauthRefresh.mockResolvedValue({
       access: "next-access",
+      accountId: "acct-1",
       expires: Date.now() + 120_000,
-      providerId: "anthropic",
+      providerId: "openai-codex",
       refresh: "next-refresh",
     });
 
     await resolveStoredApiKey(
       JSON.stringify({
         access: "old-access",
+        accountId: "acct-1",
         expires: Date.now() - 1,
-        providerId: "anthropic",
+        providerId: "openai-codex",
         refresh: "old-refresh",
       }),
-      "anthropic",
+      "openai-codex",
     );
 
     expect(oauthRefresh).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerId: "anthropic",
+        providerId: "openai-codex",
         refresh: "old-refresh",
       }),
       {
@@ -191,24 +193,26 @@ describe("resolveStoredApiKey", () => {
     });
     oauthRefresh.mockResolvedValue({
       access: "next-access",
+      accountId: "acct-1",
       expires: Date.now() + 120_000,
-      providerId: "anthropic",
+      providerId: "openai-codex",
       refresh: "next-refresh",
     });
 
     await resolveStoredApiKey(
       JSON.stringify({
         access: "old-access",
+        accountId: "acct-1",
         expires: Date.now() - 1,
-        providerId: "anthropic",
+        providerId: "openai-codex",
         refresh: "old-refresh",
       }),
-      "anthropic",
+      "openai-codex",
     );
 
     expect(oauthRefresh).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerId: "anthropic",
+        providerId: "openai-codex",
         refresh: "old-refresh",
       }),
     );

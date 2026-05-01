@@ -1,4 +1,3 @@
-import { refreshAnthropic } from "@webaura/pi/auth/providers/anthropic";
 import { refreshGitHubCopilot } from "@webaura/pi/auth/providers/github-copilot";
 import { refreshOpenAICodex } from "@webaura/pi/auth/providers/openai-codex";
 import type { OAuthCredentials } from "@webaura/pi/auth/oauth-types";
@@ -9,8 +8,6 @@ export async function oauthRefresh(
   options?: ProxyRequestOptions,
 ): Promise<OAuthCredentials> {
   switch (credentials.providerId) {
-    case "anthropic":
-      return await refreshAnthropic(credentials, options);
     case "github-copilot":
       return await refreshGitHubCopilot(credentials, options);
     case "openai-codex":

@@ -3,10 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 const deleteProviderKey = vi.fn();
 const getProviderKey = vi.fn();
 const setProviderKey = vi.fn();
-const loginAnthropic = vi.fn();
 const loginGitHubCopilot = vi.fn();
 const loginOpenAICodex = vi.fn();
-const refreshAnthropic = vi.fn();
 const refreshGitHubCopilot = vi.fn();
 const refreshOpenAICodex = vi.fn();
 
@@ -14,11 +12,6 @@ vi.mock("@webaura/db", () => ({
   deleteProviderKey,
   getProviderKey,
   setProviderKey,
-}));
-
-vi.mock("@/auth/providers/anthropic", () => ({
-  loginAnthropic,
-  refreshAnthropic,
 }));
 
 vi.mock("@/auth/providers/github-copilot", () => ({
@@ -36,10 +29,8 @@ describe("auth service", () => {
     deleteProviderKey.mockReset();
     getProviderKey.mockReset();
     setProviderKey.mockReset();
-    loginAnthropic.mockReset();
     loginGitHubCopilot.mockReset();
     loginOpenAICodex.mockReset();
-    refreshAnthropic.mockReset();
     refreshGitHubCopilot.mockReset();
     refreshOpenAICodex.mockReset();
   });
@@ -102,46 +93,6 @@ describe("auth service", () => {
 
     await disconnectProvider("openai-codex");
     expect(deleteProviderKey).toHaveBeenCalledWith("openai-codex");
-  });
-
-  it("forwards proxy options to oauth login and refresh", async () => {
-    loginAnthropic.mockResolvedValue({
-      access: "access",
-      expires: Date.now() + 60_000,
-      providerId: "anthropic",
-      refresh: "refresh",
-    });
-    refreshAnthropic.mockResolvedValue({
-      access: "next-access",
-      expires: Date.now() + 60_000,
-      providerId: "anthropic",
-      refresh: "next-refresh",
-    });
-
-    const { oauthLogin, oauthRefresh } = await import("@/auth/auth-service");
-    const proxyOptions = { proxyUrl: "https://proxy.example/proxy" };
-
-    await oauthLogin("anthropic", "https://example.com/callback", undefined, proxyOptions);
-    await oauthRefresh(
-      {
-        access: "access",
-        expires: Date.now() + 60_000,
-        providerId: "anthropic",
-        refresh: "refresh",
-      },
-      proxyOptions,
-    );
-
-    expect(loginAnthropic).toHaveBeenCalledWith("https://example.com/callback", proxyOptions);
-    expect(refreshAnthropic).toHaveBeenCalledWith(
-      {
-        access: "access",
-        expires: expect.any(Number),
-        providerId: "anthropic",
-        refresh: "refresh",
-      },
-      proxyOptions,
-    );
   });
 
   it("forwards proxy options to OpenAI OAuth login and refresh", async () => {

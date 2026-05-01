@@ -125,7 +125,7 @@ export function ProviderSettings(props: { onNavigateToProxy?: () => void }) {
     try {
       const oauthOptions: OAuthRequestOptions = {
         ...(proxyConfig.enabled ? { proxyUrl: proxyConfig.url } : {}),
-        ...(provider === "anthropic" || provider === "openai-codex"
+        ...(provider === "openai-codex"
           ? {
               onManualRedirect: (request: ManualOAuthRedirectRequest) =>
                 new Promise<string>((resolve, reject) => {

@@ -31,13 +31,9 @@ export const PROVIDER_CONFIGS: Partial<Record<KnownProvider, ProviderConfig>> = 
   },
   anthropic: {
     apiKeySettings: { order: 10 },
-    description: "Claude API and Claude subscription OAuth",
+    description: "Claude API",
     label: "Anthropic",
     modelSelector: { order: 10 },
-    oauth: {
-      label: "Anthropic (Claude Pro/Max)",
-      order: 10,
-    },
   },
   "azure-openai-responses": {
     apiKeySettings: { hidden: true },

@@ -49,16 +49,14 @@ vi.mock("@webaura/db", () => ({
 }));
 
 vi.mock("@webaura/pi/models/provider-registry", () => ({
-  getOAuthProvidersForSettings: () => ["anthropic", "github-copilot", "openai-codex"],
+  getOAuthProvidersForSettings: () => ["github-copilot", "openai-codex"],
   getProviderGroupMetadata: (provider: string) => ({
     label:
-      provider === "anthropic"
-        ? "Anthropic"
-        : provider === "github-copilot"
-          ? "GitHub Copilot"
-          : provider === "openai-codex"
-            ? "OpenAI Codex"
-            : provider,
+      provider === "github-copilot"
+        ? "GitHub Copilot"
+        : provider === "openai-codex"
+          ? "OpenAI Codex"
+          : provider,
   }),
   getSortedApiKeyProvidersForSettings: () => [] as string[],
 }));
@@ -83,8 +81,6 @@ vi.mock("@webaura/pi/auth/auth-service", () => ({
   },
   getOAuthProviderName: (provider: string) => {
     switch (provider) {
-      case "anthropic":
-        return "Anthropic (Claude Pro/Max)";
       case "github-copilot":
         return "GitHub Copilot";
       case "openai-codex":
@@ -116,7 +112,7 @@ vi.mock("@webaura/pi/auth/auth-service", () => ({
       });
     }
 
-    if (state.requireManualRedirect && (provider === "anthropic" || provider === "openai-codex")) {
+    if (state.requireManualRedirect && provider === "openai-codex") {
       await options?.onManualRedirect?.({
         authUrl: "https://provider.example/auth",
         instructions: "Paste the full redirect URL here.",
@@ -215,18 +211,18 @@ describe("provider settings", () => {
     const { ProviderSettings } = await import("@/components/provider-settings");
     const { rerender } = render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
 
     await waitFor(() => {
       expect(loginAndStoreOAuthProvider).toHaveBeenCalledWith(
-        "anthropic",
+        "openai-codex",
         "http://localhost:3000/auth/callback",
         expect.objectContaining({
           onManualRedirect: expect.any(Function),
           proxyUrl: "https://proxy.example/proxy",
         }),
       );
-      expect(toastSuccess).toHaveBeenCalledWith("Connected to Anthropic (Claude Pro/Max)");
+      expect(toastSuccess).toHaveBeenCalledWith("Connected to OpenAI Codex");
     });
 
     rerender(React.createElement(ProviderSettings));
@@ -238,7 +234,7 @@ describe("provider settings", () => {
     const { ProviderSettings } = await import("@/components/provider-settings");
     render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
 
     expect(await screen.findByText("Complete browser sign-in")).toBeTruthy();
     expect(screen.getByText("Paste the full redirect URL here.")).toBeTruthy();
@@ -250,7 +246,7 @@ describe("provider settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("Connected to Anthropic (Claude Pro/Max)");
+      expect(toastSuccess).toHaveBeenCalledWith("Connected to OpenAI Codex");
     });
   });
 
@@ -259,7 +255,7 @@ describe("provider settings", () => {
     const { ProviderSettings } = await import("@/components/provider-settings");
     render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
 
     expect(await screen.findByText("Complete device sign-in")).toBeTruthy();
     expect(screen.getByText("ABCD-1234")).toBeTruthy();
@@ -271,7 +267,7 @@ describe("provider settings", () => {
     const { ProviderSettings } = await import("@/components/provider-settings");
     render(React.createElement(ProviderSettings));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
 
     expect(await screen.findByText("OAuth failed")).toBeTruthy();
   });

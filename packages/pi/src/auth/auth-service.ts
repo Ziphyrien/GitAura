@@ -1,6 +1,5 @@
 import { getIsoNow } from "@webaura/pi/lib/dates";
 import { deleteProviderKey, getProviderKey, setProviderKey } from "@webaura/db";
-import { loginAnthropic } from "@webaura/pi/auth/providers/anthropic";
 import { loginGitHubCopilot } from "@webaura/pi/auth/providers/github-copilot";
 import { loginOpenAICodex } from "@webaura/pi/auth/providers/openai-codex";
 import {
@@ -32,8 +31,6 @@ export async function oauthLogin(
   options?: OAuthRequestOptions,
 ): Promise<OAuthCredentials> {
   switch (provider) {
-    case "anthropic":
-      return await loginAnthropic(redirectUri, options);
     case "github-copilot":
       return await loginGitHubCopilot(onDeviceCode ?? (() => {}), options);
     case "openai-codex":
