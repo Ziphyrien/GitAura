@@ -1,0 +1,4 @@
+{"file":".trellis/spec/ui/frontend/index.md","reason":"Verify UI package conventions for pending button state."}
+{"file":".trellis/spec/ui/frontend/component-guidelines.md","reason":"Verify component prop and rendering patterns."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Check existing button/icon reuse."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Check pending state clears across async share outcomes."}

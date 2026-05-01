@@ -195,6 +195,7 @@ export function Chat(props: ChatProps) {
   const [manualShareLink, setManualShareLink] = React.useState<CreatedShareLink | undefined>(
     undefined,
   );
+  const [isSharePending, setIsSharePending] = React.useState(false);
   const runtime = useRuntimeSession(props.sessionId);
   const { isStartingSession, startNewConversation } = useConversationStarter();
   const ownership = useSessionOwnership(
@@ -524,6 +525,12 @@ export function Chat(props: ChatProps) {
   }, [messages]);
 
   const handleShareSession = React.useCallback(() => {
+    if (isSharePending) {
+      return;
+    }
+
+    setIsSharePending(true);
+
     const snapshot = buildShareSnapshot(messages, {
       model: activeSession?.model ?? draft?.model,
       provider: activeSession?.provider,
@@ -549,8 +556,16 @@ export function Chat(props: ChatProps) {
         }
 
         toast.error("Failed to create share link");
-      });
-  }, [activeSession?.model, activeSession?.provider, activeSession?.title, draft?.model, messages]);
+      })
+      .finally(() => setIsSharePending(false));
+  }, [
+    activeSession?.model,
+    activeSession?.provider,
+    activeSession?.title,
+    draft?.model,
+    isSharePending,
+    messages,
+  ]);
 
   const handleCopyManualShareLink = React.useCallback(() => {
     if (!manualShareLink) {
@@ -694,7 +709,11 @@ export function Chat(props: ChatProps) {
         <div className="mx-auto w-full max-w-4xl px-4">
           <div className="pointer-events-auto flex items-center justify-end pb-2">
             {messages.length > 0 ? (
-              <SessionUtilityActions onCopy={handleCopySession} onShare={handleShareSession} />
+              <SessionUtilityActions
+                isSharing={isSharePending}
+                onCopy={handleCopySession}
+                onShare={handleShareSession}
+              />
             ) : null}
           </div>
         </div>

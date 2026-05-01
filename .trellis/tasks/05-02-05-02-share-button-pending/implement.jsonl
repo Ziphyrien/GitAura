@@ -1,0 +1,4 @@
+{"file":".trellis/spec/ui/frontend/index.md","reason":"UI package frontend conventions apply to button state changes."}
+{"file":".trellis/spec/ui/frontend/component-guidelines.md","reason":"Component prop and rendering patterns apply to SessionUtilityActions."}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"Reuse existing button/icon patterns instead of adding new primitives."}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Share UI pending state is driven by async share creation and clipboard outcomes."}
