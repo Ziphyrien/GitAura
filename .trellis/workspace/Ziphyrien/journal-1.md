@@ -40,3 +40,37 @@ Implemented client-only conversation sharing with URL-fragment shares for small 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: NIP-66 Nostr share discovery
+
+**Date**: 2026-05-02
+**Task**: NIP-66 Nostr share discovery
+**Package**: extension
+**Branch**: `main`
+
+### Summary
+
+Replaced broken Nostr.watch REST discovery with NIP-66 relay discovery, added active WebSocket relay read/write verification, optional proxied NIP-11 metadata, and a manual clipboard fallback for generated share links.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e962fc7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
