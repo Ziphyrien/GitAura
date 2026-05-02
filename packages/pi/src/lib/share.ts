@@ -340,9 +340,11 @@ function isHex(value: string, bytes?: number): boolean {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  return copy.buffer;
+  if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) {
+    return bytes.buffer as ArrayBuffer;
+  }
+
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 async function sha256(bytes: Uint8Array): Promise<Uint8Array> {
@@ -735,7 +737,7 @@ function createUnsignedEvent(input: {
   };
 }
 
-async function getEventId(event: UnsignedNostrEvent): Promise<string> {
+async function getEventIdBytes(event: UnsignedNostrEvent): Promise<Uint8Array> {
   const serialized = JSON.stringify([
     0,
     event.pubkey,
@@ -744,16 +746,20 @@ async function getEventId(event: UnsignedNostrEvent): Promise<string> {
     event.tags,
     event.content,
   ]);
-  return bytesToHex(await sha256(TEXT_ENCODER.encode(serialized)));
+  return sha256(TEXT_ENCODER.encode(serialized));
+}
+
+async function getEventId(event: UnsignedNostrEvent): Promise<string> {
+  return bytesToHex(await getEventIdBytes(event));
 }
 
 async function signEvent(event: UnsignedNostrEvent, secretKey: Uint8Array): Promise<NostrEvent> {
-  const id = await getEventId(event);
-  const sig = schnorr.sign(hexToBytes(id), secretKey);
+  const idBytes = await getEventIdBytes(event);
+  const sig = schnorr.sign(idBytes, secretKey);
 
   return {
     ...event,
-    id,
+    id: bytesToHex(idBytes),
     sig: bytesToHex(sig),
   };
 }
@@ -800,36 +806,39 @@ export async function buildNostrShareEvents(input: {
   const pubkey = bytesToHex(schnorr.getPublicKey(secretKey));
   const shareId = bytesToBase64Url(randomBytes(16));
   const chunks = splitBytes(input.ciphertext, NOSTR_CHUNK_SIZE_BYTES);
-  const chunkEvents: NostrEvent[] = [];
-  const descriptors: NostrChunkDescriptor[] = [];
+  const chunkResults = await Promise.all(
+    chunks.map(async (chunk, index) => {
+      const hash = bytesToHex(await sha256(chunk));
+      const event = await signEvent(
+        createUnsignedEvent({
+          content: bytesToBase64Url(chunk),
+          now: input.now,
+          pubkey,
+          tags: [
+            ["d", `${shareId}:chunk:${index}`],
+            ["client", SHARE_APP_ID],
+            ["webaura-share", shareId],
+            ["type", "chunk"],
+            ["index", String(index)],
+            ["sha256", hash],
+          ],
+        }),
+        secretKey,
+      );
 
-  for (const [index, chunk] of chunks.entries()) {
-    const hash = bytesToHex(await sha256(chunk));
-    const event = await signEvent(
-      createUnsignedEvent({
-        content: bytesToBase64Url(chunk),
-        now: input.now,
-        pubkey,
-        tags: [
-          ["d", `${shareId}:chunk:${index}`],
-          ["client", SHARE_APP_ID],
-          ["webaura-share", shareId],
-          ["type", "chunk"],
-          ["index", String(index)],
-          ["sha256", hash],
-        ],
-      }),
-      secretKey,
-    );
-
-    chunkEvents.push(event);
-    descriptors.push({
-      eventId: event.id,
-      hash,
-      index,
-      size: chunk.byteLength,
-    });
-  }
+      return {
+        descriptor: {
+          eventId: event.id,
+          hash,
+          index,
+          size: chunk.byteLength,
+        },
+        event,
+      };
+    }),
+  );
+  const chunkEvents = chunkResults.map((result) => result.event);
+  const descriptors = chunkResults.map((result) => result.descriptor);
 
   const manifest: NostrManifestContent = {
     app: SHARE_APP_ID,
@@ -1302,10 +1311,10 @@ async function assembleNostrCiphertext(
   manifest: NostrManifestContent,
   events: Map<string, NostrEvent>,
 ): Promise<Uint8Array> {
-  const chunks = manifest.chunks
-    .slice()
-    .sort((left, right) => left.index - right.index)
-    .map((chunk) => {
+  const output = new Uint8Array(manifest.encryptedBytes);
+
+  await Promise.all(
+    manifest.chunks.map(async (chunk) => {
       const event = events.get(chunk.eventId);
 
       if (!event) {
@@ -1318,29 +1327,13 @@ async function assembleNostrCiphertext(
         throw new ShareError("missing_chunks", "An encrypted chat chunk has an invalid size.");
       }
 
-      return { bytes, expectedHash: chunk.hash };
-    });
-  const totalLength = chunks.reduce((total, chunk) => total + chunk.bytes.byteLength, 0);
+      const actualHash = bytesToHex(await sha256(bytes));
 
-  if (totalLength !== manifest.encryptedBytes) {
-    throw new ShareError("missing_chunks", "The encrypted chat chunks do not match the manifest.");
-  }
-
-  const output = new Uint8Array(totalLength);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    output.set(chunk.bytes, offset);
-    offset += chunk.bytes.byteLength;
-  }
-
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const actualHash = bytesToHex(await sha256(chunk.bytes));
-
-      if (actualHash !== chunk.expectedHash) {
+      if (actualHash !== chunk.hash) {
         throw new ShareError("missing_chunks", "An encrypted chat chunk failed integrity checks.");
       }
+
+      output.set(bytes, chunk.index * manifest.chunkSize);
     }),
   );
 
